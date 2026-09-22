@@ -4,10 +4,15 @@ import RimeEngine
 /// The suggestion strip above the keys: a fixed row of candidates, laid out like the system
 /// suggestion bar.
 ///
-/// Deliberately constraint-light. Every constraint is anchored inside the view that owns it, so
-/// no activation can ever happen between two views that share no ancestor — that mistake threw
-/// an NSInternalInconsistencyException on the first key press and took the whole keyboard down.
+/// Two rules earned the hard way:
+///  - every constraint is anchored inside the view that owns it, so no activation can happen
+///    between two views that share no ancestor (that threw on the first key press and killed the
+///    extension);
+///  - buttons are pooled and updated in place. Creating and destroying five buttons plus
+///    separators on every keystroke was a large part of why typing felt laggy.
 final class CandidateBar: UIView {
+  private static let maxCandidates = 5
+
   private let stack = UIStackView()
   private let messageLabel = UILabel()
   private var buttons: [UIButton] = []
@@ -57,23 +62,56 @@ final class CandidateBar: UIView {
   }
 
   func setCandidates(_ candidates: [RimeCandidateItem], highlighted: Int) {
-    clearCandidates()
-    messageLabel.isHidden = !candidates.isEmpty
-    stack.isHidden = candidates.isEmpty
+    guard !candidates.isEmpty else {
+      stack.isHidden = true
+      messageLabel.isHidden = (messageLabel.text ?? "").isEmpty
+      return
+    }
+    // The first real candidate retires the boot diagnostics for good.
+    messageLabel.text = nil
+    messageLabel.isHidden = true
+    stack.isHidden = false
 
-    for (index, candidate) in candidates.enumerated() {
+    let count = min(candidates.count, Self.maxCandidates)
+    ensureButtons(count: count)
+
+    for (index, button) in buttons.enumerated() {
+      let visible = index < count
+      button.isHidden = !visible
+      guard visible else { continue }
+      let title = candidates[index].text
+      if button.title(for: .normal) != title {
+        button.setTitle(title, for: .normal)
+      }
+      let fill = index == highlighted ? theme.candidateHighlightFill : UIColor.clear
+      if button.backgroundColor != fill {
+        button.backgroundColor = fill
+      }
+    }
+  }
+
+  /// Boot diagnostics. The candidate strip is the one piece of screen real estate the keyboard
+  /// always owns, so this is where a device user can read what happened.
+  func setMessage(_ message: String) {
+    stack.isHidden = true
+    messageLabel.text = message
+    messageLabel.isHidden = message.isEmpty
+  }
+
+  @objc private func handleTap(_ sender: UIButton) {
+    onSelect?(sender.tag)
+  }
+
+  private func ensureButtons(count: Int) {
+    while buttons.count < count {
       let button = UIButton(type: .custom)
-      button.setTitle(candidate.text, for: .normal)
       button.setTitleColor(theme.candidateText, for: .normal)
       button.titleLabel?.font = .systemFont(ofSize: 20)
       button.titleLabel?.adjustsFontSizeToFitWidth = true
       button.titleLabel?.minimumScaleFactor = 0.6
-      button.tag = index
+      button.tag = buttons.count
       button.addTarget(self, action: #selector(handleTap(_:)), for: .touchUpInside)
-      if index == highlighted {
-        button.backgroundColor = theme.candidateHighlightFill
-      }
-      if index > 0 {
+      if !buttons.isEmpty {
         addSeparator(to: button)
       }
       stack.addArrangedSubview(button)
@@ -81,29 +119,6 @@ final class CandidateBar: UIView {
     }
   }
 
-  /// Boot diagnostics. The candidate strip is the one piece of screen real estate the keyboard
-  /// always owns, so this is where a device user can read what happened.
-  func setMessage(_ message: String) {
-    clearCandidates()
-    stack.isHidden = true
-    messageLabel.isHidden = false
-    messageLabel.text = message
-  }
-
-  @objc private func handleTap(_ sender: UIButton) {
-    onSelect?(sender.tag)
-  }
-
-  private func clearCandidates() {
-    for button in buttons {
-      stack.removeArrangedSubview(button)
-      button.removeFromSuperview()
-    }
-    buttons.removeAll()
-  }
-
-  /// The separator lives inside its own candidate's bounds, so both anchors always belong to
-  /// views that share a superview before the constraint is activated.
   private func addSeparator(to host: UIView) {
     let separator = UIView()
     separator.backgroundColor = theme.separator

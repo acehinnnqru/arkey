@@ -33,29 +33,73 @@ final class RimeEngineTests: XCTestCase {
   }
 
   /// The tracer's whole reason to exist: deploy the schema, type nihao, commit 你好.
-  func testDeployComposeAndCommit() async throws {
+  func testDeployComposeAndCommit() throws {
     let directories = try makeScratchDirectories()
     let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
 
-    let started = try await engine.start()
+    let started = try engine.start()
     XCTAssertNotNil(started.milliseconds)
 
-    let maintenance = try await engine.runMaintenance(fullCheck: true)
+    let maintenance = try engine.runMaintenance(fullCheck: true)
     XCTAssertNotNil(maintenance.milliseconds)
 
-    try await engine.openSession()
+    try engine.openSession()
 
-    var output = try await engine.processKeys("nihao")
+    var output = try engine.processKeys("nihao")
     XCTAssertTrue(output.isComposing, "expected an active composition after typing nihao")
     XCTAssertEqual(output.preedit, "ni hao")
     XCTAssertEqual(output.candidates.first?.text, "你好")
 
-    output = try await engine.selectCandidate(at: 0)
+    output = try engine.selectCandidate(at: 0)
     XCTAssertEqual(output.commit, "你好")
 
-    let settled = try await engine.processKeys("")
+    let settled = try engine.processKeys("")
     XCTAssertFalse(settled.isComposing, "composition should be gone after committing")
 
-    await engine.shutdown()
+    engine.shutdown()
+  }
+
+  /// The keyboard types a character literally when librime declines the key. This is the
+  /// precondition for that fallback: the tracer schema ships no punctuator, so "." is declined
+  /// outright, and without the fallback the key did nothing at all.
+  func testSchemaDeclinesPunctuation() throws {
+    let directories = try makeScratchDirectories()
+    let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
+    _ = try engine.start()
+    _ = try engine.runMaintenance(fullCheck: true)
+    try engine.openSession()
+
+    let output = try engine.processKey(RimeKey.ascii(".") ?? 0x2E)
+    XCTAssertFalse(output.handled, "a punctuator-less schema should decline '.'")
+    XCTAssertTrue((output.commit ?? "").isEmpty)
+    XCTAssertFalse(output.isComposing)
+
+    engine.shutdown()
+  }
+
+  /// The space key is the primary commit path, and what it produces depends on the dictionary.
+  /// Measured, not assumed: an exact entry commits that entry, and an input with no entry at all
+  /// comes back as the raw letters, which is what a user sees as "no Chinese came out".
+  func testSpaceCommitsTheCandidateOrTheRawInput() throws {
+    let directories = try makeScratchDirectories()
+    let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
+    _ = try engine.start()
+    _ = try engine.runMaintenance(fullCheck: true)
+    try engine.openSession()
+
+    // Exact entry: space commits it.
+    var output = try engine.processKeys("shurufa")
+    XCTAssertEqual(output.candidates.first?.text, "输入法")
+    output = try engine.processKey(RimeKey.space)
+    XCTAssertEqual(output.commit, "输入法")
+
+    // No entry at all: the composition is still there and space hands the raw input back.
+    output = try engine.processKeys("woaini")
+    XCTAssertTrue(output.candidates.isEmpty)
+    XCTAssertTrue(output.isComposing)
+    output = try engine.processKey(RimeKey.space)
+    XCTAssertEqual(output.commit, "woaini")
+
+    engine.shutdown()
   }
 }

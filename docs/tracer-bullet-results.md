@@ -229,9 +229,64 @@ preview render       candidates 你好|你|拟|尼, rows qwertyuiop / asdfghjkl 
                      bottom row 123 | emoji | 空格 | 辅码 | 换行, globe row below
 ```
 
+## P2 follow-up — the input path was the problem
+
+The second device run typed but felt laggy and often produced nothing. The probe log cleared the
+engine of suspicion: boot takes 1.7–4.7 ms and the process sits at 6–9 MB. The input path was at
+fault, in three separate ways.
+
+### 1. Every key hopped through an actor
+
+`send(_:)` wrapped each keystroke in `Task { await engine.processKey(...) }`: two scheduling
+hops per key, and the order of concurrent keys left to the scheduler. `RimeEngine` is no longer
+an actor. It is a plain class owning a dedicated serial queue, and every public method runs its
+body on that queue, so callers get an ordinary synchronous call with no hops and strict ordering.
+The keyboard calls it directly from the main thread, where a key press is well under a
+millisecond.
+
+### 2. Every key rebuilt the whole interface
+
+- `CandidateBar.setCandidates` destroyed and recreated all five buttons, their separators and
+  their constraints on each keystroke. It now pools the buttons and only updates titles,
+  visibility and the highlight.
+- `KeyboardKeyGrid.configure` restyled roughly 45 views (fonts, colours, and `UIImage(systemName:)`
+  lookups for shift/delete/emoji/globe) on every key. It now compares against the last applied
+  configuration and returns immediately when nothing changed.
+- `textDidChange` — which fires on every marked-text update — restyled the grid too. It now does
+  work only when the keyboard appearance actually changed.
+
+A stalled main thread is also how UIKit silently drops touches, so this was a plausible
+contributor to keys that never appeared.
+
+### 3. Keys librime declined vanished
+
+The tracer schema has no `punctuator`, so librime refuses `.` and `,` outright: `handled`
+comes back false with no commit. The controller did nothing in that case, so the key produced
+nothing at all. It now types the literal character whenever librime declines the key and there is
+no active composition — the same contract native keyboards have with their input engine. A
+regression test (`testSchemaDeclinesPunctuation`) pins the precondition that made this visible.
+
+### New evidence: per-key latency
+
+The controller now measures the key path (engine call plus UI update) and appends a
+`keyboard.stats` record to the probe log every 25 keys, plus a flush when the keyboard
+disappears. Keys slower than 50 ms are logged individually to the system log. That turns "feels
+laggy" into `keys=25 avgMs=… maxMs=…` in the diagnostics screen.
+
+### Verified
+
+```
+swift test           3 tests pass, including the new punctuation-precondition test
+simulator build      BUILD SUCCEEDED
+device compile       BUILD SUCCEEDED
+preview render       unchanged after the button-pooling rewrite
+```
+
 ### Still open
 
-- On-device confirmation that typing `nihao` commits `你好` and that the keyboard survives a
-  long session, plus the P3 memory and launch numbers.
-- Pagination, the emoji layer, and a real 辅码 behaviour are still out of scope.
+- Device confirmation of typing feel now that the path is synchronous, plus the P3 memory and
+  launch numbers.
+- Pagination, the emoji layer, and a real behaviour for the aux-code key are still out of scope.
+- The punctuation gap is a schema decision, not a code one: the tracer schema needs a
+  `punctuator` section (or an imported preset) before it can produce Chinese punctuation.
 

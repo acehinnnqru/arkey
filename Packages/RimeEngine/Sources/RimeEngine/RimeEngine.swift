@@ -26,13 +26,19 @@ public struct RimeConfiguration: Sendable {
 
 /// The single serialisation domain for librime.
 ///
-/// librime keeps process-global state and is not thread-safe, so every call goes through this
-/// actor and nothing else touches the C API.
-public actor RimeEngine {
-  public private(set) var records: [RimeProbeRecord] = []
-
+/// librime keeps process-global state and is not thread-safe, so one engine owns one dedicated
+/// serial queue and every public method runs its body on it. Callers get an ordinary synchronous
+/// call: no actor hop, no reordering, no per-keystroke latency. The keyboard calls this straight
+/// from the main thread, where a key press is well under a millisecond.
+///
+/// This replaced an actor. The actor was correct but every key press paid two hops and the
+/// ordering of concurrent keystrokes was left to the scheduler, which showed up as a keyboard
+/// that felt laggy and occasionally dropped input.
+public final class RimeEngine {
+  private let queue = DispatchQueue(label: "com.acehinnnqru.arkey.rime-engine")
   private let configuration: RimeConfiguration
   private let probeLog: RimeProbeLog?
+  private var records: [RimeProbeRecord] = []
   private var allocatedStrings: [CStringBox] = []
   private var api: UnsafeMutablePointer<rime_api_t>?
   private var session: RimeSessionId?
@@ -45,10 +51,80 @@ public actor RimeEngine {
 
   public static var librimeVersion: String { RimeAPI.version }
 
+  public func probeRecords() -> [RimeProbeRecord] {
+    queue.sync { records }
+  }
+
   // MARK: - Lifecycle
 
   @discardableResult
   public func start() throws -> RimeProbeRecord {
+    try queue.sync { try startLocked() }
+  }
+
+  /// Runs the deployer. Only the app should do this; the extension must find prebuilt tables.
+  @discardableResult
+  public func runMaintenance(fullCheck: Bool = true) throws -> RimeProbeRecord {
+    try queue.sync { try runMaintenanceLocked(fullCheck: fullCheck) }
+  }
+
+  public func openSession() throws {
+    try queue.sync { try openSessionLocked() }
+  }
+
+  public func closeSession() {
+    queue.sync { closeSessionLocked() }
+  }
+
+  public func shutdown() {
+    queue.sync { shutdownLocked() }
+  }
+
+  // MARK: - Input
+
+  @discardableResult
+  public func processKey(_ keyCode: Int32, modifiers: RimeModifier = .none) throws -> RimeOutput {
+    try queue.sync { try processKeyLocked(keyCode, modifiers: modifiers) }
+  }
+
+  /// Convenience for tests and for replaying a whole string of ASCII input.
+  @discardableResult
+  public func processKeys(_ text: String) throws -> RimeOutput {
+    try queue.sync { try processKeysLocked(text) }
+  }
+
+  @discardableResult
+  public func selectCandidate(at index: Int) throws -> RimeOutput {
+    try queue.sync { try selectCandidateLocked(at: index) }
+  }
+
+  @discardableResult
+  public func changePage(backward: Bool) throws -> RimeOutput {
+    try queue.sync { try changePageLocked(backward: backward) }
+  }
+
+  /// Toggles a runtime option such as ascii_mode, which is how the shift key works here.
+  public func setOption(_ name: String, _ value: Bool) throws {
+    try queue.sync { try setOptionLocked(name, value) }
+  }
+
+  public func getOption(_ name: String) throws -> Bool {
+    try queue.sync { try getOptionLocked(name) }
+  }
+
+  /// Re-reads context and status without processing a key.
+  @discardableResult
+  public func refresh() throws -> RimeOutput {
+    try queue.sync { try refreshLocked() }
+  }
+
+  public func clearComposition() throws {
+    try queue.sync { try clearCompositionLocked() }
+  }
+
+  // MARK: - Lifecycle (queue)
+
+  private func startLocked() throws -> RimeProbeRecord {
     if isStarted, let last = records.last { return last }
     let start = DispatchTime.now().uptimeNanoseconds
     guard let pointer = RimeAPI.pointer,
@@ -92,9 +168,7 @@ public actor RimeEngine {
                   message: "librime " + RimeAPI.version + " writableRoot=" + directories.writableRoot.rawValue)
   }
 
-  /// Runs the deployer. Only the app should do this; the extension must find prebuilt tables.
-  @discardableResult
-  public func runMaintenance(fullCheck: Bool = true) throws -> RimeProbeRecord {
+  private func runMaintenanceLocked(fullCheck: Bool) throws -> RimeProbeRecord {
     let api = try requireAPI()
     guard let startMaintenance = api.pointee.start_maintenance else {
       throw RimeEngineError.deploymentFailed
@@ -109,7 +183,7 @@ public actor RimeEngine {
                   message: (fullCheck ? "full check" : "incremental") + ", started=" + String(running))
   }
 
-  public func openSession() throws {
+  private func openSessionLocked() throws {
     let api = try requireAPI()
     if let existing = session, let find = api.pointee.find_session, find(existing) { return }
     guard let create = api.pointee.create_session else { throw RimeEngineError.apiUnavailable }
@@ -118,24 +192,23 @@ public actor RimeEngine {
     session = created
   }
 
-  public func closeSession() {
+  private func closeSessionLocked() {
     guard let api, let session, let destroy = api.pointee.destroy_session else { return }
     _ = destroy(session)
     self.session = nil
   }
 
-  public func shutdown() {
-    closeSession()
+  private func shutdownLocked() {
+    closeSessionLocked()
     api?.pointee.finalize?()
     api = nil
     isStarted = false
     allocatedStrings = []
   }
 
-  // MARK: - Input
+  // MARK: - Input (queue)
 
-  @discardableResult
-  public func processKey(_ keyCode: Int32, modifiers: RimeModifier = .none) throws -> RimeOutput {
+  private func processKeyLocked(_ keyCode: Int32, modifiers: RimeModifier) throws -> RimeOutput {
     let api = try requireAPI()
     let session = try requireSession(api: api)
     guard let processKey = api.pointee.process_key else { throw RimeEngineError.apiUnavailable }
@@ -143,21 +216,18 @@ public actor RimeEngine {
     return readOutput(api: api, session: session, handled: handled)
   }
 
-  /// Convenience for tests and for replaying a whole string of ASCII input.
-  @discardableResult
-  public func processKeys(_ text: String) throws -> RimeOutput {
+  private func processKeysLocked(_ text: String) throws -> RimeOutput {
     var last: RimeOutput?
     for character in text {
       guard let key = RimeKey.ascii(character) else { continue }
-      last = try processKey(key)
+      last = try processKeyLocked(key, modifiers: .none)
     }
     if let last { return last }
     let api = try requireAPI()
     return readOutput(api: api, session: try requireSession(api: api), handled: false)
   }
 
-  @discardableResult
-  public func selectCandidate(at index: Int) throws -> RimeOutput {
+  private func selectCandidateLocked(at index: Int) throws -> RimeOutput {
     let api = try requireAPI()
     let session = try requireSession(api: api)
     guard let select = api.pointee.select_candidate else { throw RimeEngineError.apiUnavailable }
@@ -165,8 +235,7 @@ public actor RimeEngine {
     return readOutput(api: api, session: session, handled: true)
   }
 
-  @discardableResult
-  public func changePage(backward: Bool) throws -> RimeOutput {
+  private func changePageLocked(backward: Bool) throws -> RimeOutput {
     let api = try requireAPI()
     let session = try requireSession(api: api)
     guard let changePage = api.pointee.change_page else { throw RimeEngineError.apiUnavailable }
@@ -174,8 +243,7 @@ public actor RimeEngine {
     return readOutput(api: api, session: session, handled: true)
   }
 
-  /// Toggles a runtime option such as ascii_mode, which is how the shift key works here.
-  public func setOption(_ name: String, _ value: Bool) throws {
+  private func setOptionLocked(_ name: String, _ value: Bool) throws {
     let api = try requireAPI()
     let session = try requireSession(api: api)
     guard let setOption = api.pointee.set_option else { throw RimeEngineError.apiUnavailable }
@@ -183,7 +251,7 @@ public actor RimeEngine {
     setOption(session, box.raw, value)
   }
 
-  public func getOption(_ name: String) throws -> Bool {
+  private func getOptionLocked(_ name: String) throws -> Bool {
     let api = try requireAPI()
     let session = try requireSession(api: api)
     guard let getOption = api.pointee.get_option else { throw RimeEngineError.apiUnavailable }
@@ -191,20 +259,18 @@ public actor RimeEngine {
     return getOption(session, box.raw)
   }
 
-  /// Re-reads context and status without processing a key.
-  @discardableResult
-  public func refresh() throws -> RimeOutput {
+  private func refreshLocked() throws -> RimeOutput {
     let api = try requireAPI()
     return readOutput(api: api, session: try requireSession(api: api), handled: false)
   }
 
-  public func clearComposition() throws {
+  private func clearCompositionLocked() throws {
     let api = try requireAPI()
     let session = try requireSession(api: api)
     api.pointee.clear_composition?(session)
   }
 
-  // MARK: - Internals
+  // MARK: - Internals (queue)
 
   private func requireAPI() throws -> UnsafeMutablePointer<rime_api_t> {
     if let api { return api }

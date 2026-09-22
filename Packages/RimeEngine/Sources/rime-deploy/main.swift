@@ -56,9 +56,9 @@ let directories = RimeDirectories(sharedDataDir: sharedURL.path,
 let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
 
 do {
-  _ = try await engine.start()
-  let record = try await engine.runMaintenance(fullCheck: true)
-  await engine.shutdown()
+  _ = try engine.start()
+  let record = try engine.runMaintenance(fullCheck: true)
+  engine.shutdown()
 
   let produced = ((try? fileManager.contentsOfDirectory(atPath: stagingURL.path)) ?? []).sorted()
   print(String(format: "deployment: %.0f ms, %d files", record.milliseconds ?? 0, produced.count))

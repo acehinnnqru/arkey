@@ -47,12 +47,26 @@ final class KeyboardKeyGrid: UIView {
   private var returnKeyLabel = "换行"
   private var showsGlobeRow = false
   private var builtForGlobeRow = false
+  /// Last configuration actually applied. Restyling the whole grid on every keystroke (fonts,
+  /// SF Symbol lookups, colours) was a measurable part of the input latency.
+  private var applied: (layer: KeyLayer, asciiMode: Bool, returnKeyLabel: String,
+                        showsGlobeRow: Bool, appearance: UIKeyboardAppearance)?
 
   func configure(theme: KeyboardTheme,
                  layer: KeyLayer,
                  asciiMode: Bool,
                  returnKeyLabel: String,
                  showsGlobeRow: Bool) {
+    if let applied,
+       applied.layer == layer,
+       applied.asciiMode == asciiMode,
+       applied.returnKeyLabel == returnKeyLabel,
+       applied.showsGlobeRow == showsGlobeRow,
+       applied.appearance == theme.appearance {
+      return
+    }
+    applied = (layer, asciiMode, returnKeyLabel, showsGlobeRow, theme.appearance)
+
     self.theme = theme
     self.asciiMode = asciiMode
     self.returnKeyLabel = returnKeyLabel

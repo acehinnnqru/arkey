@@ -2,6 +2,10 @@ import UIKit
 import RimeEngine
 
 /// Rime keyboard: system-like key grid, candidate bar, and marked-text composition.
+///
+/// The whole input path is synchronous. The engine owns a serial queue, so a key press is one
+/// call plus one UI update with no scheduling hops; an earlier build hopped through an actor
+/// twice per key and updated every view on screen each time, which read as a laggy keyboard.
 final class KeyboardViewController: UIInputViewController {
   private let candidateBar = CandidateBar()
   private let keyGrid = KeyboardKeyGrid()
@@ -10,7 +14,12 @@ final class KeyboardViewController: UIInputViewController {
   private var theme = KeyboardTheme.current(for: .default)
   private var keyLayer: KeyLayer = .letters
   private var asciiMode = false
-  private var isComposing = false
+  private var markedText: String?
+
+  // Input latency evidence, flushed to the probe log every 25 keys.
+  private var keyCount = 0
+  private var keyTotalMilliseconds = 0.0
+  private var keyMaxMilliseconds = 0.0
 
   /// Keysym the aux-code key sends. Semicolon is the usual lead-in for auxiliary codes; it
   /// lives in one place so a schema can change it.
@@ -41,7 +50,7 @@ final class KeyboardViewController: UIInputViewController {
     candidateBar.onSelect = { [weak self] index in self?.selectCandidate(index) }
     keyGrid.onKey = { [weak self] key in self?.handle(key) }
 
-    startEngine()
+    prepareEngine()
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -49,7 +58,8 @@ final class KeyboardViewController: UIInputViewController {
     applyCurrentTheme()
     refreshLayout()
     updateHeight()
-    Task { try? await engine?.clearComposition() }
+    markedText = nil
+    try? engine?.clearComposition()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -57,19 +67,26 @@ final class KeyboardViewController: UIInputViewController {
     updateHeight()
   }
 
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    flushKeyStatistics()
+  }
+
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
-    applyCurrentTheme()
-    refreshLayout()
+    // This fires on every marked-text update, so it only does work when the appearance really
+    // changed.
+    let appearance = textDocumentProxy.keyboardAppearance ?? .default
+    if appearance != theme.appearance {
+      theme = KeyboardTheme.current(for: appearance)
+      applyCurrentTheme()
+      refreshLayout()
+    }
   }
 
   // MARK: - Engine
 
-  private func startEngine() {
-    Task { await prepareEngine() }
-  }
-
-  private func prepareEngine() async {
+  private func prepareEngine() {
     switch KeyboardEngine.setup {
     case .failure(let error):
       let reason = String(describing: error)
@@ -78,8 +95,8 @@ final class KeyboardViewController: UIInputViewController {
     case .success(let setup):
       engine = setup.engine
       do {
-        let start = try await setup.engine.start()
-        try await setup.engine.openSession()
+        let start = try setup.engine.start()
+        try setup.engine.openSession()
         let detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
         KeyboardLog.info("boot ok: " + detail)
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot",
@@ -105,41 +122,24 @@ final class KeyboardViewController: UIInputViewController {
     candidateBar.setMessage(userVisible + reason)
   }
 
-  private func send(_ keysym: Int32) {
-    Task { await process(keysym) }
-  }
-
-  private func process(_ keysym: Int32) async {
+  private func selectCandidate(_ index: Int) {
     guard let engine else { return }
     do {
-      apply(try await engine.processKey(keysym))
+      apply(try engine.selectCandidate(at: index))
     } catch {
-      report("key.failed", error, userVisible: "按键出错：")
-    }
-  }
-
-  private func selectCandidate(_ index: Int) {
-    Task {
-      guard let engine else { return }
-      do {
-        apply(try await engine.selectCandidate(at: index))
-      } catch {
-        report("select.failed", error, userVisible: "选词出错：")
-      }
+      report("select.failed", error, userVisible: "选词出错：")
     }
   }
 
   private func toggleAsciiMode() {
     asciiMode.toggle()
     refreshLayout()
-    Task {
-      guard let engine else { return }
-      do {
-        try await engine.setOption("ascii_mode", asciiMode)
-        apply(try await engine.refresh())
-      } catch {
-        report("option.failed", error, userVisible: "切换出错：")
-      }
+    guard let engine else { return }
+    do {
+      try engine.setOption("ascii_mode", asciiMode)
+      apply(try engine.refresh())
+    } catch {
+      report("option.failed", error, userVisible: "切换出错：")
     }
   }
 
@@ -150,22 +150,22 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     let preedit = output.preedit ?? ""
-    if preedit.isEmpty {
-      if isComposing {
-        textDocumentProxy.unmarkText()
+    if preedit != (markedText ?? "") {
+      if preedit.isEmpty {
+        if markedText != nil {
+          textDocumentProxy.unmarkText()
+        }
+        markedText = nil
+      } else {
+        textDocumentProxy.setMarkedText(preedit,
+                                        selectedRange: NSRange(location: (preedit as NSString).length,
+                                                               length: 0))
+        markedText = preedit
       }
-    } else {
-      textDocumentProxy.setMarkedText(preedit,
-                                      selectedRange: NSRange(location: (preedit as NSString).length, length: 0))
     }
-    isComposing = !preedit.isEmpty
 
     asciiMode = output.status?.isAsciiMode ?? asciiMode
-    if output.candidates.isEmpty {
-      candidateBar.setCandidates([], highlighted: 0)
-    } else {
-      candidateBar.setCandidates(output.candidates, highlighted: output.page?.highlightedIndex ?? 0)
-    }
+    candidateBar.setCandidates(output.candidates, highlighted: output.page?.highlightedIndex ?? 0)
     refreshLayout()
   }
 
@@ -174,20 +174,19 @@ final class KeyboardViewController: UIInputViewController {
   private func handle(_ key: KeyboardKey) {
     switch key {
     case .character(let value):
-      guard let keysym = RimeKey.ascii(Character(value)) else { return }
-      send(keysym)
+      typeLiteralKey(value)
     case .space:
-      send(RimeKey.space)
+      send(RimeKey.space, fallback: " ")
     case .auxCode:
-      send(auxCodeKeysym)
+      send(auxCodeKeysym, fallback: ";")
     case .backspace:
-      if isComposing {
-        send(RimeKey.backSpace)
-      } else {
+      if (markedText ?? "").isEmpty {
         textDocumentProxy.deleteBackward()
+      } else {
+        send(RimeKey.backSpace)
       }
     case .returnKey:
-      if isComposing {
+      if !(markedText ?? "").isEmpty {
         send(RimeKey.returnKey)
       }
       textDocumentProxy.insertText("\n")
@@ -205,6 +204,80 @@ final class KeyboardViewController: UIInputViewController {
       // The tracer ships no emoji layer; the key is here so the row matches the system one.
       break
     }
+  }
+
+  /// A character key: librime first, and the literal character when librime declines it.
+  ///
+  /// The fallback is not optional. The tracer schema has no punctuator, so librime refuses
+  /// "." and "," outright, and without this the key did nothing at all — which users read as
+  /// the keyboard dropping input.
+  private func typeLiteralKey(_ value: String) {
+    guard let engine, let keysym = RimeKey.ascii(Character(value)) else {
+      textDocumentProxy.insertText(value)
+      return
+    }
+    let start = DispatchTime.now().uptimeNanoseconds
+    do {
+      let output = try engine.processKey(keysym)
+      if !output.handled, (output.commit ?? "").isEmpty, !output.isComposing {
+        textDocumentProxy.insertText(value)
+        markedText = nil
+      }
+      apply(output)
+      recordKeyLatency(since: start)
+    } catch {
+      report("key.failed", error, userVisible: "按键出错：")
+      textDocumentProxy.insertText(value)
+    }
+  }
+
+  private func send(_ keysym: Int32, fallback: String? = nil) {
+    guard let engine else {
+      if let fallback { textDocumentProxy.insertText(fallback) }
+      return
+    }
+    let start = DispatchTime.now().uptimeNanoseconds
+    do {
+      let output = try engine.processKey(keysym)
+      if !output.handled, (output.commit ?? "").isEmpty, !output.isComposing, let fallback {
+        textDocumentProxy.insertText(fallback)
+      }
+      apply(output)
+      recordKeyLatency(since: start)
+    } catch {
+      report("key.failed", error, userVisible: "按键出错：")
+      if let fallback { textDocumentProxy.insertText(fallback) }
+    }
+  }
+
+  // MARK: - Latency evidence
+
+  private func recordKeyLatency(since start: UInt64) {
+    let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+    keyCount += 1
+    keyTotalMilliseconds += milliseconds
+    keyMaxMilliseconds = max(keyMaxMilliseconds, milliseconds)
+    if milliseconds > 50 {
+      KeyboardLog.error("slow key: " + String(format: "%.1f ms", milliseconds))
+    }
+    if keyCount % 25 == 0 {
+      flushKeyStatistics()
+    }
+  }
+
+  private func flushKeyStatistics() {
+    guard keyCount > 0, case .success(let setup) = KeyboardEngine.setup else { return }
+    let average = keyTotalMilliseconds / Double(keyCount)
+    let message = "keys=" + String(keyCount)
+      + " avgMs=" + String(format: "%.2f", average)
+      + " maxMs=" + String(format: "%.2f", keyMaxMilliseconds)
+    setup.probe?.append(RimeProbeRecord(phase: "keyboard.stats",
+                                        milliseconds: average,
+                                        message: message))
+    KeyboardLog.info("key stats: " + message)
+    keyCount = 0
+    keyTotalMilliseconds = 0
+    keyMaxMilliseconds = 0
   }
 
   // MARK: - Presentation

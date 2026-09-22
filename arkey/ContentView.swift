@@ -1,50 +1,66 @@
 import SwiftUI
 import RimeEngine
+import UIKit
 
-/// The host app exists to give the keyboard somewhere to type, and later to hold schema
-/// management and the probe log viewer.
+/// The host app exists to give the keyboard somewhere to type, and to hold the diagnostics.
+/// The text field owns the screen: a keyboard, custom or not, must never push it out of sight.
 struct ContentView: View {
   @State private var text = ""
   @State private var engineStatus = "engine check running..."
+  @State private var keyboardHeight: CGFloat = 0
   @FocusState private var isEditing: Bool
 
   var body: some View {
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 12) {
-          Text("键盘外观预览（与扩展共用同一套视图代码）")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-          KeyboardPreview()
-            .frame(height: KeyboardMetrics.totalHeight(needsGlobeRow: true))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+      VStack(alignment: .leading, spacing: 10) {
+        Text("在下面的输入框里切换到 Arkey 键盘试试。")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
 
-          Text("在下面的输入框里切换到 Arkey 键盘试试。")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-          TextEditor(text: $text)
-            .font(.system(size: 20))
-            .focused($isEditing)
-            .frame(height: 140)
-            .overlay {
-              RoundedRectangle(cornerRadius: 10)
-                .stroke(.quaternary)
-            }
-          // Same engine the keyboard uses, so a failure here is a failure there.
-          Text(engineStatus)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        }
-        .padding()
+        TextEditor(text: $text)
+          .font(.system(size: 20))
+          .focused($isEditing)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .overlay {
+            RoundedRectangle(cornerRadius: 10)
+              .stroke(.quaternary)
+          }
+
+        // Same engine the keyboard uses, so a failure here is a failure there.
+        Text(engineStatus)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
       }
+      .padding()
+      // The system announces the keyboard frame, but a third-party keyboard is not always
+      // reported the way the automatic avoidance expects, so the inset is applied explicitly.
+      .padding(.bottom, keyboardHeight)
+      .ignoresSafeArea(.keyboard, edges: .bottom)
       .navigationTitle("Arkey")
       .toolbar {
+        ToolbarItem(placement: .topBarLeading) {
+          NavigationLink("键盘") { KeyboardPreviewScreen() }
+        }
         ToolbarItem(placement: .topBarTrailing) {
           NavigationLink("诊断") { DiagnosticsView() }
         }
       }
       .task {
-        engineStatus = await EngineCheck.run()
+        engineStatus = EngineCheck.run()
+        isEditing = true
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+        guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+          return
+        }
+        let screenHeight = UIApplication.shared.connectedScenes
+          .compactMap { ($0 as? UIWindowScene)?.screen.bounds.height }
+          .first ?? frame.maxY
+        keyboardHeight = max(0, screenHeight - frame.origin.y)
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+        keyboardHeight = 0
       }
     }
   }
@@ -53,7 +69,7 @@ struct ContentView: View {
 /// Runs the tracer's vertical slice inside the iOS app sandbox: resolve directories, start
 /// librime, type nihao against the prebuilt tables shipped in the bundle, commit the candidate.
 enum EngineCheck {
-  static func run() async -> String {
+  static func run() -> String {
     do {
       guard let shared = RimeDirectories.bundledSharedDataURL() else {
         return "RimeData missing from the bundle"
@@ -65,12 +81,12 @@ enum EngineCheck {
       let probe = RimeProbeLog(url: probeURL)
       let engine = RimeEngine(configuration: RimeConfiguration(directories: directories),
                               probeLog: probe)
-      let start = try await engine.start()
-      try await engine.openSession()
-      let composing = try await engine.processKeys("nihao")
+      let start = try engine.start()
+      try engine.openSession()
+      let composing = try engine.processKeys("nihao")
       let candidate = composing.candidates.first?.text ?? "(no candidate)"
-      let committed = try await engine.selectCandidate(at: 0).commit ?? "(no commit)"
-      await engine.shutdown()
+      let committed = try engine.selectCandidate(at: 0).commit ?? "(no commit)"
+      engine.shutdown()
       let ms = Int(start.milliseconds ?? 0)
       probe.append(RimeProbeRecord(phase: "app.check", milliseconds: start.milliseconds,
                                    message: "root=" + directories.writableRoot.rawValue
