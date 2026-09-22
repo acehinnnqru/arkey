@@ -1,0 +1,43 @@
+# Arkey tracer schema.
+#
+# A miniature pinyin schema that walks the same librime code path as a real one
+# (speller -> prism -> script_translator -> candidates) without redistributing any
+# third-party dictionary.
+schema:
+  schema_id: tracer
+  name: Tracer
+  version: "0.1"
+  description: |
+    Minimal pinyin schema used by the Arkey tracer bullet.
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中文, 西文 ]
+  - name: full_shape
+    states: [ 半角, 全角 ]
+
+engine:
+  processors:
+    - ascii_composer
+    - speller
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - abc_segmentor
+    - fallback_segmentor
+  translators:
+    - script_translator
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+
+translator:
+  dictionary: tracer
+  # The tracer keeps no user dictionary: no leveldb, so nothing to lock between the app
+  # and the keyboard extension (see the leveldb lock risk in the design doc).
+  enable_user_dict: false
+  enable_sentence: false
+  enable_completion: false

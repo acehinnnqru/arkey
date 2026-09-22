@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+/DerivedData/
+/derived-data/
+/build/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Local scratch (never committed)
+/scratch/

@@ -1,0 +1,27 @@
+# Arkey tracer dictionary.
+#
+# Our own data: the repository redistributes no third-party dictionary.
+---
+name: tracer
+version: "0.1"
+sort: by_weight
+...
+
+你好	ni hao	100
+世界	shi jie	90
+方舟	fang zhou	80
+输入法	shu ru fa	70
+中文	zhong wen	60
+键盘	jian pan	50
+测试	ce shi	40
+你好世界	ni hao shi jie	35
+你	ni	20
+好	hao	18
+世	shi	12
+界	jie	10
+方	fang	8
+舟	zhou	6
+中	zhong	4
+文	wen	3
+键	jian	2
+盘	pan	1
