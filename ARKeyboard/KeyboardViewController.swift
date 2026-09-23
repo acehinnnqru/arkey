@@ -97,7 +97,10 @@ final class KeyboardViewController: UIInputViewController {
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
-        let detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
+        var detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
+        if let age = RimeProbe.processAgeSeconds() {
+          detail += " ageMs=" + String(format: "%.0f", age * 1000)
+        }
         KeyboardLog.info("boot ok: " + detail)
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot",
                                             milliseconds: start.milliseconds,

@@ -46,9 +46,17 @@ struct ContentView: View {
           NavigationLink("诊断") { DiagnosticsView() }
         }
       }
+      .onAppear {
+        LaunchProbe.mark("viewAppear")
+      }
       .task {
-        engineStatus = EngineCheck.run()
-        isEditing = true
+        // The engine check is a diagnostic, not startup work: it runs off the main thread so
+        // entering the app never waits for librime, and the field is not focused automatically
+        // because that spawns the keyboard extension on the launch path too.
+        let status = await Task.detached(priority: .utility) { EngineCheck.run() }.value
+        engineStatus = status
+        LaunchProbe.mark("checkDone")
+        LaunchProbe.flush()
       }
       .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
         guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
@@ -69,7 +77,8 @@ struct ContentView: View {
 /// Runs the tracer's vertical slice inside the iOS app sandbox: resolve directories, start
 /// librime, type nihao against the prebuilt tables shipped in the bundle, commit the candidate.
 enum EngineCheck {
-  static func run() -> String {
+  /// Off the main actor on purpose: it runs on a background task so startup never waits for it.
+  nonisolated static func run() -> String {
     do {
       guard let shared = RimeDirectories.bundledSharedDataURL() else {
         return "RimeData missing from the bundle"

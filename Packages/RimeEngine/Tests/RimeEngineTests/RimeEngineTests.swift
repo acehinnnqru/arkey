@@ -32,6 +32,16 @@ final class RimeEngineTests: XCTestCase {
     XCTAssertEqual(RimeEngine.librimeVersion, "1.17.0")
   }
 
+  /// The launch timeline leans on this to separate "dyld" from "our code".
+  func testProcessAgeIsReportedByTheKernel() {
+    guard let age = RimeProbe.processAgeSeconds() else {
+      XCTFail("the kernel did not report this process's start time")
+      return
+    }
+    XCTAssertGreaterThan(age, 0)
+    XCTAssertLessThan(age, 3600)
+  }
+
   /// The tracer's whole reason to exist: deploy the schema, type nihao, commit 你好.
   func testDeployComposeAndCommit() throws {
     let directories = try makeScratchDirectories()

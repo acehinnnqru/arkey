@@ -41,6 +41,22 @@ public enum RimeProbe {
   public static func megabytes(_ bytes: UInt64) -> Double {
     Double(bytes) / 1_048_576.0
   }
+
+  /// Seconds since this process started, straight from the kernel, or nil if it will not say.
+  /// This is what separates "dyld plus our own startup" from everything that happens afterwards:
+  /// a mark taken at first appearance can say how long the app took to get there at all.
+  public static func processAgeSeconds() -> Double? {
+    var info = kinfo_proc()
+    var size = MemoryLayout<kinfo_proc>.stride
+    var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+    guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0 else { return nil }
+    // p_starttime is wall-clock, so it has to be compared against the wall clock. Subtracting
+    // systemUptime (seconds since boot) from it is meaningless and yields a negative age.
+    let start = Double(info.kp_proc.p_starttime.tv_sec)
+      + Double(info.kp_proc.p_starttime.tv_usec) / 1_000_000
+    let age = Date().timeIntervalSince1970 - start
+    return age >= 0 ? age : nil
+  }
 }
 
 /// Append-only JSONL sink. The keyboard extension writes it, the app reads it.

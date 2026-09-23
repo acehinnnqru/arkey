@@ -3,10 +3,6 @@ import SwiftUI
 import RimeEngine
 import UIKit
 
-/// The app group container is the only channel between the keyboard process and this one, and
-/// it exists only when the user grants full access.
-private let appGroupID = "group.com.acehinnnqru.arkey"
-
 /// Reads the probe log the keyboard writes, so a failure on a device can be copied out of the
 /// app instead of guessed at from a truncated line above the keys.
 struct DiagnosticsView: View {
@@ -63,11 +59,7 @@ struct DiagnosticsView: View {
 
   // MARK: - Log access
 
-  private var logURL: URL? {
-    FileManager.default
-      .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
-      .appendingPathComponent("rime/log/probe.jsonl")
-  }
+  private var logURL: URL? { ProbeLogLocation.groupLogURL }
 
   /// Truncates the probe log in place rather than replacing the file: the keyboard may be
   /// appending at the same moment, and an atomic write would swap the inode out from under it.
@@ -96,6 +88,7 @@ struct DiagnosticsView: View {
       return
     }
     records = RimeProbeLog(url: url).readAll()
+    ProbeLogLocation.mirrorIntoAppContainer()
     status = records.isEmpty
       ? url.path + "（暂无记录）"
       : url.path

@@ -282,10 +282,50 @@ device compile       BUILD SUCCEEDED
 preview render       unchanged after the button-pooling rewrite
 ```
 
+## P3 — launch budget on device: measured
+
+Same app, same phone, two builds, neither started from Xcode:
+
+| | Debug build, started from Xcode | Release build, started via devicectl |
+| --- | --- | --- |
+| process start to App.init (dyld) | 16556 ms as reported | **10–16 ms** |
+| App.init to first appearance | 12309 ms as reported | **66–81 ms** |
+| engine check, now on a background task | 54 ms | **28–35 ms** |
+
+The Release column is the real launch: the app is usable roughly **100 ms** after it starts, and
+loading librime's 4.9 MB framework costs 10–16 ms. The app bundle is 6.1 MB, of which the framework
+is 4.9 MB.
+
+The Debug column is not a launch measurement, which is why it needs spelling out: iOS had
+**prewarmed** the process long before the icon was tapped, so "time since process start" includes
+the waiting, not the starting; the app then sat suspended between init and first appearance; and
+Xcode holds a Debug build at main until the debugger attaches. On top of that the Debug
+configuration carries `-Onone`, a debug dylib and the SwiftUI previews dylib.
+
+Consequence for the rest of the work: judge launch and typing feel on a Release build started from
+the home screen. A Cmd-R run in Xcode measures Xcode.
+
+### How the numbers are collected
+
+`arkeyApp.init()` and `ContentView.onAppear` mark a timeline; the engine check runs on a
+background task so it never sits between the user and the first frame; and the marks are written to
+the probe log as an `app.launch` record. The kernel's process start time is read with
+`sysctl(KERN_PROC_PID)`, which is what separates dyld from our own code — and which is worth a
+unit test, because the first version of it subtracted a wall-clock timestamp from seconds-since-boot
+and a later one underflowed a UInt64 by reading the clock before touching the static it was
+initialised from. Both were caught and fixed, the second by the crash report.
+
+The log lives in the app group container, which `devicectl` refuses to copy (it rejects any path
+with a spurious "File paths cannot contain '..'"). The app mirrors it into its own Documents
+directory on every launch, and that container copies fine, so the log can be pulled over USB
+without anyone copying text by hand.
+
 ### Still open
 
-- Device confirmation of typing feel now that the path is synchronous, plus the P3 memory and
-  launch numbers.
+- The keyboard extension's own launch cost: its boot record now carries `ageMs`, the time from the
+  extension process starting to its engine being ready. That is the number that decides how fast
+  the keyboard appears, and it needs one run on the device.
+- Typing feel on a Release build, with the `keyboard.stats` records from the same session.
 - Pagination, the emoji layer, and a real behaviour for the aux-code key are still out of scope.
 - The punctuation gap is a schema decision, not a code one: the tracer schema needs a
   `punctuator` section (or an imported preset) before it can produce Chinese punctuation.
