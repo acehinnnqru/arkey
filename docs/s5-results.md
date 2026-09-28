@@ -229,9 +229,35 @@ timestamp, bytes, conflict flag — the 用户词库 screen renders each with a 
 list and its timestamps, merges MAC only, and asserts PHONE's word is **not** in the export — the
 difference between a merge the user chose and one the folder chose.
 
+## A corrupt database is rebuilt in place, not restored (S5 §9, measured)
+
+§9's row said "Rime's own recovery renames it and restores from `sync/<id>/<dict>.userdb.txt` when one
+exists; we surface the event rather than hiding it". Measured on the pinned build — learn a word, shut
+the engine down, overwrite `tracer.userdb/CURRENT` with junk, start again:
+
+- librime logs `level_db.cc:259 ERROR Error opening db 'tracer': Corruption: CURRENT points to a
+  non-existent file: NotFound: …`, and later `level_db.cc:273 ERROR Error opening db 'tracer'
+  read-only.` The second line arrives with the first attempt to *use* the database.
+- **Nothing is renamed.** The directory keeps its name and is rebuilt empty in place: fresh leveldb
+  files, and a `LOG.old` left behind by the repair.
+- **Nothing is restored from the sync folder.** The schema keeps typing — from the base dictionary, not
+  from the user dictionary — so the failure is invisible unless it is surfaced. `export_user_dict`
+  fails afterwards (measured: it returns an error), which is also why the screen must not show "0 条" as
+  if the dictionary were merely empty.
+
+So the app keeps the half of the row it can: the event is parsed out of librime's own log
+(`RimeEngine.databaseIssues()`) and carried into
+`RimeUserDictionaryReport.Entry.databaseIssues`, where the 用户词库 screen shows librime's line and
+points at the two recovery paths the app has — the §4 backups with their 恢复 button, and the snapshot
+import. Pinned by `testACorruptDictionaryIsReportedWithLibrimesOwnReason`, verified from both sides:
+making `databaseIssues()` return nothing fails it.
+
+The spec's §9 row is amended in place with this measurement, because the sentence it carried was wrong
+about what librime does.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S5DictionaryEditTests` | 8 | adding an entry, replacing a weight instead of duplicating, the additive-import measurement, the named error for a dictionary with no database, removing the whole dictionary, the refusal while the keyboard holds the lease, and the export format round-tripping through its own writer |
-| `S5UserDictionaryTests` | 13 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
+| `S5UserDictionaryTests` | 14 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |

@@ -139,7 +139,7 @@ single most likely failure is a Mac pointing somewhere else.
 | --- | --- |
 | Lease hot | The screen says the keyboard has the dictionary and offers retry; nothing is written. |
 | leveldb open fails despite a cold lease | Same message, plus the librime error text; retry. |
-| Corrupt userdb | Rime's own recovery renames it and restores from `sync/<id>/<dict>.userdb.txt` when one exists; we surface the event rather than hiding it. |
+| Corrupt userdb | **Measured** (round 110, see [s5-results.md](../s5-results.md)): librime logs `Error opening db '<name>': Corruption: …` and then `… read-only`, rebuilds an empty database **in place** — nothing is renamed, and nothing is restored from `sync/<id>/<dict>.userdb.txt` — and keeps running from the base dictionary. The app surfaces librime's own line and offers the backups and the snapshot import as the recovery. |
 | Sync folder missing or permission revoked | Sync is disabled with the reason; the local dictionary keeps working. |
 | iCloud offline | Sync reports "未同步" and does not lose the local snapshot. |
 | Conflict copies present | Listed as separate sources with their device and timestamp; the user can merge or ignore each. |
