@@ -235,7 +235,7 @@ public final class RimeEngine {
 
   private func processKeyLocked(_ keyCode: Int32, modifiers: RimeModifier) throws -> RimeOutput {
     let api = try requireAPI()
-    let session = try requireSession(api: api)
+    let session = try inputSession(api: api)
     guard let processKey = api.pointee.process_key else { throw RimeEngineError.apiUnavailable }
     let handled = processKey(session, keyCode, modifiers.rawValue)
     return readOutput(api: api, session: session, handled: handled)
@@ -249,12 +249,12 @@ public final class RimeEngine {
     }
     if let last { return last }
     let api = try requireAPI()
-    return readOutput(api: api, session: try requireSession(api: api), handled: false)
+    return readOutput(api: api, session: try inputSession(api: api), handled: false)
   }
 
   private func selectCandidateLocked(at index: Int) throws -> RimeOutput {
     let api = try requireAPI()
-    let session = try requireSession(api: api)
+    let session = try inputSession(api: api)
     guard let select = api.pointee.select_candidate else { throw RimeEngineError.apiUnavailable }
     _ = select(session, index)
     return readOutput(api: api, session: session, handled: true)
@@ -262,7 +262,7 @@ public final class RimeEngine {
 
   private func changePageLocked(backward: Bool) throws -> RimeOutput {
     let api = try requireAPI()
-    let session = try requireSession(api: api)
+    let session = try inputSession(api: api)
     guard let changePage = api.pointee.change_page else { throw RimeEngineError.apiUnavailable }
     _ = changePage(session, backward)
     return readOutput(api: api, session: session, handled: true)
@@ -270,7 +270,7 @@ public final class RimeEngine {
 
   private func setOptionLocked(_ name: String, _ value: Bool) throws {
     let api = try requireAPI()
-    let session = try requireSession(api: api)
+    let session = try inputSession(api: api)
     guard let setOption = api.pointee.set_option else { throw RimeEngineError.apiUnavailable }
     let box = CStringBox(name)
     setOption(session, box.raw, value)
@@ -278,7 +278,7 @@ public final class RimeEngine {
 
   private func getOptionLocked(_ name: String) throws -> Bool {
     let api = try requireAPI()
-    let session = try requireSession(api: api)
+    let session = try inputSession(api: api)
     guard let getOption = api.pointee.get_option else { throw RimeEngineError.apiUnavailable }
     let box = CStringBox(name)
     return getOption(session, box.raw)
@@ -286,12 +286,12 @@ public final class RimeEngine {
 
   private func refreshLocked() throws -> RimeOutput {
     let api = try requireAPI()
-    return readOutput(api: api, session: try requireSession(api: api), handled: false)
+    return readOutput(api: api, session: try inputSession(api: api), handled: false)
   }
 
   private func clearCompositionLocked() throws {
     let api = try requireAPI()
-    let session = try requireSession(api: api)
+    let session = try inputSession(api: api)
     api.pointee.clear_composition?(session)
   }
 
@@ -309,6 +309,32 @@ public final class RimeEngine {
       throw RimeEngineError.sessionNotOpen
     }
     return session
+  }
+
+  /// The session the input path uses. S4 §10: when librime no longer knows the session —
+  /// `find_session` false, which a maintenance thread or an engine-side crash can cause — it is
+  /// reopened **once**, nothing is replayed, and the event is recorded. A call with no session at all
+  /// still throws: that is a caller bug, and quietly creating one would hide it.
+  func inputSession(api: UnsafeMutablePointer<rime_api_t>) throws -> RimeSessionId {
+    guard let existing = session else { throw RimeEngineError.sessionNotOpen }
+    if let find = api.pointee.find_session, !find(existing) {
+      session = nil
+      let start = DispatchTime.now().uptimeNanoseconds
+      try openSessionLocked()
+      _ = record(phase: "engine.session.reopened",
+                 start: start,
+                 message: "librime no longer knew the session; nothing was replayed")
+    }
+    return try requireSession(api: api)
+  }
+
+  /// Drops librime's session without telling the engine, which is exactly the state S4 §10's recovery
+  /// path exists for and which no public call can produce. Internal, so only `@testable` tests reach it.
+  func forgetSessionForTesting() {
+    perform {
+      guard let api, let session, let destroy = api.pointee.destroy_session else { return }
+      _ = destroy(session)
+    }
   }
 
   @discardableResult

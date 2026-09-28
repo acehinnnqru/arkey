@@ -293,9 +293,25 @@ is pinned in `S1EngineAPITests`.
 
 The device bullet needs the recorded session.
 
+## A lost session reopens once (S4 §10)
+
+The spec's row is precise — "reopen once, replay nothing, log the event" — and nothing implemented it:
+`requireSession` threw `sessionNotOpen` the moment `find_session` was false, which is what a
+maintenance thread or an engine-side failure leaves behind. The input path now goes through
+`inputSession(api:)`: the loss is detected, the session is reopened **once**, the event is recorded as
+`engine.session.reopened`, and nothing is replayed — the composition that lived in the lost session is
+gone, and re-sending keys would commit text the user never confirmed. A caller with no session at all
+still gets the error: that is a bug to surface, not a state to paper over.
+
+The test produces the loss the way the field does — librime forgetting a session the engine still holds
+— through one internal seam, then asserts the preedit is only the new key ("ni", not "ni" appended to the
+old composition), that exactly one record exists, that a healthy session is not reopened again, and that
+the no-session case still throws. Verified from both sides: disabling the branch makes the test fail with
+"no Rime session is open".
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S4SentenceTests` | 3 | sentence composition ranks first with no switch set, the raw input versus the spaced preedit, and a one-commit sentence through both the engine and the driver |
-| `S4InputTests` | 12 | marked text is the raw input with no spaces, the first letter composes, space/return/tap/escape/backspace/paging/option rows, both halves of the punctuation row, a tap that librime declines, and the literal fallback's refusal to invent text for control codes |
+| `S4InputTests` | 14 | marked text is the raw input with no spaces, the first letter composes, space/return/tap/escape/backspace/paging/option rows, both halves of the punctuation row, a tap that librime declines, and the literal fallback's refusal to invent text for control codes |

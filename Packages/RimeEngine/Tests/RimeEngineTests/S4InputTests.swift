@@ -219,6 +219,38 @@ final class S4InputTests: XCTestCase {
     XCTAssertNil(atStart.insertText)
   }
 
+  // MARK: Session loss (S4 §10)
+
+  /// "Reopen once, replay nothing, log the event." The loss is produced the way it happens in the
+  /// field — librime forgets the session while the engine still holds its id.
+  func testALostSessionIsReopenedOnceAndNothingIsReplayed() throws {
+    try engine.openSession()
+    _ = try engine.processKeys("shurufa")
+    XCTAssertEqual(try engine.refresh().preedit, "shu ru fa",
+                   "the composition is live before the loss (the preedit, not the raw input)")
+
+    engine.forgetSessionForTesting()
+    let after = try engine.processKeys("ni")
+    XCTAssertEqual(after.preedit, "ni", "the lost composition is gone, not replayed")
+    XCTAssertTrue(after.candidates.contains { $0.text == "你" },
+                  after.candidates.map(\.text).joined(separator: ","))
+
+    func reopened() -> Int {
+      engine.probeRecords().filter { $0.phase == "engine.session.reopened" }.count
+    }
+    XCTAssertEqual(reopened(), 1, "one record per loss")
+    _ = try engine.processKeys("hao")
+    XCTAssertEqual(reopened(), 1, "a healthy session is not reopened again")
+
+    // And a caller that never opened a session still gets the error rather than a silent session.
+    engine.closeSession()
+    XCTAssertThrowsError(try engine.processKeys("ni")) { error in
+      guard case RimeEngineError.sessionNotOpen = error else {
+        return XCTFail("expected sessionNotOpen, got \(error)")
+      }
+    }
+  }
+
   // MARK: Paging
 
   func testPagingChangesThePageAndNeverCommits() throws {
