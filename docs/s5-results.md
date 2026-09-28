@@ -289,9 +289,23 @@ staleness rule covers that. What the test pins is the other half — a **late he
 a released lease**, because `heartbeat` only updates a lease that already exists for this pid. That
 is the property that makes "release at dismissal" final rather than merely likely.
 
+## The whole set exports as one zip (S5 §5)
+
+§5's export row had two halves: "the sync snapshot for the chosen dictionary, **or the whole set as one
+zip**". Only the first existed. `RimeSyncService.exportAllSnapshots()` refreshes every dictionary's
+snapshot (through the access gate, so the keyboard's lease is respected), then writes them into one
+store-only zip — `RimeZipWriter` already existed for S2 §7's settings bundle — under
+`<installation_id>/<dict>.userdb.txt`.
+
+The naming is the design, not a detail: it is the shape the sync folder itself has, so unzipping the file
+over a sync folder is a valid sync, and the reader that guards every import accepts it. The test proves
+exactly that chain: export → `RimeZipArchive` paths → extract → `RimeSyncDiscovery` finds the
+dictionary → the snapshot parses with the learned word in it. The 用户词库 screen offers it beside the
+single-snapshot export.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S5DictionaryEditTests` | 8 | adding an entry, replacing a weight instead of duplicating, the additive-import measurement, the named error for a dictionary with no database, removing the whole dictionary, the refusal while the keyboard holds the lease, and the export format round-tripping through its own writer |
-| `S5UserDictionaryTests` | 15 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
+| `S5UserDictionaryTests` | 16 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
