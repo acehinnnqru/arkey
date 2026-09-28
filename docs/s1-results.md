@@ -220,7 +220,15 @@ keyboard's status line and the app's description read it, so the two cannot drif
 
 The key it keys on is `fallbackReason`, not `isDegraded`: falling back to the **previous
 generation** still runs from the profile, and it is exactly the case §9 asks a repair for. `S1RecoveryTests` pins
-all five messages and the healthy case.
+all five messages and the healthy case — the corrupt-pointer row was written into this table before
+anything exercised it, and round 128 added the test that makes the sentence true
+(`testACorruptActivePointerIsNamedRatherThanReportedAsMissing`: the resolver's reason says the file could not
+be read, and the repair it offers is to choose a profile again).
+
+A neighbouring failure mode is pinned in the same round: a `meta.json` that cannot be parsed is **named**
+(`RimeWorkspaceError.metadataUnreadable`) rather than skipped, because a profile that quietly disappears
+from the library looks like deleted data (`testACorruptMetadataFileIsNamedRatherThanSkipped`, verified
+from both sides by making the loader return nil instead).
 
 The repair is not only words. The app's home screen shows a banner with the message and a button whose
 label **is** the action (`Action.title`), and the button's destination follows from the same action: `.deploy`
@@ -384,12 +392,12 @@ files.
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S1EngineAPITests` | 10 | logsink and levers presence, deploy report and phases, patch write and redeploy, list patches, state labels, schema list, rebind, raw input, candidate measurements |
-| `S1WorkspaceTests` | 14 | profile identity, metadata and active.json round trips, every resolver fallback, janitor repair, installation seeding, storage report, deletion semantics, backup policy, deployer and client bindings, and the app version travelling with the profile |
+| `S1WorkspaceTests` | 15 | profile identity, metadata and active.json round trips, every resolver fallback, janitor repair, installation seeding, storage report, deletion semantics, backup policy, deployer and client bindings, and the app version travelling with the profile |
 | `S1DeploymentTests` | 9 | the generation swap and its active.json record, one previous generation kept, rollback and its refusal with none to roll back to, a failed deploy keeping the previous generation typing, two profiles coexisting, deletion keeping dictionaries, the named error for a missing profile, and what a run actually wrote (first versus second deploy in one process) |
 | `S1ImportTests` | 12 | a folder and the same tree as a zip producing the same profile, a wrapping folder, ambiguous and missing config roots as named errors, a generated default.yaml, the Squirrel-shaped split, user-data adoption, validation naming every broken file, optional data as a warning, a config librime would not load, and a hostile archive leaving the workspace untouched |
 | `S1ArchiveTests` | 15 | writer round trip, real deflate, zip slip, absolute paths, symlink and device entries, duplicates, case collisions, entry and size caps, bomb ratio, zip64, CRC and size mismatches, unsupported methods, corrupt deflate, no partial output |
 | `S1AdoptionTests` | 3 | the same binding needs no adoption, a change mid-composition is deferred and taken at the next appearance, and a new generation of the same profile counts as a change |
-| `S1RecoveryTests` | 6 | the resolver's degraded states each asking for the right repair: nothing to recover, build.previous, no usable build, no active profile, an unreachable app group, and every action carrying the label its button shows |
+| `S1RecoveryTests` | 7 | the resolver's degraded states each asking for the right repair: nothing to recover, build.previous, no usable build, no active profile, an unreachable app group, and every action carrying the label its button shows |
 | `S1LocalDataTests` | 2 | a Debug build's `RimeData.local` installing, deploying and activating once, and a build without one installing nothing |
 | `S1AppFlowTests` | 1 | the documented end-to-end flow on one workspace — import, deploy, activate, patch, redeploy, janitor — with the source tree's digest asserted at the end |
 | `S1SlimmingTests` | 5 | the lite transformation: the import line goes and its comment stays, every accepted spelling of a table name matches, a missing table is reported, a rewrite librime would reject leaves the file untouched, and a slimmed profile still deploys and types |

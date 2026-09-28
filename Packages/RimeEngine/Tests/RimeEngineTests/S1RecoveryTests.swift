@@ -86,6 +86,28 @@ final class S1RecoveryTests: XCTestCase {
     XCTAssertTrue(recovery.message.contains("导入或选择配置"), recovery.message)
   }
 
+  /// A pointer that is there and corrupt is not "no active.json": the banner names the file and the
+  /// repair, which is what S1 §9 asks every degraded mode to do. The resolver had the branch; nothing
+  /// exercised it.
+  func testACorruptActivePointerIsNamedRatherThanReportedAsMissing() throws {
+    let workspace = try makeWorkspace("corrupt-active")
+    try FileManager.default.createDirectory(at: workspace.userData, withIntermediateDirectories: true)
+    try Data("this is not a pointer".utf8).write(to: workspace.activeRecord)
+
+    let resolved = resolve(workspace)
+    XCTAssertEqual(resolved.origin, .bundled, "the keyboard still types, from the bundle")
+    let reason = try XCTUnwrap(resolved.fallbackReason)
+    XCTAssertTrue(reason.hasPrefix("active.json is unreadable"), reason)
+    XCTAssertNotEqual(reason, "no active.json", "a corrupted pointer is a different state")
+
+    let recovery = try XCTUnwrap(RimeProfileRecovery.of(resolved))
+    XCTAssertTrue(recovery.reason.hasPrefix("active.json is unreadable"), recovery.reason)
+    // Deliberate: re-selecting a profile in the library rewrites active.json, which is the repair — a
+    // deploy would need the user to already know which profile they meant.
+    XCTAssertEqual(recovery.action, .chooseProfile)
+    XCTAssertTrue(recovery.message.contains("重新选择配置"), recovery.message)
+  }
+
   func testAnUnreachableAppGroupIsExplainedRatherThanGuessed() throws {
     let workspace = try makeWorkspace("no-group")
     try installProfile(workspace, id: "tracer-1", withBuild: true, withPrevious: false)

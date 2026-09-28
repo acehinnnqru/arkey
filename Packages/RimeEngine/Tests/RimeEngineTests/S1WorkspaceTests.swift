@@ -81,6 +81,27 @@ final class S1WorkspaceTests: XCTestCase {
     XCTAssertNotEqual(first, other)
   }
 
+  /// A `meta.json` that cannot be parsed is **named**, not skipped: a profile that quietly vanishes
+  /// from the library looks like the user's configuration was deleted, which is why the loader throws
+  /// with the id in the message instead of returning nil. Nothing pinned that choice until round 128.
+  func testACorruptMetadataFileIsNamedRatherThanSkipped() throws {
+    let workspace = try makeWorkspace()
+    let layout = try installProfile(workspace, id: "tracer-1", generation: 1)
+    try Data("this is not metadata".utf8).write(to: layout.metadata)
+
+    XCTAssertThrowsError(try workspace.loadMetadataList()) { error in
+      guard case RimeWorkspaceError.metadataUnreadable(let id, let reason) = error else {
+        return XCTFail("expected metadataUnreadable, got " + String(describing: error))
+      }
+      XCTAssertEqual(id, "tracer-1", "the message has to name which profile is broken")
+      XCTAssertFalse(reason.isEmpty)
+    }
+    XCTAssertThrowsError(try workspace.loadMetadata(for: "tracer-1"))
+
+    // A profile that is simply not there is not an error: the list is built from the directories.
+    XCTAssertNil(try workspace.loadMetadata(for: "never-imported"))
+  }
+
   // MARK: Metadata round trip
 
   func testMetadataAndActiveRecordRoundTripThroughJSON() throws {
