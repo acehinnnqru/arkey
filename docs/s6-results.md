@@ -92,6 +92,17 @@ with the table as it stands it prints `38 rows, 38 criteria` and `25 cited names
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
+## Both versions travel with the profile (S6 §4)
+
+§4's versioning bullet — "the app version and the librime version are recorded in every profile's
+`meta.json` and shown in diagnostics, so a bug report names the engine" — had only half of it: the
+engine version was in `meta.json` and `active.json`, and the **app version was nowhere in the
+tree** (no `CFBundleShortVersionString` read anywhere). `RimeHostVersion.current` reads the host
+bundle's version and build; `RimeProfileDeployRecord` and `RimeActiveProfile` carry it as an
+optional field, so files written before it existed still decode — the keyboard reads `active.json` at
+boot, and a decode failure there is a keyboard that does not appear. The diagnostics screen shows both,
+and the test pins the round trip, the field's presence in the JSON, and the legacy decode.
+
 ## CI runs what a runner can run (S6 §7)
 
 S6 §7 lists what CI can run — `swift test`, the repository licence check, a bundle-content check on an
