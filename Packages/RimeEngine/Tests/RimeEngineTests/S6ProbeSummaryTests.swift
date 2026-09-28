@@ -27,6 +27,7 @@ final class S6ProbeSummaryTests: XCTestCase {
     XCTAssertEqual(phase.count, 20)
     XCTAssertEqual(phase.medianMilliseconds, 10, "the tenth of twenty")
     XCTAssertEqual(phase.p95Milliseconds, 19, "nearest rank: ceil(0.95 × 20) = 19")
+    XCTAssertEqual(phase.p99Milliseconds, 20, "nearest rank: ceil(0.99 × 20) = 20")
     XCTAssertEqual(phase.maxMilliseconds, 20)
     XCTAssertEqual(phase.lastMilliseconds, 20, "the latest record wins, not the largest")
   }

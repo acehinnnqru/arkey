@@ -13,6 +13,7 @@ final class S4LatencyTests: XCTestCase {
     XCTAssertTrue(window.isFull)
     XCTAssertEqual(window.average, 14.5, accuracy: 0.001, "290 ms over twenty keys")
     XCTAssertEqual(window.p95, 19, "nearest rank: ceil(0.95 × 20) = 19")
+    XCTAssertEqual(window.p99, 100, "nearest rank: ceil(0.99 × 20) = 20 — the spike, which is the point")
     XCTAssertEqual(window.maximum, 100, "and the spike is still visible as the max")
   }
 
@@ -28,6 +29,8 @@ final class S4LatencyTests: XCTestCase {
     XCTAssertEqual(window.count, 2)
     XCTAssertEqual(window.average, 8, accuracy: 0.001)
     XCTAssertEqual(window.p95, 9)
+    XCTAssertEqual(window.p50, 7, "nearest rank: ceil(0.50 × 2) = 1, so the lower of the two")
+    XCTAssertEqual(window.p99, 9)
     XCTAssertEqual(window.maximum, 9)
   }
 
@@ -41,9 +44,10 @@ final class S4LatencyTests: XCTestCase {
     XCTAssertFalse(window.isFull)
   }
 
-  func testTheMessageCarriesTheThreeNumbers() {
+  func testTheMessageCarriesTheNumbersTheBudgetNeeds() {
     var window = RimeKeyLatencyWindow(capacity: 4)
     for value in [4.0, 8, 12, 16] { window.record(milliseconds: value) }
-    XCTAssertEqual(window.message, "keys=4 avgMs=10.00 p95Ms=16.00 maxMs=16.00")
+    XCTAssertEqual(window.message,
+                   "keys=4 avgMs=10.00 p50Ms=8.00 p95Ms=16.00 p99Ms=16.00 maxMs=16.00")
   }
 }

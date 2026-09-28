@@ -26,12 +26,19 @@ public struct RimeKeyLatencyWindow: Sendable {
   public var maximum: Double { worst }
 
   /// Nearest-rank over the window, the same rule `RimeProbeSummary` uses on the records.
-  public var p95: Double {
+  public func percentile(_ quantile: Double) -> Double {
     guard !samples.isEmpty else { return 0 }
     let sorted = samples.sorted()
-    let rank = Int((0.95 * Double(sorted.count)).rounded(.up))
+    let rank = Int((quantile * Double(sorted.count)).rounded(.up))
     return sorted[min(sorted.count, max(1, rank)) - 1]
   }
+
+  /// S4 §9's budget is a **p99** (≤ 30 ms to the candidate bar), and the tracer-bullet results quote
+  /// p50/p99, so the window carries all three: the record can answer the budget and the "typical key"
+  /// question without re-deriving either.
+  public var p50: Double { percentile(0.50) }
+  public var p95: Double { percentile(0.95) }
+  public var p99: Double { percentile(0.99) }
 
   public mutating func record(milliseconds: Double) {
     samples.append(milliseconds)
@@ -45,12 +52,14 @@ public struct RimeKeyLatencyWindow: Sendable {
     worst = 0
   }
 
-  /// What the probe record's message says: how many keys, and the three numbers a reader compares against
-  /// the budget.
+  /// What the probe record's message says: how many keys, and the numbers a reader compares against the
+  /// budget — p99 first among them, because that is the one S4 §9 sets.
   public var message: String {
     "keys=" + String(count)
       + " avgMs=" + String(format: "%.2f", average)
+      + " p50Ms=" + String(format: "%.2f", p50)
       + " p95Ms=" + String(format: "%.2f", p95)
+      + " p99Ms=" + String(format: "%.2f", p99)
       + " maxMs=" + String(format: "%.2f", worst)
   }
 }

@@ -364,10 +364,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func flushKeyStatistics() {
     guard !keyLatency.isEmpty, case .success(let setup) = KeyboardEngine.setup else { return }
-    // The record carries the window's p95: the summary above it then aggregates per-key percentiles, not the
-    // average of twenty-five keys, which would hide every spike S4-AC6 is about.
+    // The record carries the window's p99, which is the statistic S4 §9's budget names, and its message
+    // carries p50/p95/p99/avg: what the summary aggregates is a per-key percentile, not the average of
+    // twenty-five keys, which would hide every spike the criterion is about.
     setup.probe?.append(RimeProbeRecord(phase: "keyboard.stats",
-                                        milliseconds: keyLatency.p95,
+                                        milliseconds: keyLatency.p99,
                                         message: keyLatency.message))
     KeyboardLog.info("key stats: " + keyLatency.message)
     keyLatency.reset()

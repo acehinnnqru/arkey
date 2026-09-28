@@ -12,6 +12,8 @@ public struct RimeProbeSummary: Sendable {
     /// Nearest-rank over the samples: no statistics library, and a percentile a reader can reproduce.
     public let medianMilliseconds: Double?
     public let p95Milliseconds: Double?
+    /// S4 §9's budget is a p99; a summary that stops at p95 cannot say whether it is met.
+    public let p99Milliseconds: Double?
     public let maxMilliseconds: Double?
     public let lastMilliseconds: Double?
     public let maxFootprintBytes: UInt64?
@@ -43,6 +45,7 @@ public struct RimeProbeSummary: Sendable {
                    count: group.count,
                    medianMilliseconds: RimeProbeSummary.percentile(timings, 0.5),
                    p95Milliseconds: RimeProbeSummary.percentile(timings, 0.95),
+                   p99Milliseconds: RimeProbeSummary.percentile(timings, 0.99),
                    maxMilliseconds: timings.last,
                    lastMilliseconds: group.last?.milliseconds,
                    maxFootprintBytes: footprints.max(),
@@ -67,6 +70,9 @@ public struct RimeProbeSummary: Sendable {
         parts.append("median " + RimeProbeSummary.number(median) + " ms")
       }
       if let p95 = phase.p95Milliseconds { parts.append("p95 " + RimeProbeSummary.number(p95) + " ms") }
+      if let p99 = phase.p99Milliseconds, p99 != phase.p95Milliseconds {
+        parts.append("p99 " + RimeProbeSummary.number(p99) + " ms")
+      }
       if let worst = phase.maxMilliseconds { parts.append("max " + RimeProbeSummary.number(worst) + " ms") }
       if let bytes = phase.lastFootprintBytes {
         parts.append("footprint " + RimeProbeSummary.number(RimeProbe.megabytes(bytes)) + " MB")
