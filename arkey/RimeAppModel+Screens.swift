@@ -176,6 +176,14 @@ extension RimeAppModel {
     RimeProbeLog(url: url).append(RimeProbeRecord.configApplied(change))
   }
 
+  /// S6 §3: the log keeps profile activations, so "which build was the keyboard on" has an answer.
+  func recordProfileActivation(_ profileID: String) {
+    guard let url = ProbeLogLocation.groupLogURL else { return }
+    let generation = (try? workspace.loadActiveProfile())?.generation
+    RimeProbeLog(url: url).append(RimeProbeRecord.profileActivated(profileID: profileID,
+                                                                   generation: generation))
+  }
+
   private func configID(for scope: RimeSettingDescriptor.Scope, schemaID: String) -> String {
     if case .schema(let id) = scope { return id }
     return "default"

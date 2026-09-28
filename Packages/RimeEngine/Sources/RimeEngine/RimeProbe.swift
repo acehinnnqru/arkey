@@ -36,6 +36,18 @@ extension RimeProbeRecord {
   }
 }
 
+extension RimeProbeRecord {
+  /// S6 §3: activation is the other record the log gained — the profile and the generation it moved
+  /// to, which is what makes "which build was the keyboard on" answerable after the fact.
+  public static func profileActivated(profileID: String, generation: Int?) -> RimeProbeRecord {
+    var message = profileID
+    if let generation {
+      message += " generation " + String(generation)
+    }
+    return RimeProbeRecord(phase: "profile.activate", message: message)
+  }
+}
+
 public enum RimeProbe {
   /// Physical footprint in bytes: what jetsam accounts against the extension's limit.
   /// Resident size understates it, so this is the number worth recording.

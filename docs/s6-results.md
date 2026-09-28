@@ -142,8 +142,11 @@ check cannot pass on an empty file. **Verified from both sides**: adding one pro
 the typed text (a temporary change to `processKeys`) failed both assertions immediately, and
 reverting it restored green.
 
-The same suite pins S2 §5.5's `config.applied` record — the key and both sides of a change — which
-the app now writes whenever a setting is applied.
+The same suite pins the two records S6 §3 names beside deploys: S2 §5.5's `config.applied` — the key
+and both sides of a change — which the app writes whenever a setting is applied, and
+`profile.activate`, which names the profile and the generation the keyboard was moved to (so
+"which build was it on" is answerable after the fact). Deploy results were already the engine's own
+`engine.deploy` record.
 
 ## The privacy manifest
 

@@ -236,6 +236,7 @@ final class RimeAppModel: ObservableObject {
   func activate(profileID: String) {
     do {
       _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).activate(profileID: profileID)
+      recordProfileActivation(profileID)
       deployMessage = "已切换。键盘会在下次出现时采用（不会打断正在输入的句子）。"
       refresh()
     } catch {

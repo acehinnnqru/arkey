@@ -71,6 +71,18 @@ final class S6ProbePrivacyTests: XCTestCase {
                   "both sides of the change: " + message)
   }
 
+  /// S6 §3's other added record: which profile and generation the app moved the keyboard to.
+  func testAProfileActivationIsOneProbeLine() throws {
+    let record = RimeProbeRecord.profileActivated(profileID: "rime-ice-2", generation: 7)
+    XCTAssertEqual(record.phase, "profile.activate")
+    let message = try XCTUnwrap(record.message)
+    XCTAssertTrue(message.contains("rime-ice-2"), message)
+    XCTAssertTrue(message.contains("7"), "the generation belongs in the line: " + message)
+
+    XCTAssertEqual(RimeProbeRecord.profileActivated(profileID: "tracer", generation: nil).message,
+                   "tracer", "a profile that has never been deployed has no generation to name")
+  }
+
   /// The invariant, against a live session: type, commit, and then read every byte the engine wrote.
   func testTheProbeNeverRecordsWhatTheUserTyped() throws {
     try engine.openSession()
