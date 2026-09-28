@@ -2,7 +2,6 @@ abbreviatedStateLabel
 activeRecord
 alt
 appName
-approximateBytes
 availableHeight
 blocker
 boolValue
@@ -100,7 +99,6 @@ isInMaintenanceMode
 isLeversAvailable
 isLogSinkAvailable
 isRunning
-isSecure
 isSessionOpen
 isSimplified
 issues
@@ -145,20 +143,16 @@ method
 minBytes
 missingTables
 modifiedAt
-needsGrammarModel
-needsLua
-needsPredict
-notes
 noticeExists
 noticePath
 notifications
 occupiedRows
 oldValue
 openedAt
+p99Milliseconds
 pageCount
 pageDown
 pageUp
-pageURL
 paletteDeltas
 parse
 patchConfigID
@@ -191,7 +185,6 @@ removeImportTables
 replacedExisting
 requiredTopSlot
 requireExclusiveAccess
-requirements
 resolvedURL
 restore
 returnKeyWidth
@@ -199,7 +192,6 @@ rewrittenFiles
 rimeVersion
 runMaintenance
 scale
-schemaCount
 schemaKey
 schemaName
 schemaVersion
@@ -224,7 +216,6 @@ slug
 snapshotCount
 snapshotDirectory
 sourceDigest
-sourceURL
 spaceKeyWidth
 staging
 stagingBytes

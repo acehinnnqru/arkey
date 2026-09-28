@@ -74,6 +74,7 @@ struct ContentView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
             NavigationLink("配置库") { ProfileLibraryView(model: model) }
+            NavigationLink("下载配置") { CatalogView() }
             NavigationLink("方案与输入") { SchemaSettingsView(model: model) }
             NavigationLink("用户词库") { UserDictionaryView(model: model) }
             NavigationLink("键盘") { KeyboardSettingsView(model: model) }
