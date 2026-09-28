@@ -42,6 +42,7 @@ struct UserDictionaryView: View {
             }
           }
         }
+        backupsSection(report)
         syncSection(report)
       } else {
         Section { Text("读取中…").font(.footnote) }
@@ -100,6 +101,7 @@ struct UserDictionaryView: View {
           pendingImport = entry.name
           isImporting = true
         }
+        Button("备份") { model.backupDictionary(entry.name) }
         if let snapshot = exportedSnapshot {
           ShareLink(item: snapshot) { Text("分享快照") }.font(.caption)
         }
@@ -110,6 +112,31 @@ struct UserDictionaryView: View {
       .font(.caption)
     }
     .padding(.vertical, 2)
+  }
+
+  /// S5 §4/§5: the backups the app keeps beside the snapshots. Restoring one is the undo for an
+  /// import that brought in something unwanted; the section says how many are kept so nobody expects
+  /// an unbounded history.
+  @ViewBuilder
+  private func backupsSection(_ report: RimeUserDictionaryReport) -> some View {
+    let files = report.dictionaries.flatMap { entry in
+      (model.dictionaryBackups[entry.name] ?? []).map { (name: entry.name, url: $0) }
+    }
+    if !files.isEmpty {
+      Section("备份（每个词库保留最近三份）") {
+        ForEach(files, id: \.url) { file in
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(file.name).font(.caption)
+              Text(file.url.lastPathComponent).font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Button("恢复") { model.restoreDictionary(file.name, from: file.url) }
+              .font(.caption)
+          }
+        }
+      }
+    }
   }
 
   private func syncSection(_ report: RimeUserDictionaryReport) -> some View {

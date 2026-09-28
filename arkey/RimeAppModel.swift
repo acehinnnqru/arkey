@@ -44,6 +44,9 @@ final class RimeAppModel: ObservableObject {
   @Published var schemaOrderIDs: [String] = []
   @Published var schemaDescriptor: RimeSchemaDescriptor?
   @Published var dictionaryReport: RimeUserDictionaryReport?
+  /// S5 §4's timestamped backups, per dictionary, newest first. Refreshed with the report rather than
+  /// listed on every body pass: the files live in the sync folder, which may be iCloud Drive.
+  @Published var dictionaryBackups: [String: [URL]] = [:]
   @Published var notices: RimeNotices?
   @Published var isSyncing = false
   @Published var syncMessage: String?

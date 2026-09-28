@@ -171,10 +171,43 @@ extension RimeAppModel {
   func refreshDictionaries() {
     let service = RimeSyncService(workspace: workspace, engine: engine)
     do {
-      dictionaryReport = try service.report()
+      let report = try service.report()
+      dictionaryReport = report
+      dictionaryBackups = Dictionary(uniqueKeysWithValues: report.dictionaries.map { entry in
+        (entry.name, service.backups(for: entry.name))
+      })
     } catch {
       dictionaryReport = nil
+      dictionaryBackups = [:]
       errorMessage = "读取用户词库失败：" + String(describing: error)
+    }
+  }
+
+  /// S5 §4/§5: one backup on demand, beside the snapshot and pruned to the last three.
+  func backupDictionary(_ name: String) {
+    do {
+      let service = RimeSyncService(workspace: workspace, engine: engine)
+      guard try service.backup(dictionary: name) != nil else {
+        errorMessage = "备份失败：同步目录里还没有这个词库的快照，librime 也没能写出一份。"
+        return
+      }
+      syncMessage = "已备份 " + name
+      refreshDictionaries()
+    } catch {
+      errorMessage = "备份失败：" + String(describing: error)
+    }
+  }
+
+  /// Restores a backup through librime's own door. The file is the snapshot format, which is what
+  /// `restore_user_dict` reads; the levers export would be recorded as spellings instead (S5 §5).
+  func restoreDictionary(_ name: String, from url: URL) {
+    do {
+      let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+      _ = try access.perform { try engine.restoreUserDictionary(snapshotFile: url) }
+      syncMessage = "已从 " + url.lastPathComponent + " 恢复 " + name
+      refreshDictionaries()
+    } catch {
+      errorMessage = "恢复失败：" + String(describing: error)
     }
   }
 

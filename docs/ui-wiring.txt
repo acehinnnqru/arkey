@@ -180,6 +180,7 @@ profileSource
 profilesRoot
 provenanceLine
 prune
+pruneBackups
 rawInput
 receipt
 recordCount
@@ -193,7 +194,6 @@ requireExclusiveAccess
 requirements
 resolvedURL
 restore
-restoreUserDictionary
 returnKeyWidth
 rewrittenFiles
 rimeVersion
