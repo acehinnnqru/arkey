@@ -26,6 +26,9 @@ echo "== building RimeEngine for $TARGET =="
 # message: the failure was reported by the next step being absent rather than by the compiler. Keep it,
 # and print the tail when it fails.
 BUILD_LOG=".build/typecheck-build.log"
+# A fresh clone has no root .build at this point (only the package's own after the tests ran), so the
+# redirect itself would fail and be reported as a compiler failure with an empty log.
+mkdir -p "$(dirname "$BUILD_LOG")"
 if ! swift build --disable-sandbox --package-path "$PACKAGE" --triple "$TARGET" \
      -Xswiftc -sdk -Xswiftc "$SDK" >"$BUILD_LOG" 2>&1; then
   echo "typecheck FAILED: the RimeEngine build for $TARGET failed:" >&2
