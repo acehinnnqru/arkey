@@ -107,6 +107,27 @@ final class S6ProjectSettingsTests: XCTestCase {
                   "the arkey target does not run the phase: " + id)
   }
 
+  /// S6 §4's document type: a config archive downloaded from the project page has to be openable in
+  /// the app from Safari or Files. The app target names an Info.plist for exactly that, and the rank is
+  /// Alternate so the system keeps its own zip handler.
+  func testTheAppDeclaresTheArchiveTypeItCanImport() throws {
+    let text = try project()
+    XCTAssertTrue(text.contains("INFOPLIST_FILE = arkey/Info.plist;"),
+                  "the app target does not name the plist that carries the document type")
+
+    let data = try Data(contentsOf: repositoryRoot.appendingPathComponent("arkey/Info.plist"))
+    let plist = try XCTUnwrap(try PropertyListSerialization.propertyList(from: data, format: nil)
+      as? [String: Any], "arkey/Info.plist is not a plist dictionary")
+    let types = try XCTUnwrap(plist["CFBundleDocumentTypes"] as? [[String: Any]],
+                              "no CFBundleDocumentTypes")
+    let archive = try XCTUnwrap(types.first { entry in
+      (entry["LSItemContentTypes"] as? [String])?.contains("public.zip-archive") == true
+    }, "no entry claims the zip archive type the importer accepts")
+    XCTAssertEqual(archive["LSHandlerRank"] as? String, "Alternate",
+                   "the system's own zip handler must stay the default")
+    XCTAssertEqual(archive["CFBundleTypeRole"] as? String, "Viewer")
+  }
+
   /// Both targets generate their Info.plist, and the extension also starts from a file: that combination is what
   /// merges the generated keys into the hand-written one, so the file it names has to exist.
   func testTheInfoPlistArrangementIsCoherent() throws {

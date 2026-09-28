@@ -231,6 +231,12 @@ that file has to exist. Writing the second found a bug in the test rather than i
 `INFOPLIST_FILE = ` also matches `GENERATE_INFOPLIST_FILE = YES;`, so "YES" turned up as a path. The reader
 is line-anchored now.
 
+A fourth setting joined them for the same reason: the app target now names `arkey/Info.plist`, and
+that file declares the one document type S6 §4 asks for — `public.zip-archive`, rank Alternate, so a
+config archive downloaded from the project page can be opened in the app while the system keeps its own
+zip handler. It is pinned by `testTheAppDeclaresTheArchiveTypeItCanImport`, which also fails if the
+plist stops being wired to the target: a plist nothing builds from is a sentence, not a setting.
+
 ## "No network use of our own" is a test, not a sentence (S6-AC5)
 
 AC5 says the only network use is the download the user starts, and the code has none at all. That claim used
