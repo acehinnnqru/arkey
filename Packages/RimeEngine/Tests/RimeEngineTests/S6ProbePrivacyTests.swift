@@ -83,6 +83,38 @@ final class S6ProbePrivacyTests: XCTestCase {
                    "tracer", "a profile that has never been deployed has no generation to name")
   }
 
+  /// The probe log has two writers in two processes — the keyboard extension and the app — so an append
+  /// has to be one at the OS level, not a seek-to-end plus a write. This drives several instances from
+  /// several threads at once and requires every line to survive: with the seek-based version, writers
+  /// that seek to the same offset overwrite each other's record.
+  func testConcurrentAppendsFromManyWritersAllSurvive() throws {
+    let writers = 6
+    let perWriter = 40
+    let group = DispatchGroup()
+    for writer in 0..<writers {
+      DispatchQueue.global().async(group: group) {
+        // A separate instance each time, the way a second process would have one.
+        let log = RimeProbeLog(url: self.probeURL)
+        for index in 0..<perWriter {
+          log.append(RimeProbeRecord(phase: "writer.\(writer)",
+                                     message: String(index)))
+        }
+      }
+    }
+    XCTAssertEqual(group.wait(timeout: .now() + 30), .success)
+
+    let records = RimeProbeLog(url: probeURL).readAll()
+    let written = records.filter { $0.phase.hasPrefix("writer.") }
+    XCTAssertEqual(written.count, writers * perWriter,
+                   "lines were lost or overwritten: \(written.count) of \(writers * perWriter)")
+    let perWriterSeen = Dictionary(grouping: written, by: \.phase).mapValues { $0.count }
+    XCTAssertEqual(Set(perWriterSeen.values), [perWriter], "every writer's lines are all there")
+    for (phase, entries) in Dictionary(grouping: written, by: \.phase) {
+      XCTAssertEqual(Set(entries.compactMap(\.message)).count, perWriter,
+                     phase + " lost distinct messages")
+    }
+  }
+
   /// The invariant, against a live session: type, commit, and then read every byte the engine wrote.
   func testTheProbeNeverRecordsWhatTheUserTyped() throws {
     try engine.openSession()

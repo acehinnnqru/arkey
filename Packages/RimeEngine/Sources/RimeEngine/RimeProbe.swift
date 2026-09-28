@@ -109,18 +109,31 @@ public final class RimeProbeLog: @unchecked Sendable {
     self.encoder = encoder
   }
 
+  /// Appends one JSON line.
+  ///
+  /// **O_APPEND, not seek-to-end plus write.** This file has two writers in two processes — the keyboard
+  /// extension and the app — and `FileHandle.seekToEnd()` followed by a write is atomic only inside one
+  /// process: two processes can both seek to the same offset and one line lands on top of the other.
+  /// `O_APPEND` makes the kernel place every write at the end, which is what an append-only log needs.
+  /// The old fallback was worse still: a failed `FileHandle` fell back to an *atomic* write, which
+  /// replaces the file — one record would have truncated the whole log.
   public func append(_ record: RimeProbeRecord) {
     guard let data = try? encoder.encode(record) else { return }
     var line = data
     line.append(0x0A)
     lock.lock()
     defer { lock.unlock() }
-    if let handle = try? FileHandle(forWritingTo: url) {
-      defer { try? handle.close() }
-      _ = try? handle.seekToEnd()
-      try? handle.write(contentsOf: line)
-    } else {
-      try? line.write(to: url, options: .atomic)
+    let descriptor = open(url.path, O_WRONLY | O_CREAT | O_APPEND, 0o644)
+    guard descriptor >= 0 else { return }
+    defer { close(descriptor) }
+    line.withUnsafeBytes { buffer in
+      guard let base = buffer.baseAddress else { return }
+      var written = 0
+      while written < buffer.count {
+        let result = write(descriptor, base.advanced(by: written), buffer.count - written)
+        if result <= 0 { break }
+        written += result
+      }
     }
   }
 
