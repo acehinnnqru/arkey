@@ -76,6 +76,16 @@ public enum RimeReleaseCheck {
       }
     }
 
+    // A path that is not there is not "a bundle with no findings". Measured: without this guard the
+    // enumerator simply yields nothing, the empty result becomes a warning, and `isClean` is true —
+    // a typo, or a build that produced nothing, would pass the release check.
+    guard fileManager.fileExists(atPath: bundle.path) else {
+      return Result(bundle: bundle.path, dataDirectories: [], fileCount: 0,
+                    findings: [Finding(severity: .error, path: bundle.path,
+                                       reason: "the bundle is not there: a typo and a build that "
+                                         + "produced nothing look the same from here")])
+    }
+
     guard let enumerator = fileManager.enumerator(at: bundle,
                                                   includingPropertiesForKeys: [.isDirectoryKey],
                                                   options: []) else {

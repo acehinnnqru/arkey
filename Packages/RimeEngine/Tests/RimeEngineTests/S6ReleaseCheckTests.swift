@@ -142,6 +142,18 @@ final class S6ReleaseCheckTests: XCTestCase {
     XCTAssertEqual(result.errors.filter { $0.path.contains("user") }.count, 1, result.report)
   }
 
+  /// A path that is not there is not "a bundle with no findings": without the guard this test was
+  /// written for, the enumerator yielded nothing, the empty result became a warning, and `isClean` was
+  /// true — a typo, or a build that produced nothing, would have passed the release check.
+  func testABundleThatIsNotThereIsAnErrorRatherThanAWarning() {
+    let missing = URL(fileURLWithPath: "/tmp/arkey-no-such-bundle-(UUID().uuidString).app")
+    let result = RimeReleaseCheck.check(bundle: missing, tracerData: tracerData)
+    XCTAssertFalse(result.isClean, "a missing bundle must not pass")
+    XCTAssertEqual(result.errors.count, 1)
+    XCTAssertTrue(result.errors[0].reason.contains("not there"), result.errors[0].reason)
+    XCTAssertTrue(result.warnings.isEmpty, "it is not a warning: " + result.report)
+  }
+
   func testABundleWithNoDataAtAllIsAWarningRatherThanACleanPass() throws {
     try FileManager.default.removeItem(at: bundle)
     try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
