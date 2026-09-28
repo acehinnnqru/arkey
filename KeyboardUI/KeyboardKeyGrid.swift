@@ -1,4 +1,5 @@
 import UIKit
+import RimeEngine
 
 enum KeyboardKey: Hashable {
   case character(String)
@@ -7,168 +8,216 @@ enum KeyboardKey: Hashable {
   case space
   case returnKey
   case numbers
+  case symbols
   case letters
   case emoji
-  case auxCode
+  /// S3 §5's 中/英 key, whose label is the state the user is in.
+  case language(String)
   case globe
 }
 
 enum KeyLayer {
   case letters
   case numbers
+  case symbols
+
+  var rimeLayer: RimeKeyboardLayer {
+    switch self {
+    case .letters: return .letters
+    case .numbers: return .numbers
+    case .symbols: return .symbols
+    }
+  }
 }
 
-/// One key grid row: keys with explicit widths, in key units.
-struct KeyGridRow {
-  enum Width {
-    case units(CGFloat)
-    /// Takes what is left in the row; the assumed value only sets the unit size.
-    case remainder(assumed: CGFloat)
-  }
-
-  struct Item {
-    let key: KeyboardKey?
-    let width: Width
-  }
-
-  let items: [Item]
-}
-
-/// The key rows, laid out like the system keyboard: 10-9-9 keys, 1.5-unit modifiers, and a
-/// space bar shortened to make room for the aux-code key on its right.
+/// The key rows, laid out by S3's model rather than by this file.
+///
+/// The tracer computed unit widths here and had its own idea of the margins; the measurements say
+/// otherwise (8.3 pt margins, 9.7 pt gaps, 45 pt keys), and the frames come from
+/// `RimeKeyboardLayoutEngine` so that the keyboard's height and the keys' positions are the same
+/// calculation. That is the class of bug that killed the tracer's extension: a frame the system
+/// animates disagreeing with the frames inside it.
 final class KeyboardKeyGrid: UIView {
   var onKey: ((KeyboardKey) -> Void)?
+  /// The touch's life on a key, in the grid's own coordinates, so the caller owns the callout: it has
+  /// to be positioned against the whole keyboard, not against the grid — the callout draws into the
+  /// candidate slot above the first row.
+  var onKeyTouchDown: ((RimeKeyboardKey, CGPoint) -> Void)?
+  var onKeyTouchMove: ((RimeKeyboardKey, CGPoint) -> Void)?
+  var onKeyTouchEnded: (() -> Void)?
 
-  private var rows: [KeyGridRow] = []
-  private var rowButtons: [[KeyButton]] = []
+  private var buttons: [(key: KeyboardKey, view: KeyButton)] = []
   private var theme = KeyboardTheme.current(for: .default)
   private var currentLayer: KeyLayer = .letters
   private var asciiMode = false
+  private var shift: RimeShiftState = .off
+  private var language: RimeLanguageKey?
   private var returnKeyLabel = "换行"
   private var showsGlobeRow = false
-  private var builtForGlobeRow = false
+  private var feedback = RimeKeyFeedback.standard
+
   /// Last configuration actually applied. Restyling the whole grid on every keystroke (fonts,
   /// SF Symbol lookups, colours) was a measurable part of the input latency.
-  private var applied: (layer: KeyLayer, asciiMode: Bool, returnKeyLabel: String,
-                        showsGlobeRow: Bool, appearance: UIKeyboardAppearance)?
+  private var applied: (keyLayer: KeyLayer, shift: RimeShiftState, asciiMode: Bool,
+                        returnKeyLabel: String, showsGlobeRow: Bool,
+                        appearance: UIKeyboardAppearance)?
+  private var laidOutWidth: CGFloat = 0
+
+  /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
+  /// the views that own them, so this grid's coordinate space starts at its first row.
+  private static var rowStyle: RimeKeyboardStyle {
+    var style = RimeKeyboardStyle.measured
+    style.candidateSlotHeight = 0
+    style.bottomInset = 0
+    return style
+  }
+
+  static func rowsHeight(width: CGFloat, needsGlobeRow: Bool) -> CGFloat {
+    RimeKeyboardLayoutEngine.layout(width: max(width, 1), layer: .letters,
+                                    needsGlobeRow: needsGlobeRow, style: rowStyle).height
+  }
 
   func configure(theme: KeyboardTheme,
                  layer: KeyLayer,
                  asciiMode: Bool,
                  returnKeyLabel: String,
-                 showsGlobeRow: Bool) {
+                 showsGlobeRow: Bool,
+                 shift: RimeShiftState = .off,
+                 language: RimeLanguageKey? = nil,
+                 feedback: RimeKeyFeedback = .standard) {
     if let applied,
-       applied.layer == layer,
+       applied.keyLayer == layer,
+       applied.shift == shift,
        applied.asciiMode == asciiMode,
        applied.returnKeyLabel == returnKeyLabel,
        applied.showsGlobeRow == showsGlobeRow,
        applied.appearance == theme.appearance {
       return
     }
-    applied = (layer, asciiMode, returnKeyLabel, showsGlobeRow, theme.appearance)
+    applied = (layer, shift, asciiMode, returnKeyLabel, showsGlobeRow, theme.appearance)
 
     self.theme = theme
+    self.currentLayer = layer
     self.asciiMode = asciiMode
+    self.shift = shift
     self.returnKeyLabel = returnKeyLabel
     self.showsGlobeRow = showsGlobeRow
-    if layer != currentLayer || builtForGlobeRow != showsGlobeRow || rowButtons.isEmpty {
-      currentLayer = layer
+    self.language = language
+    self.feedback = feedback
+
+    // A different key set has to be rebuilt; a different colour does not.
+    let needsRebuild = buttons.isEmpty
+      || buttons.count != currentLayout(width: max(laidOutWidth, 1)).keys.count
+    if needsRebuild {
       rebuild()
     } else {
       refreshAppearance()
     }
+    invalidateIntrinsicContentSize()
     setNeedsLayout()
+  }
+
+  override var intrinsicContentSize: CGSize {
+    let width = bounds.width > 0 ? bounds.width : UIScreen.main.bounds.width
+    return CGSize(width: UIView.noIntrinsicMetric,
+                  height: Self.rowsHeight(width: width, needsGlobeRow: showsGlobeRow))
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    var y: CGFloat = 0
-    for (index, row) in rows.enumerated() {
-      let isGlobeRow = showsGlobeRow && index == rows.count - 1
-      let height = isGlobeRow ? KeyboardMetrics.globeRowHeight : KeyboardMetrics.keyHeight
-      layout(row: row, buttons: rowButtons[index], originY: y, height: height)
-      y += height + KeyboardMetrics.rowGap
+    guard bounds.width > 0 else { return }
+    if abs(bounds.width - laidOutWidth) > 0.5 {
+      laidOutWidth = bounds.width
+      rebuild()
+      invalidateIntrinsicContentSize()
+      return
     }
+    placeButtons()
   }
 
-  // MARK: - Rows
+  // MARK: - The model's keys
 
-  private static let globeRow = KeyGridRow(items: [
-    KeyGridRow.Item(key: .globe, width: .units(1.5)),
-    KeyGridRow.Item(key: nil, width: .remainder(assumed: 8.5)),
-  ])
-
-  private static func rows(for layer: KeyLayer) -> [KeyGridRow] {
-    func bottomRow(firstKey: KeyboardKey) -> KeyGridRow {
-      KeyGridRow(items: [
-        KeyGridRow.Item(key: firstKey, width: .units(1.25)),
-        KeyGridRow.Item(key: .emoji, width: .units(1.25)),
-        KeyGridRow.Item(key: .space, width: .remainder(assumed: 5.0)),
-        KeyGridRow.Item(key: .auxCode, width: .units(1.5)),
-        KeyGridRow.Item(key: .returnKey, width: .units(1.75)),
-      ])
-    }
-    func letters(_ text: String) -> [KeyGridRow.Item] {
-      text.map { KeyGridRow.Item(key: .character(String($0)), width: .units(1)) }
-    }
-    let halfSpacer = KeyGridRow.Item(key: nil, width: .units(0.5))
-
-    switch layer {
-    case .letters:
-      return [
-        KeyGridRow(items: letters("qwertyuiop")),
-        KeyGridRow(items: [halfSpacer] + letters("asdfghjkl") + [halfSpacer]),
-        KeyGridRow(items: [KeyGridRow.Item(key: .shift, width: .units(1.5))]
-          + letters("zxcvbnm")
-          + [KeyGridRow.Item(key: .backspace, width: .units(1.5))]),
-        bottomRow(firstKey: .numbers),
-      ]
-    case .numbers:
-      return [
-        KeyGridRow(items: letters("1234567890")),
-        KeyGridRow(items: [halfSpacer] + letters("-/:;()$&@\"") + [halfSpacer]),
-        KeyGridRow(items: [KeyGridRow.Item(key: .letters, width: .units(1.5))]
-          + letters(".,?!'")
-          + [KeyGridRow.Item(key: .backspace, width: .units(1.5))]),
-        bottomRow(firstKey: .letters),
-      ]
-    }
+  private func currentLayout(width: CGFloat) -> RimeKeyboardLayout {
+    RimeKeyboardLayoutEngine.layout(
+      width: width,
+      layer: currentLayer.rimeLayer,
+      shift: shift.isUppercase ? shift : (asciiMode ? .on : .off),
+      returnKey: RimeReturnKey(label: returnKeyLabel),
+      language: language,
+      needsGlobeRow: showsGlobeRow,
+      style: Self.rowStyle)
   }
-
-  // MARK: - Building
 
   private func rebuild() {
-    for buttons in rowButtons {
-      for button in buttons {
-        button.removeFromSuperview()
-      }
+    for entry in buttons {
+      entry.view.removeFromSuperview()
     }
-    rowButtons.removeAll()
+    buttons.removeAll()
 
-    var built = Self.rows(for: currentLayer)
-    if showsGlobeRow {
-      built.append(Self.globeRow)
-    }
-    rows = built
-    builtForGlobeRow = showsGlobeRow
-
-    for row in rows {
-      var buttons: [KeyButton] = []
-      for item in row.items {
-        let button = KeyButton(frame: .zero)
-        button.key = item.key
-        if let key = item.key {
-          button.repeatsWhileHeld = (key == .backspace)
-          button.addTarget(self, action: #selector(handleKeyPress(_:)), for: .primaryActionTriggered)
-        } else {
-          button.isUserInteractionEnabled = false
-        }
-        addSubview(button)
-        buttons.append(button)
+    let layout = currentLayout(width: max(laidOutWidth, 1))
+    for key in layout.keys {
+      let button = KeyButton(frame: .zero)
+      button.key = self.key(for: key)
+      if let mapped = button.key {
+        button.repeatsWhileHeld = (mapped == .backspace)
+        button.feedback = feedback
+        button.addTarget(self, action: #selector(handleKeyPress(_:)), for: .primaryActionTriggered)
+        button.isAccessibilityElement = true
+        button.accessibilityLabel = key.accessibilityLabel
+        // The accessibility label is the character or the action; the trait tells VoiceOver it is a
+        // key rather than a paragraph (S3 §8).
+        button.accessibilityTraits = .keyboardKey
+      } else {
+        button.isUserInteractionEnabled = false
       }
-      rowButtons.append(buttons)
+      addSubview(button)
+      if let mapped = button.key {
+        buttons.append((mapped, button))
+      }
+      // The model's key carries the frame the callout is positioned from; the app's key does not.
+      button.onTouchDown = { [weak self] point in
+        self?.onKeyTouchDown?(key, point)
+      }
+      button.onTouchMove = { [weak self] point in
+        self?.onKeyTouchMove?(key, point)
+      }
+      button.onTouchEnded = { [weak self] in
+        self?.onKeyTouchEnded?()
+      }
     }
     refreshAppearance()
+  }
+
+  private func placeButtons() {
+    let layout = currentLayout(width: bounds.width)
+    guard layout.keys.count == buttons.count else {
+      rebuild()
+      return
+    }
+    for (index, key) in layout.keys.enumerated() {
+      buttons[index].view.frame = key.frame
+    }
+  }
+
+  /// The app's key vocabulary from the model's. `nil` would be a key the controller cannot act on,
+  /// and there are none: every kind the engine emits is handled.
+  private func key(for key: RimeKeyboardKey) -> KeyboardKey? {
+    switch key.kind {
+    case .character(let text): return .character(text)
+    case .shift: return .shift
+    case .delete: return .backspace
+    case .space: return .space
+    case .returnKey: return .returnKey
+    case .emoji: return .emoji
+    case .language(let value): return .language(value.label)
+    case .globe: return .globe
+    case .layer(let target):
+      switch target {
+      case .letters: return .letters
+      case .numbers: return .numbers
+      case .symbols: return .symbols
+      }
+    }
   }
 
   @objc private func handleKeyPress(_ sender: KeyButton) {
@@ -176,27 +225,42 @@ final class KeyboardKeyGrid: UIView {
     onKey?(key)
   }
 
+  // MARK: - Appearance
+
   private func refreshAppearance() {
-    for (rowIndex, row) in rows.enumerated() {
-      for (itemIndex, item) in row.items.enumerated() {
-        guard rowIndex < rowButtons.count, itemIndex < rowButtons[rowIndex].count else { continue }
-        let button = rowButtons[rowIndex][itemIndex]
-        guard let key = item.key else {
-          button.backgroundColor = .clear
-          continue
-        }
-        button.apply(theme: theme, style: style(for: key))
-        applyContent(for: key, to: button)
-      }
+    for entry in buttons {
+      entry.view.apply(theme: theme, style: style(for: entry.key), role: role(for: entry.key))
+      applyContent(for: entry.key, to: entry.view)
+    }
+  }
+
+  /// Which cap role this key has. The *rule* is the engine's (S3 §4: wide keys are lighter in dark mode, a
+  /// key with no cap has none); this is only the translation from the keyboard's own vocabulary, which is the
+  /// one thing a view knows and the model cannot.
+  ///
+  /// Two divergences were found here and are fixed: the space bar is a **wide** cap (it used to take the
+  /// letter colour, which is a different colour in dark mode), and the return key is the **action** colour
+  /// (it used to take the wide cap, so the measured blue was never painted). The keyboard never learns that
+  /// the return key is disabled — UIKit does not say — so the enabled colour is what it paints.
+  private func role(for key: KeyboardKey) -> RimeKeyCapRole {
+    switch key {
+    case .character: return .letter
+    case .space: return .wide
+    case .shift: return shift != .off || asciiMode ? .pressedLetter : .wide
+    case .returnKey: return .actionEnabled
+    case .globe: return .plain
+    default: return .wide
     }
   }
 
   private func style(for key: KeyboardKey) -> KeyButton.Style {
     switch key {
-    case .character, .space, .auxCode:
+    case .character, .space:
       return .letter
     case .shift:
-      return asciiMode ? .active : .special
+      return shift != .off || asciiMode ? .active : .special
+    case .language:
+      return .special
     case .globe:
       return .plain
     default:
@@ -207,65 +271,31 @@ final class KeyboardKeyGrid: UIView {
   private func applyContent(for key: KeyboardKey, to button: KeyButton) {
     switch key {
     case .character(let value):
-      button.setTitle(asciiMode ? value.uppercased() : value, pointSize: 24)
+      let uppercase = !value.isEmpty
+        && value.rangeOfCharacter(from: .letters) != nil
+        && (shift.isUppercase || asciiMode)
+      button.setTitle(uppercase ? value.uppercased() : value, pointSize: 24)
     case .space:
       button.setTitle("空格", pointSize: 16)
-    case .auxCode:
-      button.setTitle("辅码", pointSize: 16)
     case .returnKey:
       button.setTitle(returnKeyLabel, pointSize: 16)
     case .numbers:
       button.setTitle("123", pointSize: 16)
+    case .symbols:
+      button.setTitle("#+=", pointSize: 16)
     case .letters:
       button.setTitle("ABC", pointSize: 16)
     case .shift:
-      button.setSymbol(asciiMode ? "shift.fill" : "shift", pointSize: 20)
+      button.setSymbol(shift == .caps ? "capslock.fill" : (shift != .off ? "shift.fill" : "shift"),
+                       pointSize: 20)
     case .backspace:
       button.setSymbol("delete.left", pointSize: 20)
     case .emoji:
       button.setSymbol("face.smiling", pointSize: 20)
+    case .language(let label):
+      button.setTitle(label, pointSize: 16)
     case .globe:
       button.setSymbol("globe", pointSize: 20)
-    }
-  }
-
-  // MARK: - Layout
-
-  private func layout(row: KeyGridRow, buttons: [KeyButton], originY: CGFloat, height: CGFloat) {
-    let gap = KeyboardMetrics.keyGap
-    let usable = bounds.width - 2 * KeyboardMetrics.sideMargin - gap * CGFloat(max(row.items.count - 1, 0))
-    var assumedUnits: CGFloat = 0
-    for item in row.items {
-      switch item.width {
-      case .units(let units): assumedUnits += units
-      case .remainder(let assumed): assumedUnits += assumed
-      }
-    }
-    guard assumedUnits > 0, usable > 0 else { return }
-    let unit = usable / assumedUnits
-
-    // The remainder item absorbs what the unit-sized items leave over. It is not necessarily
-    // the last item in the row — the space bar has the aux-code and return keys to its right —
-    // so this subtracts every unit-sized item, not only the ones already placed.
-    var fixedUnits: CGFloat = 0
-    for item in row.items {
-      if case .units(let units) = item.width {
-        fixedUnits += units
-      }
-    }
-    let remainderWidth = max(usable - fixedUnits * unit, 0)
-
-    var x = KeyboardMetrics.sideMargin
-    for (index, item) in row.items.enumerated() {
-      let width: CGFloat
-      switch item.width {
-      case .units(let units):
-        width = units * unit
-      case .remainder:
-        width = remainderWidth
-      }
-      buttons[index].frame = CGRect(x: x, y: originY, width: max(width, 0), height: height)
-      x += width + gap
     }
   }
 }

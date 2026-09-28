@@ -1,35 +1,69 @@
 import UIKit
 import RimeEngine
 
-/// The suggestion strip above the keys: a fixed row of candidates, laid out like the system
-/// suggestion bar.
+/// The suggestion strip above the keys — S4 §6's collapsed bar, rendered from `RimeCandidateBarModel`.
 ///
-/// Two rules earned the hard way:
-///  - every constraint is anchored inside the view that owns it, so no activation can happen
-///    between two views that share no ancestor (that threw on the first key press and killed the
-///    extension);
-///  - buttons are pooled and updated in place. Creating and destroying five buttons plus
-///    separators on every keystroke was a large part of why typing felt laggy.
+/// Three rules earned the hard way, kept from the tracer's version:
+///  - every constraint is anchored inside the view that owns it, so no activation can happen between
+///    two views that share no ancestor (that threw on the first key press and killed the extension);
+///  - buttons are pooled and updated in place, because creating and destroying five buttons plus
+///    separators on every keystroke was a large part of why typing felt laggy;
+///  - a keystroke that changes nothing visible must not restyle anything.
 final class CandidateBar: UIView {
-  private static let maxCandidates = 5
+  /// Called with the index of the tapped candidate, in librime's own list.
+  var onSelect: ((Int) -> Void)?
+  /// A long press forgets the word (S4 §8, S5-AC5). The index is the cell's position on the page the bar is
+  /// showing, which is the numbering librime's `delete_candidate` expects.
+  var onForget: ((Int) -> Void)?
+  /// Called with `backward` for a page turn. Page keys never commit (S3 §5).
+  var onPage: ((Bool) -> Void)?
+  /// The expand control: S4 §6's panel replaces the keyboard area, so the bar has to offer it.
+  var onExpand: (() -> Void)?
 
-  private let stack = UIStackView()
+  private let leadingChevron = UIButton(type: .system)
+  private let trailingChevron = UIButton(type: .system)
+  private let expandButton = UIButton(type: .system)
+  private let cellsStack = UIStackView()
+  private let outerStack = UIStackView()
   private let messageLabel = UILabel()
-  private var buttons: [UIButton] = []
+  private var cellButtons: [UIButton] = []
   private var theme = KeyboardTheme.current(for: .default)
 
-  /// Called with the tapped candidate index.
-  var onSelect: ((Int) -> Void)?
+  private static let chevronWidth: CGFloat = 32
+  private static let maxCells = 9
 
   override init(frame: CGRect) {
     super.init(frame: frame)
 
-    stack.axis = .horizontal
-    stack.alignment = .fill
-    stack.distribution = .fillEqually
-    stack.spacing = 0
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(stack)
+    cellsStack.axis = .horizontal
+    cellsStack.alignment = .fill
+    cellsStack.distribution = .fillEqually
+    cellsStack.spacing = 0
+
+    outerStack.axis = .horizontal
+    outerStack.alignment = .fill
+    outerStack.distribution = .fill
+    outerStack.spacing = 0
+    outerStack.translatesAutoresizingMaskIntoConstraints = false
+    outerStack.addArrangedSubview(leadingChevron)
+    outerStack.addArrangedSubview(cellsStack)
+    outerStack.addArrangedSubview(trailingChevron)
+    outerStack.addArrangedSubview(expandButton)
+    addSubview(outerStack)
+
+    for chevron in [leadingChevron, trailingChevron, expandButton] {
+      chevron.translatesAutoresizingMaskIntoConstraints = false
+      chevron.tintColor = .secondaryLabel
+    }
+    leadingChevron.setImage(UIImage(systemName: "chevron.left"), for: .normal)
+    trailingChevron.setImage(UIImage(systemName: "chevron.right"), for: .normal)
+    leadingChevron.accessibilityLabel = "上一页"
+    trailingChevron.accessibilityLabel = "下一页"
+    expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
+    expandButton.accessibilityLabel = "展开候选面板"
+    leadingChevron.addTarget(self, action: #selector(handleLeading), for: .touchUpInside)
+    trailingChevron.addTarget(self, action: #selector(handleTrailing), for: .touchUpInside)
+    expandButton.addTarget(self, action: #selector(handleExpand), for: .touchUpInside)
 
     messageLabel.font = .systemFont(ofSize: 13)
     messageLabel.numberOfLines = 2
@@ -38,10 +72,13 @@ final class CandidateBar: UIView {
     addSubview(messageLabel)
 
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-      stack.topAnchor.constraint(equalTo: topAnchor),
-      stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+      outerStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+      outerStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+      outerStack.topAnchor.constraint(equalTo: topAnchor),
+      outerStack.bottomAnchor.constraint(equalTo: bottomAnchor),
+      leadingChevron.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
+      trailingChevron.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
+      expandButton.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
       messageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
       messageLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
       messageLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -56,66 +93,139 @@ final class CandidateBar: UIView {
     self.theme = theme
     backgroundColor = theme.background
     messageLabel.textColor = theme.candidateText.withAlphaComponent(0.75)
-    for button in buttons {
+    for chevron in [leadingChevron, trailingChevron, expandButton] {
+      chevron.tintColor = theme.candidateText.withAlphaComponent(0.6)
+    }
+    for button in cellButtons {
       button.setTitleColor(theme.candidateText, for: .normal)
     }
   }
 
-  func setCandidates(_ candidates: [RimeCandidateItem], highlighted: Int) {
-    guard !candidates.isEmpty else {
-      stack.isHidden = true
-      messageLabel.isHidden = (messageLabel.text ?? "").isEmpty
+  // MARK: - The model
+
+  func apply(model: RimeCandidateBarModel) {
+    guard !model.isEmpty else {
+      showMessage(model.message ?? "")
       return
     }
-    // The first real candidate retires the boot diagnostics for good.
-    messageLabel.text = nil
-    messageLabel.isHidden = true
-    stack.isHidden = false
+    hideMessage()
+    leadingChevron.isHidden = !model.showsLeadingChevron
+    trailingChevron.isHidden = !model.showsTrailingChevron
+    expandButton.isHidden = false
 
-    let count = min(candidates.count, Self.maxCandidates)
-    ensureButtons(count: count)
+    let count = min(model.cells.count, Self.maxCells)
+    ensureCells(count: count)
 
-    for (index, button) in buttons.enumerated() {
+    for (index, button) in cellButtons.enumerated() {
       let visible = index < count
       button.isHidden = !visible
       guard visible else { continue }
-      let title = candidates[index].text
-      if button.title(for: .normal) != title {
-        button.setTitle(title, for: .normal)
+      let cell = model.cells[index]
+      button.tag = cell.index
+      button.accessibilityLabel = cell.label.map { $0 + ". " + cell.text } ?? cell.text
+      button.accessibilityValue = cell.comment
+      let title = Self.title(for: cell, theme: theme)
+      if button.attributedTitle(for: .normal) != title {
+        button.setAttributedTitle(title, for: .normal)
       }
-      let fill = index == highlighted ? theme.candidateHighlightFill : UIColor.clear
+      button.setTitleColor(theme.candidateText, for: .normal)
+      let fill = cell.isHighlighted ? theme.candidateHighlightFill : UIColor.clear
       if button.backgroundColor != fill {
         button.backgroundColor = fill
       }
     }
   }
 
+  /// The convenience the controller uses: a whole page from the engine.
+  func setPage(_ page: RimePage?, message: String? = nil) {
+    apply(model: RimeCandidateBarModel.page(page, message: message))
+  }
+
   /// Boot diagnostics. The candidate strip is the one piece of screen real estate the keyboard
   /// always owns, so this is where a device user can read what happened.
   func setMessage(_ message: String) {
-    stack.isHidden = true
+    showMessage(message)
+  }
+
+  // MARK: - Internals
+
+  /// The cell's title: the candidate, its select label when the schema defines one, and its comment
+  /// in a smaller face (拼音, emoji) the way the system's bar shows them.
+  private static func title(for cell: RimeCandidateCell,
+                           theme: KeyboardTheme) -> NSAttributedString {
+    let text = NSMutableAttributedString(
+      string: cell.text,
+      attributes: [.font: UIFont.systemFont(ofSize: 20),
+                   .foregroundColor: theme.candidateText])
+    if let label = cell.label, !label.isEmpty {
+      let prefix = NSAttributedString(
+        string: label + " ",
+        attributes: [.font: UIFont.systemFont(ofSize: 12),
+                     .foregroundColor: theme.candidateText.withAlphaComponent(0.55)])
+      text.insert(prefix, at: 0)
+    }
+    if let comment = cell.comment, !comment.isEmpty {
+      text.append(NSAttributedString(
+        string: " " + comment,
+        attributes: [.font: UIFont.systemFont(ofSize: 12),
+                     .foregroundColor: theme.candidateText.withAlphaComponent(0.55)]))
+    }
+    return text
+  }
+
+  private func showMessage(_ message: String) {
+    outerStack.isHidden = true
+    expandButton.isHidden = true
     messageLabel.text = message
     messageLabel.isHidden = message.isEmpty
+  }
+
+  private func hideMessage() {
+    messageLabel.text = nil
+    messageLabel.isHidden = true
+    outerStack.isHidden = false
   }
 
   @objc private func handleTap(_ sender: UIButton) {
     onSelect?(sender.tag)
   }
 
-  private func ensureButtons(count: Int) {
-    while buttons.count < count {
+  /// A long press forgets the candidate under the finger. The gesture fires on `.began` only, so a hold does
+  /// not forget twice.
+  @objc private func handleForget(_ recognizer: UILongPressGestureRecognizer) {
+    guard recognizer.state == .began,
+          let button = recognizer.view as? UIButton,
+          let index = cellButtons.firstIndex(of: button) else { return }
+    onForget?(index)
+  }
+
+  @objc private func handleLeading() {
+    onPage?(true)
+  }
+
+  @objc private func handleTrailing() {
+    onPage?(false)
+  }
+
+  @objc private func handleExpand() {
+    onExpand?()
+  }
+
+  private func ensureCells(count: Int) {
+    while cellButtons.count < count {
       let button = UIButton(type: .custom)
-      button.setTitleColor(theme.candidateText, for: .normal)
-      button.titleLabel?.font = .systemFont(ofSize: 20)
       button.titleLabel?.adjustsFontSizeToFitWidth = true
       button.titleLabel?.minimumScaleFactor = 0.6
-      button.tag = buttons.count
+      button.titleLabel?.lineBreakMode = .byTruncatingTail
+      button.tag = cellButtons.count
       button.addTarget(self, action: #selector(handleTap(_:)), for: .touchUpInside)
-      if !buttons.isEmpty {
+    button.addGestureRecognizer(UILongPressGestureRecognizer(target: self,
+                                                             action: #selector(handleForget(_:))))
+      if !cellButtons.isEmpty {
         addSeparator(to: button)
       }
-      stack.addArrangedSubview(button)
-      buttons.append(button)
+      cellsStack.addArrangedSubview(button)
+      cellButtons.append(button)
     }
   }
 

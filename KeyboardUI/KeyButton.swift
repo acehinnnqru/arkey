@@ -1,4 +1,5 @@
 import UIKit
+import RimeEngine
 
 /// One key cap. Drawn as a plain view so that the system-like fill, corner radius and
 /// pressed state stay under our control.
@@ -14,11 +15,21 @@ final class KeyButton: UIControl {
   private let titleLabel = UILabel()
   private let imageView = UIImageView()
   private var style: Style = .letter
+  /// The cap role, which comes from the engine's rule (S3 §4) through the grid's translation of its own
+  /// vocabulary of keys.
+  private var role: RimeKeyCapRole = .letter
   private var theme = KeyboardTheme.current(for: .default)
 
   var key: KeyboardKey?
   /// Repeat is only used by the delete key.
   var repeatsWhileHeld = false
+  /// The touch's life, for the callout: down, moved (in this view's coordinates) and ended.
+  var onTouchDown: ((CGPoint) -> Void)?
+  var onTouchMove: ((CGPoint) -> Void)?
+  var onTouchEnded: (() -> Void)?
+  /// The feedback policy in force. The controller sets it from the shared preferences on every
+  /// appearance, so a calibration change reaches the keyboard without a rebuild.
+  var feedback = RimeKeyFeedback.standard
 
   private var repeatTimer: Timer?
   private var repeatDelayWorkItem: DispatchWorkItem?
@@ -50,6 +61,13 @@ final class KeyButton: UIControl {
       imageView.heightAnchor.constraint(equalToConstant: 24),
     ])
 
+    // A pan recogniser rather than touch overrides: UIControl already consumes the touches, and a
+    // recogniser reports the finger's position without cancelling the tap.
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+    pan.cancelsTouchesInView = false
+    pan.minimumNumberOfTouches = 1
+    addGestureRecognizer(pan)
+
     addTarget(self, action: #selector(handleTouchDown), for: [.touchDown, .touchDragEnter])
     addTarget(self, action: #selector(handleTouchUp), for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
     addTarget(self, action: #selector(handlePrimary), for: .touchUpInside)
@@ -64,12 +82,14 @@ final class KeyButton: UIControl {
     repeatDelayWorkItem?.cancel()
   }
 
-  func apply(theme: KeyboardTheme, style: Style) {
+  func apply(theme: KeyboardTheme, style: Style, role: RimeKeyCapRole) {
     self.theme = theme
     self.style = style
-    backgroundColor = fill(for: style)
-    titleLabel.textColor = textColor(for: style)
-    imageView.tintColor = textColor(for: style)
+    self.role = role
+    backgroundColor = theme.fill(for: role)
+    let text = isAction ? theme.returnKeyText : textColor(for: style)
+    titleLabel.textColor = text
+    imageView.tintColor = text
     layer.shadowColor = UIColor.black.cgColor
     layer.shadowOpacity = style == .plain ? 0 : theme.keyShadowOpacity
   }
@@ -85,12 +105,15 @@ final class KeyButton: UIControl {
     imageView.image = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular))
   }
 
-  private func fill(for style: Style) -> UIColor {
-    switch style {
-    case .letter: return theme.keyFill
-    case .special: return theme.specialKeyFill
-    case .active: return theme.activeKeyFill
-    case .plain: return .clear
+  private var isAction: Bool { role == .actionEnabled || role == .actionDisabled }
+
+  /// The cap while a finger is on it. A key with no cap keeps none — the globe used to flash the pressed wide
+  /// colour, because the pressed path asked only whether the key was wide.
+  private var pressedRole: RimeKeyCapRole {
+    switch role {
+    case .letter: return .pressedLetter
+    case .wide: return .pressedWide
+    case .pressedLetter, .pressedWide, .actionEnabled, .actionDisabled, .plain: return role
     }
   }
 
@@ -98,17 +121,34 @@ final class KeyButton: UIControl {
     style == .active ? theme.activeKeyText : theme.keyText
   }
 
+  @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+    let point = recognizer.location(in: self)
+    switch recognizer.state {
+    case .changed:
+      onTouchMove?(point)
+    case .ended, .cancelled, .failed:
+      onTouchEnded?()
+    default:
+      break
+    }
+  }
+
   @objc private func handleTouchDown() {
-    alpha = 0.7
+    onTouchDown?(CGPoint(x: bounds.midX, y: bounds.midY))
+    // S3 §5: the cap shifts to its pressed fill and nothing else moves. The fill is the palette's,
+    // so it moves in the direction the measured appearance says it moves.
+    backgroundColor = theme.fill(for: pressedRole)
     guard repeatsWhileHeld else { return }
+    let feedback = self.feedback
     let work = DispatchWorkItem { [weak self] in
       guard let self else { return }
-      self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+      self.repeatTimer = Timer.scheduledTimer(withTimeInterval: feedback.deleteRepeatInterval,
+                                              repeats: true) { [weak self] _ in
         self?.sendActions(for: .primaryActionTriggered)
       }
     }
     repeatDelayWorkItem = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+    DispatchQueue.main.asyncAfter(deadline: .now() + feedback.deleteRepeatDelay, execute: work)
   }
 
   /// Single entry point for the controller: one action per tap, plus repeats from the timer.
@@ -117,7 +157,8 @@ final class KeyButton: UIControl {
   }
 
   @objc private func handleTouchUp() {
-    alpha = 1
+    onTouchEnded?()
+    backgroundColor = theme.fill(for: role)
     repeatDelayWorkItem?.cancel()
     repeatDelayWorkItem = nil
     repeatTimer?.invalidate()
