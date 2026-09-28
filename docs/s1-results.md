@@ -246,6 +246,16 @@ Two properties are asserted rather than assumed:
 The size caps and the tiny-file guard exist because the download is untrusted input like any other
 archive; the digest in the receipt is the same `sha256` the profile's provenance records.
 
+## The catalogue reaches a screen now (S1 §2, §5)
+
+The catalogue was engine data with no caller until the 下载配置 screen: it lists every
+`RimeCatalog.standard` entry with its licence, size and requirements, and opens the project's page in
+the system browser. That is the shape S1 §5 allows — the in-app fetch is "later and optionally" — and
+it is the one that keeps `S6NetworkTests` meaningful: the app initiates no network request at all,
+so the App Privacy answer stays "Data Not Collected" and the guideline 2.5.2 story has nothing to turn
+off ([app-store.md](app-store.md)). What the user downloads comes back through the same hardened import
+pipeline as any other zip.
+
 ## The catalogue's pages are the one part that lives outside the repository (S1 §5, S1-AC2)
 
 §5 says the page URL is the update channel: the entry points at the project's own page, which redirects to the

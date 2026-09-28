@@ -24,7 +24,7 @@ step that closes each row, is in [device-run.md](device-run.md).**
 | # | State | Evidence | Missing |
 | --- | --- | --- | --- |
 | S1-AC1 | partly | release check on the real Release bundle: 16 tracer files, no findings; bundled fallback in `RimeWorkspaceResolver` | typing on a clean device install |
-| S1-AC2 | open | import → deploy → activate verified with fixtures; rime-ice itself is not in this repository; **the download pages the catalogue names are 404 as of this check** (`scripts/check-catalog-pages.sh`) | publishing the pages, then the device run with the real config |
+| S1-AC2 | open | import → deploy → activate verified with fixtures; rime-ice itself is not in this repository; the 下载配置 screen lists the catalogue entries with their licence, size and requirements and opens the project's pages in Safari (S1 §5's in-app fetch is the optional entry point and is deliberately not built — the app initiates no network request); **the download pages the catalogue names are 404 as of this check** (`scripts/check-catalog-pages.sh`) | publishing the pages, then the device run with the real config |
 | S1-AC3 | met | `S1ProfileSwitchTests`: a learned word survives switching away and back; the bindings share a user dir and differ in sources | — |
 | S1-AC4 | met | `S1ImportTests`: every validation failure names the file and the reason | — |
 | S1-AC5 | met | `S1DeploymentTests`: a failed deploy keeps the previous generation typing and leaves staging for the janitor | — |
@@ -85,7 +85,7 @@ step that closes each row, is in [device-run.md](device-run.md).**
 | S6-AC2 | open | — | the iOS test target itself (needs a project edit and a build to verify it) |
 | S6-AC3 | met | `S6ReleaseCheckTests` places a third-party file in a synthetic bundle and the check fails | — |
 | S6-AC4 | met | the notices list every profile **and** the engine's components, with unverified licences deliberately unstated, and every external link they carry was fetched live: librime, its packaging, lua, octagram, predict, rime-ice and the GPL text all answer 200 (`scripts/check-catalog-pages.sh`); the list cannot drift from what is pinned — the `librime` version is compared with the linked engine and the `librime-xcframework` version with the `Package.swift` pin, parsed rather than assumed (`S6EngineNoticesTests`) | — |
-| S6-AC5 | partly | the manifest and its tests, including a **scan of the sources for required-reason APIs** checked against what it declares in both directions (`S6PrivacyManifestTests`; verified from both sides, like the network check); **no network use of our own, enforced** — `S6NetworkTests` scans every Swift file under the engine, app, extension and keyboard UI for the APIs that would open a connection, and fails with the file and line (verified from both sides: clean now, and a request added to the app on purpose was reported with its file and line) | the App Store Connect answers, which are not a repository artifact |
+| S6-AC5 | partly | the manifest and its tests, including a **scan of the sources for required-reason APIs** checked against what it declares in both directions (`S6PrivacyManifestTests`; verified from both sides, like the network check); **no network use of our own, enforced** — `S6NetworkTests` scans every Swift file under the engine, app, extension and keyboard UI for the APIs that would open a connection, and fails with the file and line (verified from both sides: clean now, and a request added to the app on purpose was reported with its file and line); the answers themselves are written out in [app-store.md](app-store.md) — the App Privacy table, the export-compliance answer, the guideline 2.5.2 story and the review notes — so the form has a committed source to copy from | the submission itself, which is account state, not a repository artifact |
 | S6-AC6 | partly | every measurement is in a per-spec results document with its device and OS | the device numbers themselves |
 
 ## Outstanding `[verify]` items
@@ -115,7 +115,7 @@ Xcode build, a published page or a form. Twenty-one rows:
 | S1-AC6 | a Debug build that runs the phase once — the phase itself is in the project and pinned by `S6ProjectSettingsTests` |
 | S1-AC2 (also), S6-AC1 | publishing: the project's own pages answer 404 today |
 | S6-AC2 | the iOS test target, then `xcodebuild test` |
-| S6-AC5 | the App Store Connect answers |
+| S6-AC5 | submitting the App Privacy answers and review notes from [app-store.md](app-store.md); the text itself is committed |
 | S5-AC1 | Squirrel on a Mac, both directions |
 
 (The S1 §9 row is not an acceptance criterion and is not counted here; its own waiting item is a device walk.)
