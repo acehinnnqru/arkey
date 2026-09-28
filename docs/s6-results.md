@@ -92,6 +92,15 @@ with the table as it stands it prints `38 rows, 38 criteria` and `25 cited names
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
+## The type-check script reports the build it hides
+
+`scripts/typecheck-app.sh` builds the engine for the simulator before it type-checks the app, and
+that build's output was sent to `/dev/null`: an engine compile error therefore surfaced as a bare
+`exit 1` with no message, and the first sign of trouble was the next step not printing. It happened
+during the S5 work in round 109 and cost a build cycle to interpret. The output now goes to
+`.build/typecheck-build.log`, and a failure prints its last thirty lines before exiting — the script
+still fails, but it says why.
+
 ## One command for the verification state
 
 The four gates this machine can run are chained in `scripts/verify-all.sh`, in the order that fails fastest:

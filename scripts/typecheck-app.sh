@@ -22,8 +22,16 @@ RIME_INCLUDE="$PACKAGE/.build/checkouts/librime-xcframework/Sources/RimeHeaders/
 MODULES="$PACKAGE/.build/arm64-apple-ios-simulator/debug/Modules"
 
 echo "== building RimeEngine for $TARGET =="
-swift build --disable-sandbox --package-path "$PACKAGE" --triple "$TARGET" \
-  -Xswiftc -sdk -Xswiftc "$SDK" >/dev/null
+# The build's output used to be discarded, which turned an engine compile error into a bare exit 1 with no
+# message: the failure was reported by the next step being absent rather than by the compiler. Keep it,
+# and print the tail when it fails.
+BUILD_LOG=".build/typecheck-build.log"
+if ! swift build --disable-sandbox --package-path "$PACKAGE" --triple "$TARGET" \
+     -Xswiftc -sdk -Xswiftc "$SDK" >"$BUILD_LOG" 2>&1; then
+  echo "typecheck FAILED: the RimeEngine build for $TARGET failed:" >&2
+  tail -30 "$BUILD_LOG" >&2
+  exit 1
+fi
 
 echo "== stripping #Preview blocks into $OUT =="
 rm -rf "$OUT"
