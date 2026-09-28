@@ -106,6 +106,20 @@ librime's deployer writes compiled tables into `staging_dir`. A binding whose `p
 `staging_dir` differ produces an empty prebuilt directory and a deploy that reports no output; binding
 both to `profiles/<id>/build.staging` is what the spec says and what works.
 
+### S1 §4 — one queue, re-entrant on purpose
+
+librime keeps process-global state, so every engine call funnels through one serial queue. A call made
+**from inside** another call would therefore be a `dispatch_sync` on the queue the thread already owns, which
+libdispatch treats as a client bug and traps on — measured when the guard was missing: SIGTRAP, "BUG IN
+CLIENT OF THREAD: dispatch_sync called on queue already owned by current thread". `perform` checks a
+queue-specific key and runs such calls inline instead.
+
+That branch is load-bearing for the settings screens (they read a schema while the caller holds a config)
+and had **no test** until round 125: `testAnEngineCallInsideAnotherRunsInlineInsteadOfTrapping` nests a
+config inside a config, a session call under both, and a write and read through the second config, and
+asserts the composed text comes back. Verified from both sides: removing the inline branch crashes the
+test process instead of failing it, which is what the original measurement looked like.
+
 ### S1 §5.2 — archive dependency [decision]
 
 Resolved in favour of a self-contained reader rather than a dependency. The rules require per-entry
@@ -369,7 +383,7 @@ files.
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
-| `S1EngineAPITests` | 9 | logsink and levers presence, deploy report and phases, patch write and redeploy, list patches, state labels, schema list, rebind, raw input, candidate measurements |
+| `S1EngineAPITests` | 10 | logsink and levers presence, deploy report and phases, patch write and redeploy, list patches, state labels, schema list, rebind, raw input, candidate measurements |
 | `S1WorkspaceTests` | 13 | profile identity, metadata and active.json round trips, every resolver fallback, janitor repair, installation seeding, storage report, deletion semantics, backup policy, deployer and client bindings, and the app version travelling with the profile |
 | `S1DeploymentTests` | 9 | the generation swap and its active.json record, one previous generation kept, rollback and its refusal with none to roll back to, a failed deploy keeping the previous generation typing, two profiles coexisting, deletion keeping dictionaries, the named error for a missing profile, and what a run actually wrote (first versus second deploy in one process) |
 | `S1ImportTests` | 12 | a folder and the same tree as a zip producing the same profile, a wrapping folder, ambiguous and missing config roots as named errors, a generated default.yaml, the Squirrel-shaped split, user-data adoption, validation naming every broken file, optional data as a warning, a config librime would not load, and a hostile archive leaving the workspace untouched |
