@@ -103,6 +103,33 @@ optional field, so files written before it existed still decode — the keyboard
 boot, and a decode failure there is a keyboard that does not appear. The diagnostics screen shows both,
 and the test pins the round trip, the field's presence in the JSON, and the legacy decode.
 
+## The checks fail when they should (S6 §2)
+
+A verification script is itself unverified: it passes on a clean tree, and one that passes on everything
+looks exactly the same. `scripts/check-verification-scripts.sh` plants a fault for each check — a
+criterion row removed, a cited test renamed, a wrong test count, an unwired public symbol, a link to
+nothing, a config outside `RimeData/`, a local config left in a bundle, a bundle path that does not
+exist, and (with `--typecheck`) a type error in an app file — and requires each check to **fail**. It
+does all of it in a temporary clone, copying the working tree's `scripts/` in first, so it never touches
+this checkout.
+
+It found two real holes in the checks themselves:
+
+- **`typecheck-app.sh` stopped looking after a multi-line `#Preview`.** The stripper's end-of-block
+  test required the closing brace to share its line with an opening one, which a normal preview never
+  does, so everything after the preview was dropped from the type-checked copy. Nothing was lost in this
+  tree — both previews are the last thing in their file — but a type error planted after one of them
+  passed the check, which is precisely the class of bug the script exists to prevent. The stripper now
+  tracks whether it has seen an opening brace at all and resumes at the matching close.
+- **`check-release-bundle.sh` reported success for a bundle that does not exist**: a typo, or a build
+  that produced nothing, printed "0 Rime data files in 0 data directories; 0 errors, 1 warnings" and
+  exited 0 — the one answer a release check must never give. It now fails with a message that says a typo
+  and a missing build look the same from there.
+
+The full run finishes with `13 expectations held, 0 violated`; the type-check mutation is behind
+`--typecheck` because it costs a build, and the bundle mutations are skipped when no built `.app` is
+available.
+
 ## The suite under the sanitizers
 
 Both sanitizers run the whole engine suite instrumented, and both are clean as of round 121:

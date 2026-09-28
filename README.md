@@ -34,6 +34,10 @@ committed), the app and extension type-check, and the release-bundle check when 
 available. Anything that fails stops the run. A fresh clone is expected to pass: that is how the chain is
 exercised.
 
+`scripts/check-verification-scripts.sh` turns the same discipline on the checks themselves: it
+plants a fault for each one in a temporary clone and requires it to fail. `--typecheck` adds the app
+type-check (a build); the release-bundle mutations need a built `.app` and are skipped without one.
+
 The engine suite also runs clean instrumented, which is worth doing after touching pointer code:
 
     swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=address   # 0 reports
