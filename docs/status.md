@@ -81,7 +81,7 @@ step that closes each row, is in [device-run.md](device-run.md).**
 
 | # | State | Evidence | Missing |
 | --- | --- | --- | --- |
-| S6-AC1 | partly | the whole chain is one command, `scripts/verify-all.sh`: 262 tests across 39 suites, the status check (which also compares this table's test count with the run), the **screen-wiring** check against `docs/ui-wiring.txt`, `typecheck ok` over 39 Swift files, release bundle check (16 Rime data files, 2 directories, no findings) | a clean checkout: 114 of this session's files are untracked, so the suite has never run from a fresh clone — which needs a commit, and a commit needs your approval and a signature; the bundle step also needs a build |
+| S6-AC1 | partly | the whole chain is one command, `scripts/verify-all.sh`: 264 tests across 39 suites, the status check (which also compares this table's test count with the run), the **screen-wiring** check against `docs/ui-wiring.txt`, `typecheck ok` over 39 Swift files, release bundle check (16 Rime data files, 2 directories, no findings). The chain was run from a **fresh clone** of the committed tree — `git clone` into a temporary directory, then `verify-all.sh` there: 264 tests, 0 failures, and the finding the clone produced (this row's stale count) was fixed and the clone re-run | the release bundle step in a fresh clone needs a build there; the iOS test target is S6-AC2 |
 | S6-AC2 | open | — | the iOS test target itself (needs a project edit and a build to verify it) |
 | S6-AC3 | met | `S6ReleaseCheckTests` places a third-party file in a synthetic bundle and the check fails | — |
 | S6-AC4 | met | the notices list every profile **and** the engine's components, with unverified licences deliberately unstated, and every external link they carry was fetched live: librime, its packaging, lua, octagram, predict, rime-ice and the GPL text all answer 200 (`scripts/check-catalog-pages.sh`); the list cannot drift from what is pinned — the `librime` version is compared with the linked engine and the `librime-xcframework` version with the `Package.swift` pin, parsed rather than assumed (`S6EngineNoticesTests`) | — |
@@ -114,7 +114,6 @@ Xcode build, a published page or a form. Twenty-one rows:
 | S1-AC1, S1-AC2, S1-AC7, S1-AC8, S2-AC1, S2-AC5, S3-AC1, S3-AC2, S3-AC3, S3-AC4, S3-AC6, S4-AC1, S4-AC3, S4-AC5, S4-AC6, S6-AC6 | one device run: `device-run.md`'s pre-flight and fourteen steps |
 | S1-AC6 | the Xcode Debug build phase that copies `RimeData.local/` into the bundle |
 | S1-AC2 (also), S6-AC1 | publishing: the project's own pages answer 404 today |
-| S6-AC1 (also) | a commit: the work of this session is 114 new files and a dozen modified ones, all uncommitted, so "passes on a clean checkout" cannot be tested until it is committed — and a commit needs your approval and a signature |
 | S6-AC2 | the iOS test target, then `xcodebuild test` |
 | S6-AC5 | the App Store Connect answers |
 | S5-AC1 | Squirrel on a Mac, both directions |
