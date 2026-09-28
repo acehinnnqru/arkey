@@ -23,6 +23,19 @@ public struct RimeProbeRecord: Codable, Sendable {
   }
 }
 
+extension RimeProbeRecord {
+  /// S2 §5.5: every applied setting is one probe line — the config, the key and both sides of the
+  /// change. It carries configuration values only: the composition, the candidates and anything else
+  /// the user typed are not part of a change record, and S6 §3 makes that a property of the log
+  /// (pinned by `S6ProbePrivacyTests`).
+  public static func configApplied(_ change: RimeConfigChange) -> RimeProbeRecord {
+    let old = change.oldValue?.compactDescription ?? "none"
+    let new = change.newValue?.compactDescription ?? "none"
+    return RimeProbeRecord(phase: "config.applied",
+                           message: change.configID + " " + change.key + ": " + old + " -> " + new)
+  }
+}
+
 public enum RimeProbe {
   /// Physical footprint in bytes: what jetsam accounts against the extension's limit.
   /// Resident size understates it, so this is the number worth recording.

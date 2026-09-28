@@ -43,13 +43,15 @@ extension RimeAppModel {
     guard let id = settingsSchemaID else { return }
     let patch = RimePatch(engine: engine, configID: configID(for: descriptor.scope, schemaID: id))
     do {
+      let change: RimeConfigChange
       switch value {
-      case .boolean(let raw): _ = try patch.set(.bool(raw), at: descriptor.key)
-      case .integer(let raw): _ = try patch.set(.int(raw), at: descriptor.key)
-      case .text(let raw): _ = try patch.set(.string(raw), at: descriptor.key)
-      case .list(let raw): _ = try patch.set(.list(raw.map { .string($0) }), at: descriptor.key)
+      case .boolean(let raw): change = try patch.set(.bool(raw), at: descriptor.key)
+      case .integer(let raw): change = try patch.set(.int(raw), at: descriptor.key)
+      case .text(let raw): change = try patch.set(.string(raw), at: descriptor.key)
+      case .list(let raw): change = try patch.set(.list(raw.map { .string($0) }), at: descriptor.key)
       }
       await deploy(profileID: activeProfileID ?? "")
+      recordConfigChange(change)
       refreshSettings()
     } catch {
       errorMessage = "写入设置失败：" + String(describing: error)
@@ -61,8 +63,9 @@ extension RimeAppModel {
     guard let id = settingsSchemaID else { return }
     let patch = RimePatch(engine: engine, configID: configID(for: descriptor.scope, schemaID: id))
     do {
-      _ = try patch.remove(key: descriptor.key)
+      let change = try patch.remove(key: descriptor.key)
       await deploy(profileID: activeProfileID ?? "")
+      recordConfigChange(change)
       refreshSettings()
     } catch {
       errorMessage = "重置失败：" + String(describing: error)
@@ -74,8 +77,10 @@ extension RimeAppModel {
   func setSwitch(_ name: String, reset: Int) async {
     guard let id = settingsSchemaID else { return }
     do {
-      _ = try RimeSettingsModel.setSwitchReset(reset, forSwitch: name, schemaID: id, engine: engine)
+      let change = try RimeSettingsModel.setSwitchReset(reset, forSwitch: name, schemaID: id,
+                                                        engine: engine)
       await deploy(profileID: activeProfileID ?? "")
+      recordConfigChange(change)
       refreshSettings()
     } catch {
       errorMessage = "写入开关失败：" + String(describing: error)
@@ -90,8 +95,9 @@ extension RimeAppModel {
         .compactMap(\.stringValue)
       let composed = RimeFuzzyPinyin.compose(baseAlgebra: base, enabled: enabled)
       let patch = RimePatch(engine: engine, configID: id)
-      _ = try patch.set(.list(composed.map { .string($0) }), at: "speller/algebra")
+      let change = try patch.set(.list(composed.map { .string($0) }), at: "speller/algebra")
       await deploy(profileID: activeProfileID ?? "")
+      recordConfigChange(change)
       refreshSettings()
     } catch {
       errorMessage = "写入模糊音失败：" + String(describing: error)
@@ -122,8 +128,9 @@ extension RimeAppModel {
   /// Enable, order and default are the same key, so they are the same write.
   func setSchemaList(_ ids: [String]) async {
     do {
-      _ = try schemaListEditor().write(ids)
+      let change = try schemaListEditor().write(ids)
       await deploy(profileID: activeProfileID ?? "")
+      recordConfigChange(change)
       refreshSettings()
     } catch {
       errorMessage = "写入方案列表失败：" + String(describing: error)
@@ -159,6 +166,14 @@ extension RimeAppModel {
 
   private func schemaListEditor() -> RimeSchemaListEditor {
     RimeSchemaListEditor(engine: engine, installed: installedSchemaIDs)
+  }
+
+  /// S2 §5.5: an applied change is recorded in the same log the keyboard writes, so one file tells
+  /// the whole story of a device run. Only the config values go in — never the composition or the
+  /// candidates the user saw (S6 §3; `S6ProbePrivacyTests` checks the log's field set).
+  func recordConfigChange(_ change: RimeConfigChange) {
+    guard let url = ProbeLogLocation.groupLogURL else { return }
+    RimeProbeLog(url: url).append(RimeProbeRecord.configApplied(change))
   }
 
   private func configID(for scope: RimeSettingDescriptor.Scope, schemaID: String) -> String {
