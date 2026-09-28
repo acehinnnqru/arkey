@@ -257,6 +257,28 @@ final class S1WorkspaceTests: XCTestCase {
     XCTAssertNil(active.appVersion)
   }
 
+  /// A corrupt `installation.yaml` must not silently mint a new installation id: that moves the
+  /// device's sync subdirectory, so its own earlier snapshots start looking like another device's.
+  func testAnUnreadableInstallationFileIsQuarantinedRatherThanSilentlyReplaced() throws {
+    let workspace = try makeWorkspace()
+    let record = workspace.installationRecord
+    try FileManager.default.createDirectory(at: record.deletingLastPathComponent(),
+                                            withIntermediateDirectories: true)
+    // An id with no sync_dir: the file is there, and it does not parse.
+    try Data("installation_id: MAC\n".utf8).write(to: record)
+    let unreadable = try Data(contentsOf: record)
+
+    let seeded = try workspace.seedInstallation(syncDirectory: URL(fileURLWithPath: "/tmp/arkey-sync"))
+    XCTAssertEqual(workspace.loadInstallation()?.installationID, seeded.installationID,
+                   "the workspace is usable again")
+
+    let quarantine = workspace.quarantinedInstallationURL
+    XCTAssertTrue(FileManager.default.fileExists(atPath: quarantine.path),
+                  "the unreadable file is moved aside, not overwritten")
+    XCTAssertEqual(try Data(contentsOf: quarantine), unreadable,
+                   "and its bytes are kept, so the id can be recovered by hand")
+  }
+
   // MARK: Storage
 
   func testStorageReportAccountsForEachProfileAndTheUserDirectory() throws {

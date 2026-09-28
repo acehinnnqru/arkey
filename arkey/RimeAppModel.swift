@@ -102,6 +102,13 @@ final class RimeAppModel: ObservableObject {
       }
       try FileManager.default.createDirectory(at: sync, withIntermediateDirectories: true)
       _ = try workspace.seedInstallation(syncDirectory: sync)
+      // S5 §6: an unreadable installation.yaml is moved aside rather than overwritten, and the user has
+      // to know: a new installation id means a new device directory in the sync folder, and the old
+      // snapshots will look like another device's.
+      if FileManager.default.fileExists(atPath: workspace.quarantinedInstallationURL.path) {
+        importWarnings.append("installation.yaml 无法读取，已另存为 installation.yaml.unreadable 并重新生成；"
+                              + "同步目录里会多出一个新的设备目录，旧快照会被当成其他设备。")
+      }
       try workspace.applyStoragePolicy()
     } catch {
       errorMessage = "工作区初始化失败：" + String(describing: error)

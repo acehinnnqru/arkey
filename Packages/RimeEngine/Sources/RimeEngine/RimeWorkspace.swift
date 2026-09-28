@@ -247,14 +247,34 @@ public struct RimeWorkspace: Sendable {
     return RimeInstallation(yaml: text)
   }
 
+  /// Where an `installation.yaml` that could not be read is moved before a fresh one is written. Its
+  /// bytes are kept so the id can be recovered by hand; check whether the file exists after seeding.
+  public var quarantinedInstallationURL: URL {
+    installationRecord.appendingPathExtension("unreadable")
+  }
+
   /// Writes `installation.yaml` if it is not there yet, and never rewrites an existing one: a
   /// second device sharing an `installation_id` is exactly what makes iCloud create conflict copies.
+  ///
+  /// A file that is there and does **not parse** is a different case, and it used to be handled the same
+  /// way: `loadInstallation()` returned nil, this method wrote a fresh record, and the device silently
+  /// minted a new `installation_id` — which moves its sync subdirectory, so its own earlier snapshots
+  /// start looking like some other device's, and the next sync writes a second device directory. The
+  /// unreadable file is moved aside with its bytes intact instead, and `quarantinedInstallationURL`
+  /// names it so the caller can say that it happened.
   @discardableResult
   public func seedInstallation(syncDirectory: URL,
                                installationID: String = UUID().uuidString,
                                fileManager: FileManager = .default) throws -> RimeInstallation {
     if let existing = loadInstallation() { return existing }
     try createDirectories(fileManager: fileManager)
+    if fileManager.fileExists(atPath: installationRecord.path) {
+      let quarantine = quarantinedInstallationURL
+      if fileManager.fileExists(atPath: quarantine.path) {
+        try? fileManager.removeItem(at: quarantine)
+      }
+      try fileManager.moveItem(at: installationRecord, to: quarantine)
+    }
     let record = RimeInstallation(installationID: installationID, syncDirectory: syncDirectory.path)
     try record.yaml.write(to: installationRecord, atomically: true, encoding: .utf8)
     return record
