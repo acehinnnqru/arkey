@@ -76,6 +76,15 @@ enum KeyboardEngine {
     setup.lease.heartbeat(pid: getpid())
   }
 
+  /// S5 §3.2: the keyboard releases at dismissal. `release` is an optimisation rather than the safety
+  /// mechanism — a crashed extension leaves the file behind, and the staleness rule covers that — but
+  /// without the call the file lingers for a whole staleness window after the user closed the keyboard,
+  /// and the app refuses dictionary work for no visible reason. A late heartbeat cannot bring it back:
+  /// `heartbeat` only updates a lease that exists for this pid.
+  static func releaseDictionaryLease(_ setup: Setup) {
+    setup.lease.release(pid: getpid())
+  }
+
   /// Reads `active.json` and rebinds when the profile or the generation changed.
   ///
   /// The order is S1 §8's: never mid-composition, one rebind, and if the rebind fails fall back to

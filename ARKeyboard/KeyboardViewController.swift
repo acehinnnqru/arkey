@@ -118,6 +118,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     flushKeyStatistics()
+    // S5 §3.2: the dictionary lease is released when the keyboard goes away. The engine-side safety net
+    // is the staleness rule, but a released lease is what makes the app usable again immediately.
+    if case .success(let setup) = KeyboardEngine.setup {
+      KeyboardEngine.releaseDictionaryLease(setup)
+    }
   }
 
   override func textDidChange(_ textInput: UITextInput?) {
@@ -287,9 +292,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       // get_state_label on the next layout pass.
       toggleAsciiMode()
     case .emoji:
-      // No emoji panel: the slot holds the 中/英 key whenever the schema has one, and this key is only
-      // reached when it does not (D5's "or is removed").
-      break
+      // D5, decided here and pending one device check: the key advances to the next input mode, which
+      // is where the system emoji keyboard lives. It used to do nothing, which is the worst of the
+      // three options — a key that is drawn and then lies. If a device shows the next mode is not the
+      // emoji keyboard, D5's fallback applies and the key is removed instead.
+      advanceToNextInputMode()
     }
     playFeedback()
   }

@@ -30,7 +30,7 @@ against the test or artifact that carries it, and what is still missing where so
 | D2 | Reference captures: five received (letters light/dark, numbers, symbols, expanded candidate panel); the collapsed Chinese candidate row is still missing | partly resolved |
 | D3 | Device matrix: the specs assume iPhone portrait for v1; landscape, iPad and 九宫格 are each separate work | open |
 | D4 | Feedback scope: callout, click, haptics, delete repeat specified; the space-bar caret trackpad is not | open |
-| D5 | Emoji: the key either opens our own panel or is removed; the system emoji keyboard is unreachable | open |
+| D5 | Emoji: implemented as "the key advances to the next input mode", which is where the system emoji keyboard lives — the tracer bullet's "unreachable" was a guess, and this API is the counter-evidence. One device check settles it: if the next mode is not the emoji keyboard, the fallback (remove the key) applies | implemented, one device check |
 | D6 | Sync transport: specified as the app's iCloud container plus explicit file import/export | open |
 | D7 | Dictionary ownership: specified as a lease with a visible refusal while the keyboard holds it | open |
 | D8 | App Store intent: S6 covers the 2.5.2 posture and the Safari fallback either way | open |
