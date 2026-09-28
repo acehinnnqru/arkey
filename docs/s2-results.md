@@ -314,6 +314,19 @@ the keyboard writes — 方案/输入/开关/模糊音/方案列表 and reset. T
 configuration values only, which is what `S6ProbePrivacyTests` pins from both sides: the factory's
 shape, and a live session that types a word and proves it never reaches the file.
 
+## The footer is one view and one state machine (S2 §6)
+
+"Every screen that writes shows the same two-state footer" was not implemented at all: nothing in the app
+said 已修改，待部署 or 已生效. Seven screens each growing their own version of that sentence is how the
+same state ends up phrased four ways, so the words live in `RimeSettingsFooterState` (unchanged /
+pending / applied / failed) and a single `SettingsDeployFooter` renders them. The state is set where
+the transition actually happens — a deploy is pending while it runs, applied with its own numbers when it
+finishes, failed with the reason (the label is added by the state, so the sentence cannot double) — and
+also by the two actions that are live without being deploys: 激活 and 回滚. The 键盘 screen shows
+"无需部署" instead, which is S2 §3's own exception: its settings are ours, not Rime's.
+
+Pinned by `testTheFooterHasTheSpecsTwoStatesAndSaysWhenItFailed`.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |

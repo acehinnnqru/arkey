@@ -33,7 +33,7 @@ it again on demand:
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
 | status evidence | 38 criteria, 38 rows, 38 cited names, ok |
-| type-check | app and extension, no type errors — 39 Swift files, and the script now compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
+| type-check | app and extension, no type errors — 41 Swift files, and the script compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
 The count is the one part of the chain that moves for good reasons, so the script prints the XCTest summary
