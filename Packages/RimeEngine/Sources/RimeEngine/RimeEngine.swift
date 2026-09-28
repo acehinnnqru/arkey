@@ -159,6 +159,16 @@ public final class RimeEngine {
     }
 
     let directories = configuration.directories
+    // librime's glog writes its own file into `log_dir`, and a missing directory is not handled
+    // gracefully: it logs "Could not create logging file" on every record, and under AddressSanitizer
+    // that path is a heap-use-after-free inside glog's LogFileObject (measured; see docs/s6-results.md).
+    // The directories are the caller's to create — the app does it at bootstrap — so this only makes
+    // the engine's own precondition true instead of leaving it to luck.
+    // Only the log directory: the staging directory's *absence* is part of the deploy swap's contract
+    // (the swap renames it into place), and creating it here broke that contract in two tests the first
+    // time this was written.
+    try? FileManager.default.createDirectory(atPath: directories.logDir,
+                                             withIntermediateDirectories: true)
     let boxes = [directories.sharedDataDir,
                  directories.prebuiltDataDir,
                  directories.userDataDir,

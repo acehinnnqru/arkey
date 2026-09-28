@@ -52,6 +52,9 @@ final class S1EngineAPITests: XCTestCase {
       let buildURL = root.appendingPathComponent(build, isDirectory: true)
       let user = root.appendingPathComponent("user", isDirectory: true)
       let unpack = root.appendingPathComponent("unpack", isDirectory: true)
+      // The log directory is *not* listed here: librime's glog writes its own file there, and the
+      // engine now creates it before initialize (a missing one used to be a heap-use-after-free inside
+      // glog; see docs/s6-results.md). A fixture that pre-created it would hide that guarantee.
       for directory in [buildURL, user, unpack] {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       }
