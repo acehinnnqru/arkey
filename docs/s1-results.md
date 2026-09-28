@@ -351,17 +351,28 @@ deploy screen and to anyone reading a "deploy succeeded" message.
    present" — which is why the coordinator checks that a deploy produced files at all and reports a
    failure when it did not.
 
-The second fact has a consequence for the deploy screen that is not implemented: a deploy can report
-success while having changed nothing. The screen shows the file count, which is the closest thing to a
-signal it has today.
+The second fact has a consequence for the deploy screen, and it **is** implemented now:
+`RimeDeploymentReport.changes` is a before/after comparison of the build directory (size plus mtime per
+file, taken after staging was seeded and before librime runs), so a run that compiled no table is
+distinguishable from one that rebuilt everything — the generation's file list never could tell them
+apart. The deploy screen says which happened ("已是最新，未重建任何表" versus "N 个文件被重建"), and the
+test pins both halves: the first deploy writes tables, the second in the same process writes none while
+still refreshing the YAML copies. That asymmetry is why the signal counts `.bin` files rather than
+files.
 
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S1EngineAPITests` | 9 | logsink and levers presence, deploy report and phases, patch write and redeploy, list patches, state labels, schema list, rebind, raw input, candidate measurements |
-| `S1WorkspaceTests` | 12 | profile identity, metadata and active.json round trips, every resolver fallback, janitor repair, installation seeding, storage report, deletion semantics, backup policy, deployer and client bindings |
+| `S1WorkspaceTests` | 13 | profile identity, metadata and active.json round trips, every resolver fallback, janitor repair, installation seeding, storage report, deletion semantics, backup policy, deployer and client bindings, and the app version travelling with the profile |
+| `S1DeploymentTests` | 9 | the generation swap and its active.json record, one previous generation kept, rollback and its refusal with none to roll back to, a failed deploy keeping the previous generation typing, two profiles coexisting, deletion keeping dictionaries, the named error for a missing profile, and what a run actually wrote (first versus second deploy in one process) |
+| `S1ImportTests` | 12 | a folder and the same tree as a zip producing the same profile, a wrapping folder, ambiguous and missing config roots as named errors, a generated default.yaml, the Squirrel-shaped split, user-data adoption, validation naming every broken file, optional data as a warning, a config librime would not load, and a hostile archive leaving the workspace untouched |
+| `S1ArchiveTests` | 15 | writer round trip, real deflate, zip slip, absolute paths, symlink and device entries, duplicates, case collisions, entry and size caps, bomb ratio, zip64, CRC and size mismatches, unsupported methods, corrupt deflate, no partial output |
+| `S1AdoptionTests` | 3 | the same binding needs no adoption, a change mid-composition is deferred and taken at the next appearance, and a new generation of the same profile counts as a change |
+| `S1RecoveryTests` | 6 | the resolver's degraded states each asking for the right repair: nothing to recover, build.previous, no usable build, no active profile, an unreachable app group, and every action carrying the label its button shows |
+| `S1LocalDataTests` | 2 | a Debug build's `RimeData.local` installing, deploying and activating once, and a build without one installing nothing |
+| `S1AppFlowTests` | 1 | the documented end-to-end flow on one workspace — import, deploy, activate, patch, redeploy, janitor — with the source tree's digest asserted at the end |
 | `S1SlimmingTests` | 5 | the lite transformation: the import line goes and its comment stays, every accepted spelling of a table name matches, a missing table is reported, a rewrite librime would reject leaves the file untouched, and a slimmed profile still deploys and types |
 | `S1ProfileSwitchTests` | 2 | a learned word surviving a profile switch and a return, and the two bindings sharing the user directory while their sources differ |
-| `S1CatalogTests` | 7 | the catalog's completeness, the page-not-asset rule, lookup and its refusal, the receipt's size/digest/redirect, the size caps, and the lite entry's honesty about what it leaves out |
-| `S1ArchiveTests` | 14 | writer round trip, real deflate, zip slip, absolute paths, symlink and device entries, duplicates, case collisions, entry and size caps, bomb ratio, zip64, CRC and size mismatches, unsupported methods, corrupt deflate, no partial output |
+| `S1CatalogTests` | 9 | the catalog's completeness, the page-not-asset rule, lookup and its refusal, the receipt's size/digest/redirect, the size caps, and the lite entry's honesty about what it leaves out |
