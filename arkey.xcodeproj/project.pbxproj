@@ -127,6 +127,7 @@
 				1B05164B3062E34E00EDD6AE /* Sources */,
 				1B05164C3062E34E00EDD6AE /* Frameworks */,
 				1B05164D3062E34E00EDD6AE /* Resources */,
+				A5C0DE00000000000000000E /* Copy RimeData.local (Debug) */,
 				1B0516733062E3D700EDD6AE /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -231,6 +232,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A5C0DE00000000000000000E /* Copy RimeData.local (Debug) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy RimeData.local (Debug)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# S1-AC6: a Debug build may carry RimeData.local/, a gitignored development copy of a real\n# config, and starts with that profile installed. Release builds never carry it: the release\n# check refuses the name, so this guard is the first of two locks, not the only one.\nif [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  echo \"note: not a Debug build, so RimeData.local is not copied\"\n  exit 0\nfi\nlocal_config=\"${SRCROOT}/RimeData.local\"\nif [ ! -d \"${local_config}\" ]; then\n  echo \"note: no RimeData.local in the checkout\"\n  exit 0\nfi\ndestination=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RimeData.local\"\nrm -rf \"${destination}\"\ncp -R \"${local_config}\" \"${destination}\"\necho \"copied RimeData.local to ${destination}\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1B05164B3062E34E00EDD6AE /* Sources */ = {

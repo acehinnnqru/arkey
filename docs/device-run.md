@@ -51,7 +51,7 @@ during it.
 
 | Row | Blocked on |
 | --- | --- |
-| S1-AC6 | the Xcode Debug build phase that copies `RimeData.local/` into the bundle — a project edit whose only verification is a build. The install itself is done: `RimeLocalDataInstaller` is called from `bootstrap()` under `#if DEBUG` and tested |
+| S1-AC6 | a **Debug build** with the copy phase run once. The phase exists (`PBXShellScriptBuildPhase` on the app target, pinned by `S6ProjectSettingsTests`) and the install is done (`RimeLocalDataInstaller` from `bootstrap()` under `#if DEBUG`) |
 | S6-AC2 | the iOS test target (snapshot tests for the keyboard state matrix), which needs the Xcode project and a build to be trustable |
 | S6-AC5 | the App Store Connect privacy answers, which are not a repository artifact |
 | S5-AC5 | the in-app per-word forget: measured impossible through librime's API (`export_user_dict` fails after `delete_candidate`, and neither a maintenance nor a deploy releases it), so the app deliberately offers only the whole-dictionary reset |

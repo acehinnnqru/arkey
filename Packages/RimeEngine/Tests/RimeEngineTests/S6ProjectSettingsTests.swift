@@ -72,6 +72,41 @@ final class S6ProjectSettingsTests: XCTestCase {
                    "the script checks " + checked + " but the project builds " + mode)
   }
 
+  /// S1-AC6's install half is engine code (`RimeLocalDataInstaller`); its build half is this phase: a
+  /// Debug build copies a gitignored `RimeData.local/` into the bundle, and a Release build must not —
+  /// the release check refuses the name, so the guard inside the script is the first of two locks.
+  func testDebugBuildsCopyALocalConfigAndReleaseBuildsNeverDo() throws {
+    let text = try project()
+
+    let marker = "/* Copy RimeData.local (Debug) */ = {"
+    let raw = try XCTUnwrap(text.split(separator: "\n").first { $0.contains(marker) },
+                            "no shell-script phase copies RimeData.local into the bundle")
+    let line = String(raw).trimmingCharacters(in: .whitespaces)
+    let id = try XCTUnwrap(line.components(separatedBy: " ").first)
+    XCTAssertTrue(id.hasPrefix("A5C0DE"), "phase ids of ours are namespaced: " + id)
+
+    let phase = try XCTUnwrap(text.range(of: marker).map { range in
+      String(text[range.lowerBound...].prefix(1600))
+    })
+    XCTAssertTrue(phase.contains("PBXShellScriptBuildPhase"), "it has to be a script phase")
+    XCTAssertTrue(phase.contains("${CONFIGURATION}"), "the phase cannot tell Debug from Release without it")
+    XCTAssertTrue(phase.contains("Debug"), "the guard names the configuration it copies for")
+    // Order matters more than the exact text: the guard has to run before the copy, which is what
+    // keeps a Release build from ever putting the directory in the bundle.
+    let guardIndex = try XCTUnwrap(phase.range(of: "CONFIGURATION")).lowerBound
+    let copyIndex = try XCTUnwrap(phase.range(of: "cp -R")).lowerBound
+    XCTAssertLessThan(guardIndex, copyIndex, "the Release guard has to come before the copy")
+    XCTAssertTrue(phase.contains("UNLOCALIZED_RESOURCES_FOLDER_PATH"),
+                  "the copy has to land inside the app bundle, not next to it")
+    XCTAssertTrue(phase.contains("cp -R"), "and it has to be a copy")
+
+    // The app target has to run it: a phase no target lists is never executed.
+    let anchor = try XCTUnwrap(text.range(of: "name = arkey;"))
+    let objectStart = text.index(anchor.lowerBound, offsetBy: -1500, limitedBy: text.startIndex) ?? text.startIndex
+    XCTAssertTrue(text[objectStart..<anchor.lowerBound].contains(id),
+                  "the arkey target does not run the phase: " + id)
+  }
+
   /// Both targets generate their Info.plist, and the extension also starts from a file: that combination is what
   /// merges the generated keys into the hand-written one, so the file it names has to exist.
   func testTheInfoPlistArrangementIsCoherent() throws {
