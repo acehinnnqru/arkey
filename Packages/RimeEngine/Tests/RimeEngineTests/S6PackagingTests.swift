@@ -20,6 +20,27 @@ final class S6PackagingTests: XCTestCase {
     return try XCTUnwrap(parsed as? [String: Any], path + " is not a plist dictionary")
   }
 
+  /// S6 §7: CI runs what a runner can run — the same chain this machine runs, plus an unsigned Release
+  /// build for the bundle check and the network-only page check — and it must not pretend to run the
+  /// parts that need a device.
+  func testTheCIWorkflowRunsTheChainAndOnlyWhatARunnerCanRun() throws {
+    let url = repositoryRoot.appendingPathComponent(".github/workflows/verify.yml")
+    let text = try String(contentsOf: url, encoding: .utf8)
+
+    XCTAssertTrue(text.contains("./scripts/verify-all.sh"),
+                  "CI should run the one command this machine runs")
+    XCTAssertTrue(text.contains("check-release-bundle.sh"),
+                  "the bundle half needs a build of its own")
+    XCTAssertTrue(text.contains("CODE_SIGNING_ALLOWED=NO"),
+                  "the bundle check is about an unsigned build")
+    XCTAssertTrue(text.contains("check-catalog-pages.sh"),
+                  "the page check needs the network, so it is its own step")
+    XCTAssertFalse(text.contains("xcodebuild test"),
+                   "the iOS test target is S6-AC2 and does not exist yet: CI must not claim to run it")
+    XCTAssertFalse(text.contains("scripts/device"),
+                   "device work is a written checklist, not a job")
+  }
+
   /// The app group has to be one string, everywhere: two entitlements grant it and four Swift files name it.
   /// A rename that misses one of the six leaves the keyboard without Full Access — which looks like the
   /// keyboard ignoring every setting rather than like a string mismatch.

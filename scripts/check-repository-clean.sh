@@ -17,6 +17,10 @@ fail() { printf "  ✗ %s\n" "$1"; findings=$((findings + 1)); }
 while IFS= read -r path; do
   case "$path" in
     RimeData/*) continue ;;
+    # CI definitions are YAML and are not configuration data. (Learned the honest way: the workflow
+    # added in round 115 was caught by this rule the moment it was staged, because the check reads
+    # tracked files.)
+    .github/*) continue ;;
     *.yaml|*.yml|*.dict.yaml|*.schema.yaml|*.bin)
       fail "$path looks like Rime configuration data outside RimeData/" ;;
   esac

@@ -1,0 +1,37 @@
+# S6 §7's automation, as the thing that actually runs it. The same chain this machine runs
+# (scripts/verify-all.sh) plus the two steps that need a network or a signing-free build; the device
+# half stays manual and lives in docs/device-run.md, because no runner has a phone or a Mac's Squirrel.
+#
+# Not run yet: this repository has no push behind it, so the workflow is a definition whose commands are
+# separately exercised by scripts/verify-all.sh locally. S6-AC1 stays "partly" until it runs once.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Engine tests, status, wiring, links, repository and type-check
+        run: ./scripts/verify-all.sh
+
+      - name: Release bundle check on an unsigned build
+        run: |
+          xcodebuild -project arkey.xcodeproj -target arkey -configuration Release \
+            -sdk iphoneos -derivedDataPath .build/ci-derived \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          ./scripts/check-release-bundle.sh \
+            .build/ci-derived/Build/Products/Release-iphoneos/arkey.app
+
+      - name: Catalogue pages and licence links (needs the network)
+        run: ./scripts/check-catalog-pages.sh
