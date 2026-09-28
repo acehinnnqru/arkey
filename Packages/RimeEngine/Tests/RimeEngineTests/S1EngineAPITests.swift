@@ -66,6 +66,44 @@ final class S1EngineAPITests: XCTestCase {
     }
   }
 
+  /// The re-entrancy rule `perform` documents, and the crash it prevents.
+  ///
+  /// librime keeps process-global state, so every engine call funnels through one serial queue — and a
+  /// call made *from inside* another call would be a `dispatch_sync` on the queue the thread already
+  /// owns, which libdispatch treats as a client bug and traps on (measured when the guard was missing:
+  /// SIGTRAP, "dispatch_sync called on queue already owned by current thread"). Nothing pinned that
+  /// branch until now, although the settings model depends on it.
+  func testAnEngineCallInsideAnotherRunsInlineInsteadOfTrapping() throws {
+    let scratch = try Scratch()
+    let directories = try scratch.directories(shared: tracerData)
+    let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
+    _ = try engine.start()
+    // Deployed first: a session with no compiled tables composes nothing, and the last assertion is
+    // about a session call under two held configs.
+    _ = try engine.deploySync(binding: directories, fullCheck: true)
+    try engine.openSession()
+
+    // Nested public calls: each would dispatch onto the queue
+    // without the inline branch. The shape mirrors production — a config is held while the engine is
+    // asked something else, and a second config is opened underneath it.
+    let nested = try engine.withConfig("default") { _ in
+      try engine.setOption("ascii_mode", true)
+      let ascii = try engine.getOption("ascii_mode")
+      // Back to Chinese: the composition below is the point of the last assertion, and 西文 mode would
+      // type the letters literally.
+      try engine.setOption("ascii_mode", false)
+      let pageSize = try engine.withUserConfig("default") { user in
+        _ = user.set(.int(7), at: "menu/page_size")
+        return user.int("menu/page_size")
+      }
+      return (ascii, pageSize, try engine.processKeys("ni").preedit ?? "")
+    }
+    XCTAssertTrue(nested.0)
+    XCTAssertEqual(nested.1, 7)
+    XCTAssertEqual(nested.2, "ni", "the session call under two held configs still composed")
+    engine.shutdown()
+  }
+
   /// The modules the deploy path leans on, checked rather than assumed.
   func testModulesTheDeployPathNeedsArePresent() {
     XCTAssertEqual(RimeEngine.librimeVersion, "1.17.0")
