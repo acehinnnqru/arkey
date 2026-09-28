@@ -19,7 +19,7 @@ struct ProfileLibraryView: View {
     List {
       activeSection
       installedSection
-      if model.isDeploying || model.deployMessage != nil { deploySection }
+      SettingsDeployFooter(model: model)
       settingsSection
       if !model.importWarnings.isEmpty { warningsSection }
       if let error = model.errorMessage { errorSection(error) }
@@ -131,19 +131,6 @@ struct ProfileLibraryView: View {
       .disabled(model.isDeploying)
     }
     .padding(.vertical, 2)
-  }
-
-  private var deploySection: some View {
-    Section("部署") {
-      if model.isDeploying {
-        HStack(spacing: 8) {
-          ProgressView()
-          Text(model.deployMessage ?? "正在部署…").font(.footnote)
-        }
-      } else if let message = model.deployMessage {
-        Text(message).font(.footnote)
-      }
-    }
   }
 
   /// S2 §7: plain text the user can read, moved between devices without the third-party sources.

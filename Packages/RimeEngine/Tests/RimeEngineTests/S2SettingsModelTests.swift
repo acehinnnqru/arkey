@@ -169,6 +169,24 @@ final class S2SettingsModelTests: XCTestCase {
     }
   }
 
+  // MARK: The footer (S2 §6)
+
+  /// S2 §6: "Every screen that writes shows the same two-state footer." The states and their words live
+  /// in one place, so the screens cannot spell them two ways.
+  func testTheFooterHasTheSpecsTwoStatesAndSaysWhenItFailed() {
+    XCTAssertEqual(RimeSettingsFooterState.pending.text, "已修改，待部署")
+    XCTAssertTrue(RimeSettingsFooterState.pending.isPending)
+    XCTAssertEqual(RimeSettingsFooterState.applied("5 个文件，1.2 s").text, "已生效：5 个文件，1.2 s")
+    XCTAssertEqual(RimeSettingsFooterState.applied("").text, "已生效")
+    // The reason only: the state adds the label, so a caller cannot produce the sentence twice.
+    XCTAssertEqual(RimeSettingsFooterState.failed("boom").text, "部署失败：boom")
+    XCTAssertTrue(RimeSettingsFooterState.failed("x").isFailure)
+    XCTAssertEqual(RimeSettingsFooterState.unchanged.text, "尚未修改")
+    XCTAssertFalse(RimeSettingsFooterState.unchanged.isPending)
+    XCTAssertFalse(RimeSettingsFooterState.unchanged.isFailure)
+    XCTAssertFalse(RimeSettingsFooterState.applied("done").isFailure, "success is not a failure")
+  }
+
   // MARK: Effective versus user value
 
   func testTheEffectiveValueAndTheUsersOverrideAreDifferentThings() throws {

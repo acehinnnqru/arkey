@@ -26,6 +26,43 @@ public enum RimeTranslatorKind: String, Sendable, Hashable {
   }
 }
 
+// MARK: - S2 §6's footer
+
+/// S2 §6: "Every screen that writes shows the same two-state footer" — 已修改，待部署 and, once deployed,
+/// 已生效. The rule lives here rather than in seven views, so the screens cannot drift; a view maps the
+/// state to a colour and a symbol and nothing else.
+public enum RimeSettingsFooterState: Sendable, Equatable {
+  /// Nothing has been written in this sitting.
+  case unchanged
+  /// A write is in flight, or the deploy that follows it has not finished.
+  case pending
+  /// The last write is live, carrying the deploy's own message.
+  case applied(String)
+  /// The last write did not reach the engine; the message says why.
+  case failed(String)
+
+  /// The words the footer shows. Kept beside the state so the two states the spec names cannot be
+  /// spelled two ways.
+  public var text: String {
+    switch self {
+    case .unchanged: return "尚未修改"
+    case .pending: return "已修改，待部署"
+    case .applied(let message): return message.isEmpty ? "已生效" : "已生效：" + message
+    case .failed(let message): return message.isEmpty ? "部署失败" : "部署失败：" + message
+    }
+  }
+
+  public var isPending: Bool {
+    if case .pending = self { return true }
+    return false
+  }
+
+  public var isFailure: Bool {
+    if case .failed = self { return true }
+    return false
+  }
+}
+
 // MARK: - Descriptors
 
 public struct RimeSwitchDescriptor: Sendable, Hashable {

@@ -172,15 +172,13 @@ struct SchemaSettingsView: View {
     }
   }
 
+  /// S2 §6's footer, plus the one sentence this screen owes: which file the change lands in.
+  @ViewBuilder
   private func footerSection(_ descriptor: RimeSchemaDescriptor) -> some View {
-    Section("部署") {
-      Text("改动写入 " + (descriptor.schemaID) + ".custom.yaml，随后自动部署。键盘在下次出现时采用。")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      if let message = model.deployMessage {
-        Text(message).font(.caption)
-      }
-    }
+    Text("改动写入 " + (descriptor.schemaID) + ".custom.yaml，随后自动部署；键盘在下次出现时采用。")
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+    SettingsDeployFooter(model: model)
   }
 
   private func errorSection(_ message: String) -> some View {

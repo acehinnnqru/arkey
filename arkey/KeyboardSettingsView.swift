@@ -13,6 +13,12 @@ struct KeyboardSettingsView: View {
       appearanceSection
       feedbackSection
       resetSection
+      // S2 §3's last row is our own settings rather than Rime's, so there is no patch and no deploy to
+      // wait for: the footer says the one thing that is true here.
+      Section {
+        Label("无需部署：键盘下次出现时读取。", systemImage: "checkmark.circle")
+          .font(.caption).foregroundStyle(.secondary)
+      }
       if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
     }
     .navigationTitle("键盘")

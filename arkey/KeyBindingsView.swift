@@ -33,6 +33,7 @@ struct KeyBindingsView: View {
         Text("以词定字与「翻页：[ 和 ]」冲突：同一个键不能既翻页又取字，先关掉一个。\n"
              + "改动写入 key_binder/bindings 并重新部署。")
       }
+      SettingsDeployFooter(model: model)
       if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
     }
     .navigationTitle("按键")

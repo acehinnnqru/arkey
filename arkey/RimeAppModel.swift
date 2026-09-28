@@ -34,6 +34,10 @@ final class RimeAppModel: ObservableObject {
   @Published private(set) var engineStatus = "引擎尚未启动"
   @Published private(set) var isDeploying = false
   @Published var deployMessage: String?
+  /// S2 §6's footer state. Only the code that writes knows when a change is pending and when it is
+  /// live — an activation is "live" without being a deploy — so the transitions happen here rather
+  /// than being inferred from whether a message happens to exist.
+  @Published var settingsFooter: RimeSettingsFooterState = .unchanged
   @Published var importWarnings: [String] = []
   @Published var errorMessage: String?
   @Published var schemas: [String] = []
@@ -215,6 +219,7 @@ final class RimeAppModel: ObservableObject {
   func deploy(profileID: String) async {
     guard !isDeploying else { return }
     isDeploying = true
+    settingsFooter = .pending
     deployMessage = "正在部署…"
     let coordinator = RimeDeploymentCoordinator(workspace: workspace, engine: engine)
     do {
@@ -223,11 +228,17 @@ final class RimeAppModel: ObservableObject {
           self.deployMessage = Self.describe(progress)
         }
       }
-      deployMessage = "部署完成：" + String(outcome.report.files.count) + " 个文件，"
+      let detail = String(outcome.report.files.count) + " 个文件，"
         + String(format: "%.1f s", outcome.durationSeconds) + "，第 " + String(outcome.generation) + " 代"
+      deployMessage = "部署完成：" + detail
+      settingsFooter = .applied(detail)
     } catch {
-      deployMessage = "部署失败：" + String(describing: error)
-      errorMessage = deployMessage
+      let reason = String(describing: error)
+      let text = "部署失败：" + reason
+      deployMessage = text
+      errorMessage = text
+      // The reason only: the footer adds the label itself, so the sentence is not doubled.
+      settingsFooter = .failed(reason)
     }
     isDeploying = false
     refresh()
@@ -238,6 +249,7 @@ final class RimeAppModel: ObservableObject {
       _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).activate(profileID: profileID)
       recordProfileActivation(profileID)
       deployMessage = "已切换。键盘会在下次出现时采用（不会打断正在输入的句子）。"
+      settingsFooter = .applied("已切换")
       refresh()
     } catch {
       errorMessage = "切换失败：" + String(describing: error)
@@ -248,6 +260,7 @@ final class RimeAppModel: ObservableObject {
     do {
       _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).rollback(profileID: profileID)
       deployMessage = "已回滚到上一代构建。"
+      settingsFooter = .applied("已回滚到上一代构建")
       refresh()
     } catch {
       errorMessage = "回滚失败：" + String(describing: error)

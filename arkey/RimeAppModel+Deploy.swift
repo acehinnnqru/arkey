@@ -58,6 +58,7 @@ extension RimeAppModel {
       }
       await redeployActiveProfile()
       deployMessage = "已恢复 " + String(files.count) + " 个设置文件并重新部署。"
+      settingsFooter = .applied("已恢复 " + String(files.count) + " 个设置文件")
     } catch {
       errorMessage = "恢复备份失败：" + String(describing: error)
     }

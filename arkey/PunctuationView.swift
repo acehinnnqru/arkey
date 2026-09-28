@@ -37,6 +37,7 @@ struct PunctuationView: View {
       } footer: {
         Text("写入 punctuator/import_preset 并重新部署。全角/半角与中英标点在「方案与输入」的开关一节里，它们不是表。")
       }
+      SettingsDeployFooter(model: model)
       if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
     }
     .navigationTitle("标点")
