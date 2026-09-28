@@ -246,6 +246,16 @@ check cannot pass on an empty file. **Verified from both sides**: adding one pro
 the typed text (a temporary change to `processKeys`) failed both assertions immediately, and
 reverting it restored green.
 
+**Two writers, one file — and it used to lose lines.** The keyboard extension and the app both append
+to this log, in two processes, and the writer was `FileHandle.seekToEnd()` followed by a write: atomic
+inside one process, not across processes, so two writers that seek to the same offset leave one record on
+top of the other. Driven from six threads × 40 records, the seek-based writer lost 12, 16 and 20 of a
+writer's 40; with `O_APPEND` all 240 survive (`testConcurrentAppendsFromManyWritersAllSurvive`, verified
+from both sides by putting the old writer back). The old fallback was worse than the race: a failed file
+handle fell back to an *atomic* write, and an atomic write replaces the file — one record would have
+truncated the whole log. Since the probe log is the evidence most of [status.md](status.md) rests on, a
+log that quietly drops records is a verification problem, not a diagnostics nicety.
+
 The same suite pins the two records S6 §3 names beside deploys: S2 §5.5's `config.applied` — the key
 and both sides of a change — which the app writes whenever a setting is applied, and
 `profile.activate`, which names the profile and the generation the keyboard was moved to (so
@@ -408,7 +418,7 @@ demand a declaration for an API nobody calls. And the failure is verified from b
 | `S6EngineNoticesTests` | 6 | the engine's own components, versions parsed rather than assumed, and the unverified licences deliberately left unstated |
 | `S6ReleaseCheckTests` | 7 | a third-party file placed in a synthetic bundle fails the check, and every forbidden name the release check refuses |
 | `S6ProbeSummaryTests` | 8 | the probe log as numbers: nearest-rank percentiles (p95 and the p99 the latency budget names), footprints, a phase with no timings, the report's shape and the one size format |
-| `S6ProbePrivacyTests` | 3 | the log's field set, the config.applied record, the profile.activate record, and a live session proving the typed text and the committed candidate never reach the file |
+| `S6ProbePrivacyTests` | 4 | the log's field set, the `config.applied` record, the `profile.activate` record, a live session proving the typed text and the committed candidate never reach the file, and six concurrent writers keeping every line |
 
 ## What is not done yet
 
