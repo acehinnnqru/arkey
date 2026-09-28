@@ -92,6 +92,33 @@ final class S1DeploymentTests: XCTestCase {
     engine.closeSession()
   }
 
+  /// S1 §6's measured fact, now a signal: librime's staleness check runs once per process, so a second
+  /// deploy in the same process recompiles nothing while still reporting success. The generation's file
+  /// list cannot tell that apart from a full rebuild — the before/after comparison can, which is what
+  /// lets the deploy screen say "already up to date".
+  func testASecondDeployInTheSameProcessReportsThatItWroteNothing() throws {
+    let id = try importedProfile()
+    let first = try coordinator().deploySync(profileID: id)
+    XCTAssertTrue(first.report.succeeded)
+    XCTAssertFalse(first.report.files.isEmpty, "a fresh deploy produces a generation")
+    XCTAssertFalse(first.report.changes.isEmpty,
+                   "and it wrote it: " + first.report.changes.written.joined(separator: ", "))
+    XCTAssertFalse(first.report.changes.writtenTables.isEmpty,
+                   "the compiled tables are what a rebuild writes: "
+                     + first.report.changes.written.joined(separator: ", "))
+
+    let second = try coordinator().deploySync(profileID: id)
+    XCTAssertTrue(second.report.succeeded)
+    XCTAssertFalse(second.report.files.isEmpty, "the generation is still there")
+    XCTAssertEqual(second.report.changes.writtenTables, [],
+                   "the second deploy in this process compiled no table: "
+                     + second.report.changes.written.joined(separator: ", "))
+    // The YAML copies are refreshed every run, which is exactly why the signal is about the tables: a
+    // "nothing changed" assertion over every file would be false.
+    XCTAssertTrue(second.report.changes.written.allSatisfy { $0.hasSuffix(".yaml") },
+                  second.report.changes.written.joined(separator: ", "))
+  }
+
   func testRedeployKeepsOnePreviousGeneration() throws {
     let id = try importedProfile()
     let layout = workspace.profile(id)

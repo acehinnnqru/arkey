@@ -242,8 +242,16 @@ final class RimeAppModel: ObservableObject {
           self.deployMessage = Self.describe(progress)
         }
       }
-      let detail = String(outcome.report.files.count) + " 个文件，"
-        + String(format: "%.1f s", outcome.durationSeconds) + "，第 " + String(outcome.generation) + " 代"
+      // S1 §6: a deploy can succeed while having written nothing (librime's staleness check runs once
+      // per process), so the message says which of the two happened instead of implying work.
+      let rebuilt = outcome.report.changes.writtenTables.count
+      let detail: String
+      if rebuilt == 0 {
+        detail = "已是最新，未重建任何表，第 " + String(outcome.generation) + " 代"
+      } else {
+        detail = String(rebuilt) + " 个文件被重建，"
+          + String(format: "%.1f s", outcome.durationSeconds) + "，第 " + String(outcome.generation) + " 代"
+      }
       deployMessage = "部署完成：" + detail
       settingsFooter = .applied(detail)
     } catch {

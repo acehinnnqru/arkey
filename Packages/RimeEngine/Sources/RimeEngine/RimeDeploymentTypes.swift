@@ -176,6 +176,43 @@ public struct RimeBuildFile: Sendable, Hashable {
   }
 }
 
+/// What a deploy wrote, by comparing the build directory before and after the maintenance run.
+///
+/// **Measured** (S1 §6, see [s1-results.md](../../../../docs/s1-results.md)): librime's staleness check
+/// runs once per process, so a second deploy in the same process recompiles nothing and still reports
+/// `started=true`. The generation's file list cannot tell those two runs apart — this can, and it is
+/// what lets the deploy screen say "already up to date" instead of implying work that did not happen.
+public struct RimeDeploymentChanges: Sendable, Hashable {
+  public let added: [String]
+  public let changed: [String]
+  public let removed: [String]
+
+  public init(added: [String] = [], changed: [String] = [], removed: [String] = []) {
+    self.added = added.sorted()
+    self.changed = changed.sorted()
+    self.removed = removed.sorted()
+  }
+
+  public var isEmpty: Bool { added.isEmpty && changed.isEmpty && removed.isEmpty }
+  /// Files this run wrote: added plus rewritten.
+  public var written: [String] { (added + changed).sorted() }
+  /// The compiled tables this run wrote. Measured: a second deploy in the same process **does** refresh
+  /// the YAML copies and rebuilds no table at all, so "did this deploy do any work" is really "were any
+  /// tables compiled" — that is the number the deploy screen shows.
+  public var writtenTables: [String] { written.filter { $0.hasSuffix(".bin") } }
+}
+
+/// A file's identity for that comparison: size and modification time, which is what a rewrite moves.
+public struct RimeFileFingerprint: Sendable, Hashable {
+  public let bytes: UInt64
+  public let modifiedAt: Date
+
+  public init(bytes: UInt64, modifiedAt: Date) {
+    self.bytes = bytes
+    self.modifiedAt = modifiedAt
+  }
+}
+
 /// What one deployment produced. Handed to the app's deploy screen and recorded in the probe log.
 public struct RimeDeploymentReport: Sendable {
   public let directories: RimeDirectories
@@ -183,12 +220,15 @@ public struct RimeDeploymentReport: Sendable {
   public let succeeded: Bool
   public let duration: TimeInterval
   public let files: [RimeBuildFile]
+  /// What this run rewrote, added or removed (empty when librime considered everything up to date).
+  public let changes: RimeDeploymentChanges
   public let notifications: [RimeNotification]
   public let logs: [RimeLogRecord]
   public let failureReason: String?
 
   public init(directories: RimeDirectories, fullCheck: Bool, succeeded: Bool,
               duration: TimeInterval, files: [RimeBuildFile],
+              changes: RimeDeploymentChanges = RimeDeploymentChanges(),
               notifications: [RimeNotification], logs: [RimeLogRecord],
               failureReason: String?) {
     self.directories = directories
@@ -196,6 +236,7 @@ public struct RimeDeploymentReport: Sendable {
     self.succeeded = succeeded
     self.duration = duration
     self.files = files
+    self.changes = changes
     self.notifications = notifications
     self.logs = logs
     self.failureReason = failureReason

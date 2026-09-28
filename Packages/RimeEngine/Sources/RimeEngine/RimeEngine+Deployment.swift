@@ -269,6 +269,9 @@ extension RimeEngine {
       }
       progress?(RimeDeploymentProgress(phase: .running,
                                        message: "start_maintenance(full_check: " + String(fullCheck) + ")"))
+      // Snapshot taken after the caller seeded staging and before librime runs: whatever moves from
+      // here on is this deploy's own work.
+      let before = RimeEngine.fingerprints(in: directories.prebuiltDataDir)
       let scheduled = startMaintenance(fullCheck)
       if scheduled, let join = api.pointee.join_maintenance_thread {
         join()
@@ -280,6 +283,8 @@ extension RimeEngine {
         return false
       }
       let files = RimeEngine.buildFiles(in: directories.prebuiltDataDir)
+      let changes = RimeEngine.changes(before: before,
+                                       after: RimeEngine.fingerprints(in: directories.prebuiltDataDir))
       var failureReason: String?
       if didFail {
         failureReason = "librime reported a deploy failure"
@@ -292,6 +297,7 @@ extension RimeEngine {
                                         succeeded: succeeded,
                                         duration: Date().timeIntervalSince(started),
                                         files: files,
+                                        changes: changes,
                                         notifications: notifications,
                                         logs: logs.snapshot(),
                                         failureReason: failureReason)
@@ -326,6 +332,45 @@ extension RimeEngine {
         }
       }
     }
+  }
+
+  /// Every file under a directory with the two things a rewrite moves: its size and its mtime. Used to
+  /// see what a deploy actually wrote (S1 §6): the generation's file list cannot tell a rebuild from a
+  /// "workspace already up to date" run, and the measured difference between them is exactly this.
+  static func fingerprints(in path: String) -> [String: RimeFileFingerprint] {
+    let fileManager = FileManager.default
+    let root = URL(fileURLWithPath: path)
+    guard let enumerator = fileManager.enumerator(
+      at: root, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],
+      options: [.skipsHiddenFiles]) else { return [:] }
+    var result: [String: RimeFileFingerprint] = [:]
+    let rootPath = root.standardizedFileURL.path
+    for case let url as URL in enumerator {
+      let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey,
+                                                    .contentModificationDateKey])
+      guard values?.isRegularFile == true else { continue }
+      let full = url.standardizedFileURL.path
+      let relative = full.hasPrefix(rootPath + "/") ? String(full.dropFirst(rootPath.count + 1)) : full
+      result[relative] = RimeFileFingerprint(bytes: UInt64(values?.fileSize ?? 0),
+                                             modifiedAt: values?.contentModificationDate ?? .distantPast)
+    }
+    return result
+  }
+
+  static func changes(before: [String: RimeFileFingerprint],
+                      after: [String: RimeFileFingerprint]) -> RimeDeploymentChanges {
+    var added: [String] = []
+    var changed: [String] = []
+    var removed: [String] = []
+    for (path, fingerprint) in after {
+      guard let previous = before[path] else {
+        added.append(path)
+        continue
+      }
+      if previous != fingerprint { changed.append(path) }
+    }
+    for path in before.keys where after[path] == nil { removed.append(path) }
+    return RimeDeploymentChanges(added: added, changed: changed, removed: removed)
   }
 
   /// Every file under a build directory, with sizes. The deploy screen shows the count and the
