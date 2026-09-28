@@ -20,3 +20,12 @@ xcuserdata/
 
 # Local scratch (never committed)
 /scratch/
+
+# A Debug-only convenience: a real config copied in by hand. The release check refuses it in a bundle
+# and scripts/check-repository-clean.sh refuses it in the tree; ignoring it keeps it out of a commit in
+# the first place, which is what docs/roadmap.md has claimed all along.
+/RimeData.local/
+
+# Build products Xcode leaves behind when someone builds without a derived-data path.
+*.xcarchive/
+/Exports/
