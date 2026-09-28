@@ -12,6 +12,7 @@ let package = Package(
   products: [
     .library(name: "RimeEngine", targets: ["RimeEngine"]),
     .executable(name: "rime-deploy", targets: ["rime-deploy"]),
+    .executable(name: "rime-capture-check", targets: ["rime-capture-check"]),
   ],
   dependencies: [
     // Binary packaging of upstream librime. Pinned exactly: the prebuilt tables shipped in
@@ -27,6 +28,25 @@ let package = Package(
         // Link-only stub: emits -framework RimeDynamic and no artifact, so the app embeds
         // exactly one copy and the keyboard extension resolves it through its runpath.
         .product(name: "RimeDynamicStub", package: "librime-xcframework"),
+      ],
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
+    .executableTarget(
+      name: "rime-release-check",
+      dependencies: [
+        "RimeEngine",
+        // Same reason as rime-deploy: a standalone macOS executable carries the real framework,
+        // because RimeEngine links against a stub that only emits -framework RimeDynamic.
+        .product(name: "RimeDynamic", package: "librime-xcframework"),
+      ],
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
+    // S3 §2.3's measuring stick, so a device screenshot is one command rather than a Swift file.
+    .executableTarget(
+      name: "rime-capture-check",
+      dependencies: [
+        "RimeEngine",
+        .product(name: "RimeDynamic", package: "librime-xcframework"),
       ],
       swiftSettings: [.swiftLanguageMode(.v5)]
     ),

@@ -5,6 +5,13 @@ import RimeEngine
 // app bundle, using the same librime build the keyboard extension links.
 //
 //   rime-deploy --shared <RimeData> --staging <output directory> [--user <scratch directory>]
+//
+// `--probe <keys>` deploys, then opens a session and feeds <keys>, printing what composed. It exists
+// because some settings only show their effect at session time and librime runs its maintenance once per
+// process: a probe has to happen in the same fresh process as the deploy to mean anything.
+// `--schema <id>` chooses the schema for the probe (default: tracer).
+// `--twice` runs the maintenance a second time in the same process, which is what an in-session redeploy does.
+// `--session-first` opens the session before the maintenance instead of after it.
 
 func value(for flag: String, in arguments: [String]) -> String? {
   guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
@@ -57,7 +64,33 @@ let engine = RimeEngine(configuration: RimeConfiguration(directories: directorie
 
 do {
   _ = try engine.start()
+  // The app can have a session open while it deploys; the tests do exactly that. `--session-first`
+  // reproduces it, because a live session is one of the candidates for why a redeploy changes nothing.
+  if arguments.contains("--session-first") {
+    try engine.openSession()
+  }
+
   let record = try engine.runMaintenance(fullCheck: true)
+
+  // An in-session redeploy: the app can deploy twice in one launch, and librime reports whether the
+  // second maintenance actually started. This is the measurement that tells the two cases apart.
+  if arguments.contains("--twice") {
+    let second = try engine.runMaintenance(fullCheck: true)
+    print("second maintenance: " + (second.message ?? "(no message)"))
+  }
+
+  if let probeKeys = value(for: "--probe", in: arguments) {
+    let schemaID = value(for: "--schema", in: arguments) ?? "tracer"
+    try engine.openSession()
+    _ = try engine.selectSchema(schemaID)
+    let output = try engine.processKeys(probeKeys)
+    let candidates = output.candidates.map { $0.text }.joined(separator: ", ")
+    print("probe:    schema " + schemaID + ", keys " + probeKeys)
+    print("  preedit:    " + (output.preedit ?? "(none)"))
+    print("  candidates: " + (candidates.isEmpty ? "(none)" : candidates))
+    print("  committed:  " + (output.commit ?? "(none)"))
+  }
+
   engine.shutdown()
 
   let produced = ((try? fileManager.contentsOfDirectory(atPath: stagingURL.path)) ?? []).sorted()

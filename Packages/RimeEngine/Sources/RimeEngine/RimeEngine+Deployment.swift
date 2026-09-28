@@ -1,0 +1,352 @@
+import Foundation
+import Rime
+
+// MARK: - The notification relay
+
+/// Holds librime's notifications for the engine.
+///
+/// The trampoline runs on whichever thread librime notifies from — the maintenance thread during
+/// a deploy — so it must not touch the engine's serial queue: the queue is blocked in
+/// `join_maintenance_thread` at exactly that moment, and a synchronous hop would deadlock the
+/// deploy. A lock-protected buffer plus a handler invoked outside the lock is enough.
+final class NotificationRelay: @unchecked Sendable {
+  private let lock = NSLock()
+  private var storage: [RimeNotification] = []
+  private var handler: (@Sendable (RimeNotification) -> Void)?
+
+  func deliver(_ notification: RimeNotification) {
+    lock.lock()
+    storage.append(notification)
+    let handler = self.handler
+    lock.unlock()
+    handler?(notification)
+  }
+
+  func snapshot() -> [RimeNotification] {
+    lock.lock()
+    defer { lock.unlock() }
+    return storage
+  }
+
+  func removeAll() {
+    lock.lock()
+    defer { lock.unlock() }
+    storage.removeAll()
+  }
+
+  func setHandler(_ handler: (@Sendable (RimeNotification) -> Void)?) {
+    lock.lock()
+    defer { lock.unlock() }
+    self.handler = handler
+  }
+}
+
+private func rimeNotificationTrampoline(context: UnsafeMutableRawPointer?,
+                                        sessionID: RimeSessionId,
+                                        messageType: UnsafePointer<CChar>?,
+                                        messageValue: UnsafePointer<CChar>?) {
+  guard let context else { return }
+  let relay = Unmanaged<NotificationRelay>.fromOpaque(context).takeUnretainedValue()
+  let type = messageType.map { String(cString: $0) } ?? ""
+  let value = messageValue.map { String(cString: $0) } ?? ""
+  relay.deliver(RimeNotification.parse(type: type, value: value))
+}
+
+private func rimeLogSinkTrampoline(context: UnsafeMutableRawPointer?,
+                                   record: UnsafePointer<rime_logsink_record>?) {
+  guard let context, let record else { return }
+  let buffer = Unmanaged<RimeLogBuffer>.fromOpaque(context).takeUnretainedValue()
+  let pointer = record.pointee
+  let message: String
+  if let text = pointer.message {
+    let length = pointer.message_length
+    message = String(decoding: UnsafeRawBufferPointer(start: text, count: length), as: UTF8.self)
+  } else {
+    message = ""
+  }
+  let severity: RimeLogSeverity
+  switch pointer.severity {
+  case .warning: severity = .warning
+  case .error: severity = .error
+  case .fatal: severity = .fatal
+  case .info: severity = .info
+  @unknown default: severity = .info
+  }
+  let timestamp = Date(timeIntervalSince1970: Double(pointer.unix_time_millis) / 1000.0)
+  buffer.append(RimeLogRecord(severity: severity,
+                              message: message,
+                              file: pointer.base_filename.map { String(cString: $0) } ?? "",
+                              line: Int(pointer.line),
+                              timestamp: timestamp))
+}
+
+// MARK: - Engine surface
+
+extension RimeEngine {
+  /// The directories this engine is currently bound to. The extension reads `active.json` and
+  /// rebinds here before its first keystroke of an appearance.
+  public var directories: RimeDirectories { perform { configuration.directories } }
+
+  public var isRunning: Bool { perform { isStarted } }
+
+  /// Records from the logsink module: librime's own text, including the reason a deploy failed.
+  public var logBuffer: RimeLogBuffer { logs }
+
+  public func setNotificationHandler(_ handler: (@Sendable (RimeNotification) -> Void)?) {
+    notificationRelay.setHandler(handler)
+  }
+
+  public func notifications() -> [RimeNotification] {
+    notificationRelay.snapshot()
+  }
+
+  // MARK: Lifecycle
+
+  /// Rebinds the engine to another set of directories: `finalize()`, then `setup()` and
+  /// `initialize()` with the new traits. Verified against the pinned build to take effect in one
+  /// process. Exclusive: any open session is closed first, because librime cannot switch data
+  /// directories underneath a live session.
+  @discardableResult
+  public func rebind(to directories: RimeDirectories) throws -> RimeProbeRecord {
+    try perform { try rebindLocked(to: directories) }
+  }
+
+  func rebindLocked(to directories: RimeDirectories) throws -> RimeProbeRecord {
+    teardownLocked()
+    configuration.directories = directories
+    let record = try startLocked(force: true)
+    return record
+  }
+
+  /// Tears librime down without leaving the engine unusable: the next `start()` or
+  /// `rebind(to:)` reinitialises it.
+  func teardownLocked() {
+    closeSessionLocked()
+    detachNotificationHandlerLocked()
+    removeLogSinkLocked()
+    if isStarted {
+      api?.pointee.finalize?()
+    }
+    api = nil
+    isStarted = false
+    allocatedStrings = []
+  }
+
+  // MARK: Logsink
+
+  func installLogSinkLocked() {
+    guard !isLogSinkInstalled else { return }
+    guard let module = RimeFindModule("logsink"),
+          let getAPI = module.pointee.get_api,
+          let custom = getAPI() else { return }
+    let sink = UnsafeMutableRawPointer(custom).assumingMemoryBound(to: RimeLogSinkApi.self)
+    guard sink.pointee.data_size >= 0, let addSink = sink.pointee.add_sink else { return }
+    let context = Unmanaged.passUnretained(logs).toOpaque()
+    guard addSink(context, rimeLogSinkTrampoline) else { return }
+    logSinkAPI = sink
+    logSinkContext = context
+    isLogSinkInstalled = true
+  }
+
+  func removeLogSinkLocked() {
+    guard isLogSinkInstalled, let sink = logSinkAPI, let context = logSinkContext else { return }
+    _ = sink.pointee.remove_sink?(context)
+    isLogSinkInstalled = false
+    logSinkAPI = nil
+    logSinkContext = nil
+  }
+
+  /// True when the pinned build exposes the logsink module, which is what makes a deploy failure
+  /// carry librime's own text instead of a generic error.
+  public static var isLogSinkAvailable: Bool {
+    RimeFindModule("logsink") != nil
+  }
+
+  /// True when the pinned build exposes the levers module (schema list, user-dictionary export).
+  public static var isLeversAvailable: Bool {
+    RimeFindModule("levers") != nil
+  }
+
+  func installNotificationHandlerLocked() {
+    guard let api, let setHandler = api.pointee.set_notification_handler else { return }
+    let context = Unmanaged.passUnretained(notificationRelay).toOpaque()
+    setHandler(rimeNotificationTrampoline, context)
+  }
+
+  func detachNotificationHandlerLocked() {
+    api?.pointee.set_notification_handler?(nil, nil)
+  }
+
+  /// Waits for librime's maintenance thread. `sync_user_data` schedules work the way
+  /// `start_maintenance` does, and the files are on disk only once that work has run — Squirrel
+  /// calls the two together, and so must anything that wants the snapshot afterwards.
+  public func joinMaintenance() {
+    perform {
+      guard let api, let join = api.pointee.join_maintenance_thread else { return }
+      join()
+    }
+  }
+
+  /// True while librime says a maintenance task is running.
+  public var isInMaintenanceMode: Bool {
+    perform { api?.pointee.is_maintenance_mode?() ?? false }
+  }
+
+  // MARK: Schemas
+
+  public func schemas() throws -> [RimeSchema] {
+    try perform {
+      let api = try requireAPI()
+      guard let getList = api.pointee.get_schema_list,
+            let freeList = api.pointee.free_schema_list else {
+        throw RimeEngineError.apiUnavailable
+      }
+      var list = RimeSchemaList()
+      guard getList(&list) else { return [] }
+      defer { freeList(&list) }
+      var schemas: [RimeSchema] = []
+      if let items = list.list {
+        for index in 0..<Int(list.size) {
+          let item = items[index]
+          schemas.append(RimeSchema(id: item.schema_id.map { String(cString: $0) } ?? "",
+                                    name: item.name.map { String(cString: $0) } ?? ""))
+        }
+      }
+      return schemas
+    }
+  }
+
+  public func schemaIDs() throws -> [String] {
+    try schemas().map(\.id)
+  }
+
+  /// The schema the live session is on, or nil when no session is open.
+  public func currentSchema() throws -> String? {
+    try perform {
+      let api = try requireAPI()
+      guard let session, let getCurrent = api.pointee.get_current_schema else { return nil }
+      var buffer = [CChar](repeating: 0, count: 256)
+      guard getCurrent(session, &buffer, buffer.count) else { return nil }
+      return String(cString: buffer)
+    }
+  }
+
+  /// Switches the live session to another deployed schema. Instant: no deployment involved.
+  @discardableResult
+  public func selectSchema(_ schemaID: String) throws -> RimeOutput {
+    try perform {
+      let api = try requireAPI()
+      let session = try requireSession(api: api)
+      guard let select = api.pointee.select_schema else { throw RimeEngineError.apiUnavailable }
+      let box = CStringBox(schemaID)
+      guard select(session, box.raw) else {
+        throw RimeEngineError.schemaSelectionFailed(schemaID)
+      }
+      return readOutput(api: api, session: session, handled: false)
+    }
+  }
+
+  // MARK: Deployment
+
+  /// Deploys a profile: rebinds to its staging layout, runs librime's maintenance thread and
+  /// reports what came out. The blocking form; the app uses `deploy(binding:fullCheck:progress:)`.
+  ///
+  /// Never called from the extension: librime's maintenance takes tens of seconds on a real
+  /// config, longer than a keyboard extension is allowed to live.
+  public func deploySync(binding directories: RimeDirectories,
+                         fullCheck: Bool = true,
+                         progress: (@Sendable (RimeDeploymentProgress) -> Void)? = nil) throws -> RimeDeploymentReport {
+    progress?(RimeDeploymentProgress(phase: .binding, message: directories.sharedDataDir))
+    return try perform {
+      let started = Date()
+      logs.removeAll()
+      notificationRelay.removeAll()
+
+      _ = try rebindLocked(to: directories)
+
+      guard let api, let startMaintenance = api.pointee.start_maintenance else {
+        throw RimeEngineError.deploymentFailed
+      }
+      progress?(RimeDeploymentProgress(phase: .running,
+                                       message: "start_maintenance(full_check: " + String(fullCheck) + ")"))
+      let scheduled = startMaintenance(fullCheck)
+      if scheduled, let join = api.pointee.join_maintenance_thread {
+        join()
+      }
+
+      let notifications = notificationRelay.snapshot()
+      let didFail = notifications.contains { notification in
+        if case .deploy(.failure) = notification { return true }
+        return false
+      }
+      let files = RimeEngine.buildFiles(in: directories.prebuiltDataDir)
+      var failureReason: String?
+      if didFail {
+        failureReason = "librime reported a deploy failure"
+      } else if files.isEmpty {
+        failureReason = "the deploy produced no files in " + directories.prebuiltDataDir
+      }
+      let succeeded = failureReason == nil
+      let report = RimeDeploymentReport(directories: directories,
+                                        fullCheck: fullCheck,
+                                        succeeded: succeeded,
+                                        duration: Date().timeIntervalSince(started),
+                                        files: files,
+                                        notifications: notifications,
+                                        logs: logs.snapshot(),
+                                        failureReason: failureReason)
+      let phases: [RimeDeploymentProgress.Phase] = [succeeded ? .succeeded : .failed]
+      for phase in phases {
+        progress?(RimeDeploymentProgress(phase: phase,
+                                         message: failureReason ?? String(files.count) + " files"))
+      }
+      _ = record(phase: "engine.deploy",
+                 start: 0,
+                 message: (succeeded ? "ok " : "failed ") + String(format: "%.0f ms", report.duration * 1000)
+                   + " files=" + String(files.count))
+      if !succeeded {
+        throw RimeDeploymentError(report: report)
+      }
+      return report
+    }
+  }
+
+  /// The asynchronous form the app calls: deployment blocks for tens of seconds and must not
+  /// block the caller's thread.
+  public func deploy(binding directories: RimeDirectories,
+                     fullCheck: Bool = true,
+                     progress: (@Sendable (RimeDeploymentProgress) -> Void)? = nil) async throws -> RimeDeploymentReport {
+    try await withCheckedThrowingContinuation { continuation in
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          let report = try self.deploySync(binding: directories, fullCheck: fullCheck, progress: progress)
+          continuation.resume(returning: report)
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+  }
+
+  /// Every file under a build directory, with sizes. The deploy screen shows the count and the
+  /// release script uses this to prove what a build contains.
+  public static func buildFiles(in path: String) -> [RimeBuildFile] {
+    let fileManager = FileManager.default
+    let root = URL(fileURLWithPath: path)
+    guard let enumerator = fileManager.enumerator(at: root,
+                                                  includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+                                                  options: [.skipsHiddenFiles]) else {
+      return []
+    }
+    var files: [RimeBuildFile] = []
+    let rootPath = root.standardizedFileURL.path
+    for case let url as URL in enumerator {
+      let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+      guard values?.isRegularFile == true else { continue }
+      let full = url.standardizedFileURL.path
+      let relative = full.hasPrefix(rootPath + "/") ? String(full.dropFirst(rootPath.count + 1)) : full
+      files.append(RimeBuildFile(relativePath: relative, bytes: values?.fileSize ?? 0))
+    }
+    return files.sorted { $0.relativePath < $1.relativePath }
+  }
+}

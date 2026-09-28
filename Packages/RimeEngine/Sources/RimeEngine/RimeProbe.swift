@@ -42,6 +42,18 @@ public enum RimeProbe {
     Double(bytes) / 1_048_576.0
   }
 
+  /// A size a person reads, in one place. The app had two private copies of a `ByteCountFormatter`
+  /// and a third that did its own `String(format:)`, which is how the same 12 MB ends up written
+  /// three ways — and in whatever language the device is set to.
+  public static func formatted(bytes: UInt64) -> String {
+    if bytes < 1024 { return String(bytes) + " B" }
+    let kilobytes = Double(bytes) / 1024
+    if kilobytes < 1000 { return String(format: "%.0f KB", kilobytes) }
+    let megabytes = kilobytes / 1024
+    if megabytes < 1000 { return String(format: "%.1f MB", megabytes) }
+    return String(format: "%.1f GB", megabytes / 1024)
+  }
+
   /// Seconds since this process started, straight from the kernel, or nil if it will not say.
   /// This is what separates "dyld plus our own startup" from everything that happens afterwards:
   /// a mark taken at first appearance can say how long the app took to get there at all.

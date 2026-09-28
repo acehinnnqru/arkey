@@ -81,17 +81,44 @@ public struct RimeOutput: Sendable {
   public let composition: RimeCompositionInfo?
   public let page: RimePage?
   public let status: RimeStatusSnapshot?
+  /// What the user typed, without the spaces librime's preedit inserts between syllables.
+  public let input: String?
 
   public init(handled: Bool, commit: String?, composition: RimeCompositionInfo?,
-              page: RimePage?, status: RimeStatusSnapshot?) {
+              page: RimePage?, status: RimeStatusSnapshot?, input: String? = nil) {
     self.handled = handled
     self.commit = commit
     self.composition = composition
     self.page = page
     self.status = status
+    self.input = input
   }
 
   public var preedit: String? { composition?.preedit }
   public var candidates: [RimeCandidateItem] { page?.candidates ?? [] }
   public var isComposing: Bool { !(preedit ?? "").isEmpty }
+
+  /// True when librime declined the key and nothing is composing, which is when the keyboard has to produce
+  /// the literal character itself (S4-AC4: a key librime declines never means "nothing happened").
+  ///
+  /// One predicate, because the extension had this expression three times — a character key, an action key
+  /// with a fallback, and the error path — and it is the rule, not the expression, that keeps a key from
+  /// doing nothing at all.
+  public var needsLiteralFallback: Bool {
+    !handled && (commit ?? "").isEmpty && !isComposing
+  }
+
+  /// The composition divided into syllables — what the expanded panel's syllable row shows — or nil when
+  /// there is nothing to divide.
+  ///
+  /// Measured: librime's preedit *is* the division, "nihao" coming back as "ni hao" and "nihaoshijie" as
+  /// "ni hao shi jie", which is the only segmentation this build exposes and the one S4 §6 asks about.
+  /// The guard is what makes reading it that way safe: the parts have to join back into exactly what the
+  /// user typed, so a translator whose preedit is a hint or a sentence cannot be mistaken for syllables.
+  public var syllables: [String]? {
+    guard let preedit = composition?.preedit, let input, !input.isEmpty else { return nil }
+    let parts = preedit.split(separator: " ").map(String.init)
+    guard parts.count > 1, parts.joined() == input else { return nil }
+    return parts
+  }
 }

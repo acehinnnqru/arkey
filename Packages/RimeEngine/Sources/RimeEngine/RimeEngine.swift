@@ -35,97 +35,122 @@ public struct RimeConfiguration: Sendable {
 /// ordering of concurrent keystrokes was left to the scheduler, which showed up as a keyboard
 /// that felt laggy and occasionally dropped input.
 public final class RimeEngine {
-  private let queue = DispatchQueue(label: "com.acehinnnqru.arkey.rime-engine")
-  private let configuration: RimeConfiguration
-  private let probeLog: RimeProbeLog?
-  private var records: [RimeProbeRecord] = []
-  private var allocatedStrings: [CStringBox] = []
-  private var api: UnsafeMutablePointer<rime_api_t>?
-  private var session: RimeSessionId?
-  private var isStarted = false
+  let queue = DispatchQueue(label: "com.acehinnnqru.arkey.rime-engine")
+  /// Identifies the engine's own queue, so a call made from inside it can be detected.
+  private static let queueKey = DispatchSpecificKey<UInt8>()
+  var configuration: RimeConfiguration
+  let probeLog: RimeProbeLog?
+  var records: [RimeProbeRecord] = []
+  var allocatedStrings: [CStringBox] = []
+  var api: UnsafeMutablePointer<rime_api_t>?
+  var session: RimeSessionId?
+  var isStarted = false
+
+  /// librime's own log text, captured through the logsink module (§S1). Shared with the keyboard
+  /// extension's diagnostics screen and the app's deploy-failure screen.
+  let logs = RimeLogBuffer()
+  let notificationRelay = NotificationRelay()
+  var isLogSinkInstalled = false
+  var logSinkAPI: UnsafeMutablePointer<RimeLogSinkApi>?
+  var logSinkContext: UnsafeMutableRawPointer?
 
   public init(configuration: RimeConfiguration, probeLog: RimeProbeLog? = nil) {
     self.configuration = configuration
     self.probeLog = probeLog
+    queue.setSpecific(key: RimeEngine.queueKey, value: 1)
+  }
+
+  /// Runs `body` on the engine's serial queue.
+  ///
+  /// Re-entrant calls run **inline**: a convenience call made from inside another engine call — the
+  /// settings model reads a schema while holding its config — would otherwise be a `dispatch_sync` on
+  /// the queue the thread already owns, which libdispatch treats as a client bug and traps (measured:
+  /// SIGTRAP, "BUG IN CLIENT OF LIBDISPATCH: dispatch_sync called on queue already owned by current
+  /// thread", not a deadlock).
+  func perform<T>(_ body: () throws -> T) rethrows -> T {
+    if DispatchQueue.getSpecific(key: RimeEngine.queueKey) != nil {
+      return try body()
+    }
+    return try queue.sync(execute: body)
   }
 
   public static var librimeVersion: String { RimeAPI.version }
 
   public func probeRecords() -> [RimeProbeRecord] {
-    queue.sync { records }
+    perform { records }
   }
 
   // MARK: - Lifecycle
 
   @discardableResult
   public func start() throws -> RimeProbeRecord {
-    try queue.sync { try startLocked() }
+    try perform { try startLocked() }
   }
 
   /// Runs the deployer. Only the app should do this; the extension must find prebuilt tables.
   @discardableResult
   public func runMaintenance(fullCheck: Bool = true) throws -> RimeProbeRecord {
-    try queue.sync { try runMaintenanceLocked(fullCheck: fullCheck) }
+    try perform { try runMaintenanceLocked(fullCheck: fullCheck) }
   }
 
   public func openSession() throws {
-    try queue.sync { try openSessionLocked() }
+    try perform { try openSessionLocked() }
   }
 
   public func closeSession() {
-    queue.sync { closeSessionLocked() }
+    perform { closeSessionLocked() }
   }
 
   public func shutdown() {
-    queue.sync { shutdownLocked() }
+    perform { shutdownLocked() }
   }
 
   // MARK: - Input
 
   @discardableResult
   public func processKey(_ keyCode: Int32, modifiers: RimeModifier = .none) throws -> RimeOutput {
-    try queue.sync { try processKeyLocked(keyCode, modifiers: modifiers) }
+    try perform { try processKeyLocked(keyCode, modifiers: modifiers) }
   }
 
   /// Convenience for tests and for replaying a whole string of ASCII input.
   @discardableResult
   public func processKeys(_ text: String) throws -> RimeOutput {
-    try queue.sync { try processKeysLocked(text) }
+    try perform { try processKeysLocked(text) }
   }
 
   @discardableResult
   public func selectCandidate(at index: Int) throws -> RimeOutput {
-    try queue.sync { try selectCandidateLocked(at: index) }
+    try perform { try selectCandidateLocked(at: index) }
   }
 
   @discardableResult
   public func changePage(backward: Bool) throws -> RimeOutput {
-    try queue.sync { try changePageLocked(backward: backward) }
+    try perform { try changePageLocked(backward: backward) }
   }
 
   /// Toggles a runtime option such as ascii_mode, which is how the shift key works here.
   public func setOption(_ name: String, _ value: Bool) throws {
-    try queue.sync { try setOptionLocked(name, value) }
+    try perform { try setOptionLocked(name, value) }
   }
 
   public func getOption(_ name: String) throws -> Bool {
-    try queue.sync { try getOptionLocked(name) }
+    try perform { try getOptionLocked(name) }
   }
 
   /// Re-reads context and status without processing a key.
   @discardableResult
   public func refresh() throws -> RimeOutput {
-    try queue.sync { try refreshLocked() }
+    try perform { try refreshLocked() }
   }
 
   public func clearComposition() throws {
-    try queue.sync { try clearCompositionLocked() }
+    try perform { try clearCompositionLocked() }
   }
 
   // MARK: - Lifecycle (queue)
 
-  private func startLocked() throws -> RimeProbeRecord {
-    if isStarted, let last = records.last { return last }
+  func startLocked(force: Bool = false) throws -> RimeProbeRecord {
+    if isStarted, !force, let last = records.last { return last }
     let start = DispatchTime.now().uptimeNanoseconds
     guard let pointer = RimeAPI.pointer,
           let setup = pointer.pointee.setup,
@@ -158,10 +183,14 @@ public final class RimeEngine {
     traits.app_name = boxes[8].raw
     traits.min_log_level = configuration.minLogLevel
 
+    api = pointer
     setup(&traits)
+    // Both of these are installed after setup() and before initialize() so that the component
+    // registration and schema loading that initialize() logs is captured too.
+    installLogSinkLocked()
+    installNotificationHandlerLocked()
     initialize(&traits)
 
-    api = pointer
     isStarted = true
     return record(phase: "engine.start",
                   start: start,
@@ -192,18 +221,14 @@ public final class RimeEngine {
     session = created
   }
 
-  private func closeSessionLocked() {
+  func closeSessionLocked() {
     guard let api, let session, let destroy = api.pointee.destroy_session else { return }
     _ = destroy(session)
     self.session = nil
   }
 
   private func shutdownLocked() {
-    closeSessionLocked()
-    api?.pointee.finalize?()
-    api = nil
-    isStarted = false
-    allocatedStrings = []
+    teardownLocked()
   }
 
   // MARK: - Input (queue)
@@ -272,13 +297,13 @@ public final class RimeEngine {
 
   // MARK: - Internals (queue)
 
-  private func requireAPI() throws -> UnsafeMutablePointer<rime_api_t> {
+  func requireAPI() throws -> UnsafeMutablePointer<rime_api_t> {
     if let api { return api }
     guard let pointer = RimeAPI.pointer else { throw RimeEngineError.apiUnavailable }
     return pointer
   }
 
-  private func requireSession(api: UnsafeMutablePointer<rime_api_t>) throws -> RimeSessionId {
+  func requireSession(api: UnsafeMutablePointer<rime_api_t>) throws -> RimeSessionId {
     guard let session else { throw RimeEngineError.sessionNotOpen }
     if let find = api.pointee.find_session, !find(session) {
       throw RimeEngineError.sessionNotOpen
@@ -287,7 +312,7 @@ public final class RimeEngine {
   }
 
   @discardableResult
-  private func record(phase: String, start: UInt64, message: String? = nil) -> RimeProbeRecord {
+  func record(phase: String, start: UInt64, message: String? = nil) -> RimeProbeRecord {
     let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
     let record = RimeProbeRecord(phase: phase, milliseconds: milliseconds, message: message)
     records.append(record)
@@ -295,9 +320,9 @@ public final class RimeEngine {
     return record
   }
 
-  private func readOutput(api: UnsafeMutablePointer<rime_api_t>,
-                          session: RimeSessionId,
-                          handled: Bool) -> RimeOutput {
+  func readOutput(api: UnsafeMutablePointer<rime_api_t>,
+                  session: RimeSessionId,
+                  handled: Bool) -> RimeOutput {
     var commitText: String?
     var commit = RimeCommit()
     commit.data_size = RimeAPI.dataSize(of: RimeCommit.self)
@@ -310,12 +335,16 @@ public final class RimeEngine {
 
     let (composition, page) = readContext(api: api, session: session)
     let status = readStatus(api: api, session: session)
+    var input: String?
+    if let getInput = api.pointee.get_input, let text = getInput(session) {
+      input = String(cString: text)
+    }
     return RimeOutput(handled: handled, commit: commitText, composition: composition,
-                      page: page, status: status)
+                      page: page, status: status, input: input)
   }
 
-  private func readContext(api: UnsafeMutablePointer<rime_api_t>,
-                           session: RimeSessionId) -> (RimeCompositionInfo?, RimePage?) {
+  func readContext(api: UnsafeMutablePointer<rime_api_t>,
+                   session: RimeSessionId) -> (RimeCompositionInfo?, RimePage?) {
     var context = RimeContext()
     context.data_size = RimeAPI.dataSize(of: RimeContext.self)
     guard let getContext = api.pointee.get_context, getContext(session, &context) else {
@@ -361,8 +390,8 @@ public final class RimeEngine {
     return (composition, page)
   }
 
-  private func readStatus(api: UnsafeMutablePointer<rime_api_t>,
-                          session: RimeSessionId) -> RimeStatusSnapshot? {
+  func readStatus(api: UnsafeMutablePointer<rime_api_t>,
+                  session: RimeSessionId) -> RimeStatusSnapshot? {
     var status = RimeStatus()
     status.data_size = RimeAPI.dataSize(of: RimeStatus.self)
     guard let getStatus = api.pointee.get_status, getStatus(session, &status) else {

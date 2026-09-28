@@ -9,6 +9,10 @@ public enum RimeEngineError: Error, CustomStringConvertible, Sendable {
   case sessionNotOpen
   case deploymentFailed
   case dataDirectoryMissing(String)
+  case configOpenFailed(String)
+  case configParseFailed(String)
+  case configValueMissing(String)
+  case schemaSelectionFailed(String)
 
   public var description: String {
     switch self {
@@ -24,6 +28,14 @@ public enum RimeEngineError: Error, CustomStringConvertible, Sendable {
       return "Rime deployment (maintenance) failed"
     case .dataDirectoryMissing(let path):
       return "required data directory is missing: " + path
+    case .configOpenFailed(let id):
+      return "librime could not open the configuration '" + id + "'"
+    case .configParseFailed(let snippet):
+      return "librime could not parse the YAML fragment: " + snippet
+    case .configValueMissing(let key):
+      return "configuration key is unset: " + key
+    case .schemaSelectionFailed(let id):
+      return "librime could not select the schema '" + id + "'"
     }
   }
 }
