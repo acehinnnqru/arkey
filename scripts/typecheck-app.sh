@@ -40,13 +40,19 @@ echo "== stripping #Preview blocks into $OUT =="
 rm -rf "$OUT"
 mkdir -p "$OUT/app" "$OUT/extension" "$OUT/cache"
 strip_previews() {
+  # Strip one #Preview block, whatever shape it takes, and keep everything after it. The first version
+  # dropped the rest of the file whenever the block's closing brace was the only brace on its line —
+  # which is every normal multi-line preview. Nothing was lost in this tree (both previews are last),
+  # but a type error planted after one of them passed the check, which is the whole class of bug this
+  # script exists to prevent. Found by scripts/check-verification-scripts.sh.
   awk '
-    /#Preview/ { depth = 0; skip = 1 }
+    /#Preview/ { skip = 1; depth = 0; seen = 0 }
     skip {
       opened = gsub(/\{/, "{")
       closed = gsub(/\}/, "}")
+      if (opened > 0) seen = 1
       depth += opened - closed
-      if (depth <= 0 && opened > 0) { skip = 0 }
+      if (seen && depth <= 0) { skip = 0 }
       next
     }
     { print }

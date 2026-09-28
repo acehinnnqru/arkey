@@ -35,6 +35,8 @@ final class S6PackagingTests: XCTestCase {
                   "the bundle check is about an unsigned build")
     XCTAssertTrue(text.contains("check-catalog-pages.sh"),
                   "the page check needs the network, so it is its own step")
+    XCTAssertTrue(text.contains("check-verification-scripts.sh"),
+                  "the checks are checked too: each must fail when its subject is broken")
     XCTAssertFalse(text.contains("xcodebuild test"),
                    "the iOS test target is S6-AC2 and does not exist yet: CI must not claim to run it")
     XCTAssertFalse(text.contains("scripts/device"),

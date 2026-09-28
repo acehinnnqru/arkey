@@ -33,5 +33,10 @@ jobs:
           ./scripts/check-release-bundle.sh \
             .build/ci-derived/Build/Products/Release-iphoneos/arkey.app
 
+      - name: The checks themselves (each one must fail when its subject is broken)
+        run: |
+          ./scripts/check-verification-scripts.sh \
+            .build/ci-derived/Build/Products/Release-iphoneos/arkey.app
+
       - name: Catalogue pages and licence links (needs the network)
         run: ./scripts/check-catalog-pages.sh
