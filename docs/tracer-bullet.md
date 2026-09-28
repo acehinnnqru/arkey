@@ -137,8 +137,11 @@ embedding a second one:
 
 ### 3.4 librime is not thread-safe
 
-All librime calls must be serialized. The design puts the whole engine behind a Swift `actor`
-(`RimeEngine`); the keyboard's main actor awaits it. If Swift 6 strict concurrency fights the C
+All librime calls must be serialized. The engine is a **final class with one dedicated serial
+`DispatchQueue`** (`RimeEngine`), and every public method runs its body on that queue while callers get an
+ordinary synchronous call. The actor in this document's first draft was correct but cost two hops per key
+press and left the order of concurrent keystrokes to the scheduler — measured as a keyboard that felt laggy
+and occasionally dropped input — so it was replaced. If Swift 6 strict concurrency fights the C
 interop, the package drops to `swiftLanguageMode(.v5)` for the tracer and we record why.
 
 ---

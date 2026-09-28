@@ -165,6 +165,11 @@ app group container, and typing through `processKeys` / `selectCandidate` to a c
 
 Native-parity metrics off the iPhone 15 Pro Max screenshot: 44 pt candidate strip, four 48 pt key
 rows with 10 pt gaps, 1.5-unit modifiers, and a bottom row of
+
+> **Superseded by the S3 captures**, which were taken on the same device class and measured every
+> rectangle: 8.3 pt side margins, 9.7 pt gaps, 45.0 pt keys, a 39.7 pt candidate slot. The numbers above
+> are what the tracer shipped with; `RimeKeyboardStyle.measured` is what the app uses, and
+> [s3-results.md](s3-results.md) is where the measurement lives.
 `123 | emoji | space | 辅码 | return` where the space bar is shortened to make room for the
 aux-code key. The globe row the system asks for (`needsInputModeSwitchKey`) sits below it. Shift
 toggles rime's `ascii_mode`, the return key is labelled from the client's `returnKeyType`, and

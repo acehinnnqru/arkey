@@ -345,19 +345,53 @@ the app, observed in the keyboard (or in `RimeOutput` in diagnostics).
      with the frames the layout engine computes for the same width, and fail above a 1 pt
      tolerance. Reference captures are supplied by the user and live outside the repository.
   4. Golden snapshots of our own renders guard against regressions between parity passes.
-- **Starting constants** (calibrated against your captures before any of them is treated as
-  correct — Apple publishes no numbers, so every value below comes from parity implementations and
-  from open-source keyboards that reverse-engineered the system one):
-  - iPhone portrait: key corner radius 5 pt (9 pt when the iOS 26 keyboard material is in play),
-    row height 54 pt, 56 pt on Pro-Max-class phones, 40 pt in landscape; key gap 6 pt; side edges
-    3–4 pt; row gap 10–11 pt.
-  - Letter keys #FFFFFF on ≈#D5D6DD light / #6B6B6B on #2C2C2C dark; special keys #ABB1BA /
-    #474747; key shadow black 30 % light, 70 % dark; key font 26 pt for a single character, 23 pt
-    otherwise, 16 pt on the bottom row.
-  - Callout: 10 pt corner radius, at least 55 pt tall, raised clear of the key, phone-class devices
-    only, character keys only.
-  - Delete repeat: 0.5 s hold, then 0.1 s interval — the shipping consensus, to be timed on the
-    device at 60/120 fps rather than trusted.
+- **Measured constants** — five reference captures: iPhone 15 Pro Max (430 × 932 pt, 3×), iOS 26, in
+  the Settings search field (letters light and dark, numbers, symbols, and the Chinese candidate panel
+  expanded). Geometry came from sub-pixel edge detection — the 50 % crossing between the key plateau
+  and the gap plateau — because a threshold pass is fooled by the glass key's soft edge: it reported
+  36.3 pt keys with 6 pt gaps in dark and 29.3 pt keys with 13 pt gaps in light, when both are
+  actually the same. The first version of this table was wrong for exactly that reason. Captures stay
+  out of the repository.
+
+  | Property | Native (measured) | Our code today |
+  | --- | --- | --- |
+  | keyboard height, home-indicator area included | 332.7 pt | 334 pt |
+  | strip above the first key row (suggestion/candidate slot) | **39.7 pt** | 54 pt (44 + 10 gap) |
+  | key height | **45.0 pt** | 48 pt |
+  | row pitch / gap | 56.0 / 11.0 pt | 58 / 10 pt |
+  | letter key width / horizontal gap | **32.6 / 9.7 pt** (slot 42.1) | ≈37 / 6 pt |
+  | letter-row margins | **8.3 pt** both sides | 3 pt |
+  | second-row indent | 21.05 pt (half a slot) | half-key spacer ✓ |
+  | shift / delete width | **45.1 / 45.4 pt**, with an 18.4 pt gap to the letter block | ≈63 / 63 pt |
+  | bottom row: 123 / emoji / space / return | **43.4 / 43.1 / 201.4 / 96.4 pt** | 1.25 / 1.25 / remainder / 1.75 units |
+  | below the last key row (globe + home indicator) | 80.3 pt, 34 of it safe area | 48 pt |
+  | key corner radius | reaches full width ≈6.7 pt below the top edge (continuous curve) | 5 pt |
+
+  - **Geometry is identical in light and dark**, and the first two rows are identical across the
+    letters, numbers and symbols layers. The layers differ in content and in row structure: letters
+    are 10 / 9 (indented half a slot) / shift + 7 + delete; numbers and symbols are 10 / 10 (no
+    indent) / one wide key + five wider keys + delete, those five measuring ≈49.7 pt — the layer's
+    third row is not on the letter slot grid.
+  - **Colours, light**: material `#DEDFE4`, every key cap `#FEFEFE` — special keys are white too, and
+    only the glyph distinguishes them — enabled action key `#3378F4`, host background `#EFF1F4`.
+  - **Colours, dark** (over a black host): material `#161616`, key caps `#3D3D3D`, the wider keys
+    `#43–#45`, disabled action key `#737373`. This is a translucent material, so these are the
+    material over *that* host rather than constants; S3 still has to choose between a material
+    (follows the host) and a fixed palette (does not).
+  - **The action key has two states to match**: disabled (gray — the empty search field in the first
+    capture) and enabled (blue `#3378F4`), which is what the "lighter return key" in that capture was.
+  - **The expanded candidate panel replaces the keyboard rather than floating over it**: its top edge
+    sits at 536.0 pt, 63.3 pt above the normal keyboard top, with a syllable row in its own 39.7 pt
+    slot (hairline-separated alternatives, collapse chevron at the right) and a 6 × 6 candidate grid
+    below it at a ≈45 pt row pitch. The selected cell carries a white rounded highlight; panel and
+    cells share the keyboard material.
+  - Not yet measured, so still at shipped-consensus values: the **collapsed** Chinese candidate row
+    (candidate count, dividers, how the first candidate is marked), glyph sizes, callout geometry,
+    delete repeat timing, landscape, and the 中/英 control. Callout: 10 pt radius, ≥55 pt tall,
+    phone-class devices and character keys only; delete repeat 0.5 s hold then 0.1 s.
+
+- **Captures still needed**: the Simplified-Chinese keyboard **collapsed** while composing — the one
+  state none of the five covers — and a landscape frame only if D3 keeps landscape in scope.
 - **Three traps worth writing down now.** A keyboard extension cannot draw outside its own frame, so
   the callout lives inside the keyboard's height rather than floating over the client. An extension
   can report a dark trait collection while the system is in light mode, so appearance comes from
