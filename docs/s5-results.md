@@ -15,7 +15,7 @@ keyboard-side lease are built and type-check. The iCloud container is declared
 | §10 bullet | Where it stands |
 | --- | --- |
 | snapshot round-trip: learn a word, export, import into a fresh user directory | covered — `testALearnedWordReachesTheExportAndTheSyncSnapshot` plus the conversion path in `testTheSyncSnapshotFormatIsNotWhatImportUserDictReads` |
-| lock semantics: export fails with a session open, succeeds after it closes | covered — `testTheLeaseIsWarmWhileTheKeyboardHoldsItAndColdWhenItDoesNot`, `testTheAppRefusesDictionaryWorkWhileTheKeyboardHoldsTheLease` (and the measured `backup_user_dict` refusal while a session is open) |
+| lock semantics: export fails with a session open, succeeds after it closes | covered, and the lease's own failure mode with it: an unreadable lease counts as held while fresh and ages out on its modification date, so "we cannot tell" never silently means "go ahead" — covered — `testTheLeaseIsWarmWhileTheKeyboardHoldsItAndColdWhenItDoesNot`, `testTheAppRefusesDictionaryWorkWhileTheKeyboardHoldsTheLease` (and the measured `backup_user_dict` refusal while a session is open) |
 | `sync_dir` resolution: absolute honoured, relative rejected, missing created | covered — `testInstallationSeedingNeverOverwritesAnExistingID` plus the seeding guard that refuses a relative directory |
 | merge: two user directories with disjoint words, synced through a shared folder | covered — `mergeFromOtherDevices()` reads every other device's snapshot, converts it to the levers format and imports it **additively**; `restore_user_dict` is deliberately not the door, because it replaces a dictionary instead of joining two. Pinned by `testAMergeAddsAnotherDevicesWordsAndKeepsOurs`: this device learns 输入法, a hand-written BBBB snapshot holds 世界, and both are in the export afterwards; the other device's file and the staging directory are left as they were |
 | format interoperability: the levers export parsed by the sync importer | covered, and the answer is "only after conversion" — `testTheLeversExportIsADifferentFormatAndIsNotASnapshot`, `testTheSyncSnapshotFormatParses` |
@@ -303,9 +303,31 @@ exactly that chain: export → `RimeZipArchive` paths → extract → `RimeSyncD
 dictionary → the snapshot parses with the learned word in it. The 用户词库 screen offers it beside the
 single-snapshot export.
 
+## An unreadable lease is not "nobody is typing" (S5 §3.2)
+
+The lease file is the thing that keeps the app out of the leveldb while the keyboard holds it, and
+"cannot be read" used to mean the same as "not there": `current()` returned nil, `isCold()` said
+true, and the app walked straight into the database the file exists to protect. Two ways in: a corrupt
+file, and a file written by a schema version this build does not know (the forward-compatibility check
+returned nil).
+
+`RimeLeaseStore.state(now:)` now separates the three cases — `cold`, `held`, and
+`unreadable(modifiedAt:reason:)` — and an unreadable file counts as **held while it is fresh**, because
+the leveldb lock does not care why we are wrong. Since there is no heartbeat to read, the file's own
+modification date stands in for one: a garbage file that is also old ages out like any other, so the app
+is never wedged permanently. `prune()` removes it at that point — the old version could never reach it,
+because it required the file to decode first.
+
+The app sees the difference: `RimeDictionaryAccess.blocker()` returns a reason (`keyboard` or
+`unreadableLease`), the error it throws carries a sentence that says which, and
+`RimeUserDictionaryReport.leaseBlocker` hands that sentence to the 用户词库 screen instead of the old
+hard-coded "the keyboard is using the dictionary" line. Pinned by
+`testAnUnreadableLeaseIsHeldWhileFreshAndAgesOut` and `testALeaseFromANewerSchemaIsNotTreatedAsCold`,
+and verified from both sides: making `state` treat an unreadable file as cold fails the first one.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S5DictionaryEditTests` | 8 | adding an entry, replacing a weight instead of duplicating, the additive-import measurement, the named error for a dictionary with no database, removing the whole dictionary, the refusal while the keyboard holds the lease, and the export format round-tripping through its own writer |
-| `S5UserDictionaryTests` | 16 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
+| `S5UserDictionaryTests` | 18 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
