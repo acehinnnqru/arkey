@@ -256,12 +256,12 @@ extension RimeAppModel {
   /// S5 §6/§10: read every other device's snapshot in the shared folder and merge it in additively.
   /// The engine converts each one to the levers format first, because `restore_user_dict` would
   /// replace this device's words with the other device's instead of joining them.
-  func mergeDictionaries() async {
+  func mergeDictionaries(from deviceID: String? = nil) async {
     guard !isSyncing else { return }
     isSyncing = true
     let service = RimeSyncService(workspace: workspace, engine: engine)
     do {
-      let outcome = try service.mergeFromOtherDevices()
+      let outcome = try service.mergeFromOtherDevices(devices: deviceID.map { [$0] })
       if outcome.isEmpty {
         syncMessage = "同步目录里还没有其他设备的快照。"
       } else {

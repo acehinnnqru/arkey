@@ -82,10 +82,7 @@ struct UserDictionaryView: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(entry.name).font(.body.weight(.medium))
       Text(detail(entry)).font(.caption).foregroundStyle(.secondary)
-      if !entry.otherDeviceIDs.isEmpty {
-        Text("其他设备：" + entry.otherDeviceIDs.joined(separator: "、"))
-          .font(.caption2).foregroundStyle(.secondary)
-      }
+      otherDeviceRows(entry)
       if entry.conflictCopies > 0 {
         Text("有 " + String(entry.conflictCopies) + " 个 iCloud 冲突副本，会一并读取")
           .font(.caption2).foregroundStyle(.orange)
@@ -138,6 +135,33 @@ struct UserDictionaryView: View {
       }
     }
   }
+
+  /// S5 §9: the other devices appear as separate sources, each with when its snapshot was taken, so
+  /// the user can merge one and ignore another instead of taking whatever the folder happens to hold.
+  @ViewBuilder
+  private func otherDeviceRows(_ entry: RimeUserDictionaryReport.Entry) -> some View {
+    ForEach(entry.otherDevices, id: \.deviceID) { device in
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("其他设备 " + device.deviceID).font(.caption2)
+          Text(Self.stamp.string(from: device.modifiedAt) + " · " + bytes(device.bytes)
+               + (device.isConflictCopy ? " · iCloud 冲突副本" : ""))
+            .font(.caption2).foregroundStyle(.secondary)
+        }
+        Spacer(minLength: 8)
+        Button("合并") { Task { await model.mergeDictionaries(from: device.deviceID) } }
+          .font(.caption2)
+          .buttonStyle(.borderless)
+      }
+    }
+  }
+
+  private static let stamp: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .short
+    formatter.timeStyle = .short
+    return formatter
+  }()
 
   private func syncSection(_ report: RimeUserDictionaryReport) -> some View {
     Section("同步") {

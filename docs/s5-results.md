@@ -217,9 +217,21 @@ screen called and no test covered. The app asks the engine now, and the scan has
 directories ending in `.userdb` are listed by name, sorted, and a stray `tracer.userdb.txt` snapshot sitting in the
 same directory is **not** mistaken for a dictionary.
 
+## The other devices are sources, not a folder to swallow (S5 §9)
+
+§9 says conflict copies and other devices are "listed as separate sources with their device and
+timestamp; the user can merge or ignore each". The report carried a device-id set and a count, so the
+screen could say *that* another device existed but not since when, how big, or which one the user was
+about to trust. `RimeUserDictionaryReport.Entry.otherDevices` now carries one row per device — id,
+timestamp, bytes, conflict flag — the 用户词库 screen renders each with a 合并 button, and
+`mergeFromOtherDevices(devices:)` merges only the chosen ones. The device-wide button remains for
+"take everything". The test writes two devices' snapshots (世界 from MAC, 中文 from PHONE), checks the
+list and its timestamps, merges MAC only, and asserts PHONE's word is **not** in the export — the
+difference between a merge the user chose and one the folder chose.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S5DictionaryEditTests` | 8 | adding an entry, replacing a weight instead of duplicating, the additive-import measurement, the named error for a dictionary with no database, removing the whole dictionary, the refusal while the keyboard holds the lease, and the export format round-tripping through its own writer |
-| `S5UserDictionaryTests` | 12 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
+| `S5UserDictionaryTests` | 13 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |

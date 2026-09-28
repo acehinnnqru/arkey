@@ -26,13 +26,24 @@ extension RimeEngine {
 /// What the 用户词库 screen shows: one row per dictionary, the snapshots that exist for it, and
 /// where the sync folder is.
 public struct RimeUserDictionaryReport: Sendable {
+  /// One snapshot another device left in the shared folder (S5 §9: "listed as separate sources with
+  /// their device and timestamp", so the user can decide what to merge).
+  public struct OtherDevice: Sendable, Hashable {
+    public let deviceID: String
+    public let modifiedAt: Date
+    public let bytes: Int
+    /// An iCloud conflict copy is a normal source to read, not an error (S5 §6).
+    public let isConflictCopy: Bool
+  }
+
   public struct Entry: Sendable, Hashable {
     public let name: String
     public let databaseBytes: Int
     /// Snapshot bytes written by this device's installation id.
     public let localSnapshotBytes: Int
-    /// Snapshots written by other devices, which is what a merge would read.
-    public let otherDeviceIDs: [String]
+    /// Snapshots written by other devices, newest first, one row per device: what a merge reads and
+    /// what the screen lists.
+    public let otherDevices: [OtherDevice]
     public let conflictCopies: Int
     public let entryCount: Int
     public let modifiedAt: Date?
@@ -157,14 +168,27 @@ public struct RimeSyncService {
       // Broken into steps: as one expression this was more than the type checker would take on.
       let databaseBytes = RimeWorkspace.directorySize(database, fileManager: fileManager)
       let localSnapshotBytes = mine.reduce(0) { $0 + $1.bytes }
-      let otherDeviceIDs = Array(Set(others.map(\.deviceID))).sorted()
+      // One row per device: the newest snapshot that device left, so the timestamp means "as of".
+      var newestByDevice: [String: RimeSyncSnapshot] = [:]
+      for snapshot in others {
+        if let current = newestByDevice[snapshot.deviceID], current.modifiedAt >= snapshot.modifiedAt {
+          continue
+        }
+        newestByDevice[snapshot.deviceID] = snapshot
+      }
+      let otherDevices = newestByDevice.values
+        .map { RimeUserDictionaryReport.OtherDevice(deviceID: $0.deviceID,
+                                                    modifiedAt: $0.modifiedAt,
+                                                    bytes: $0.bytes,
+                                                    isConflictCopy: $0.isConflictCopy) }
+        .sorted { $0.deviceID < $1.deviceID }
       let conflicts = snapshots.filter { $0.dictionary == name && $0.isConflictCopy }.count
       let modified = try? database.resourceValues(forKeys: [.contentModificationDateKey])
         .contentModificationDate
       entries.append(RimeUserDictionaryReport.Entry(name: name,
                                                     databaseBytes: databaseBytes,
                                                     localSnapshotBytes: localSnapshotBytes,
-                                                    otherDeviceIDs: otherDeviceIDs,
+                                                    otherDevices: otherDevices,
                                                     conflictCopies: conflicts,
                                                     entryCount: entryCount,
                                                     modifiedAt: modified))
@@ -373,12 +397,15 @@ public struct RimeSyncService {
   /// cannot be the door here: merging three devices through it would leave only the last one's words.
   /// Each snapshot is therefore converted to the levers format first, which is the same conversion,
   /// and the same measured reason, as importing one Squirrel snapshot by hand (S5 §5).
+  /// `devices` narrows the merge to the sources the user picked, which is what S5 §9 means by
+  /// "the user can merge or ignore each"; nil merges every other device.
   @discardableResult
-  public func mergeFromOtherDevices() throws -> RimeMergeOutcome {
+  public func mergeFromOtherDevices(devices: Set<String>? = nil) throws -> RimeMergeOutcome {
     guard let syncDirectory else { throw RimeSyncError.noSyncDirectory }
     let mine = installationID
     let others = RimeSyncDiscovery.snapshots(in: syncDirectory, fileManager: fileManager)
       .filter { $0.deviceID != mine }
+      .filter { snapshot in devices.map { $0.contains(snapshot.deviceID) } ?? true }
     guard !others.isEmpty else { return RimeMergeOutcome(entries: []) }
 
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)

@@ -143,7 +143,7 @@ final class S5UserDictionaryTests: XCTestCase {
     let entry = try XCTUnwrap(report.dictionaries.first { $0.name == "tracer" })
     // This workspace's own installation id is the seeded UUID, so both fixture directories are
     // other devices — which is what a merge reads.
-    XCTAssertEqual(entry.otherDeviceIDs, ["MAC", "PHONE"])
+    XCTAssertEqual(entry.otherDevices.map(\.deviceID), ["MAC", "PHONE"])
     XCTAssertEqual(entry.conflictCopies, 1)
     XCTAssertEqual(report.installationID, workspace.loadInstallation()?.installationID)
   }
@@ -393,6 +393,59 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path))
     XCTAssertTrue(FileManager.default.fileExists(
       atPath: other.appendingPathComponent("tracer.userdb.txt").path))
+  }
+
+  /// S5 §9: the other devices are separate sources with their own timestamp, and the user merges the
+  /// ones they trust — one at a time.
+  func testTheOtherDevicesAreListedWithTheirTimestampAndMergeOneAtATime() async throws {
+    let service = RimeSyncService(workspace: workspace, engine: engine)
+    let sync = try XCTUnwrap(service.syncDirectory)
+
+    func writeSnapshot(device: String, word: String, code: String) throws {
+      let directory = sync.appendingPathComponent(device, isDirectory: true)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let text = """
+      # Rime user dictionary
+      #@/db_name\ttracer
+      #@/db_type\tuserdb
+      #@/rime_version\t1.17.0
+      #@/tick\t1
+      #@/user_id\t\(device)
+      \(code)\t\(word)\tc=4 d=0 t=1
+      """
+      try text.write(to: directory.appendingPathComponent("tracer.userdb.txt"),
+                     atomically: true, encoding: .utf8)
+    }
+    try writeSnapshot(device: "MAC", word: "世界", code: "shi jie")
+    try writeSnapshot(device: "PHONE", word: "中文", code: "zhong wen")
+
+    let report = try service.report()
+    let entry = try XCTUnwrap(report.dictionaries.first { $0.name == "tracer" },
+                              report.dictionaries.map(\.name).joined(separator: ","))
+    XCTAssertEqual(entry.otherDevices.map(\.deviceID), ["MAC", "PHONE"])
+    XCTAssertEqual(entry.otherDevices.map(\.bytes), [entry.otherDevices[0].bytes,
+                                                      entry.otherDevices[1].bytes])
+    for device in entry.otherDevices {
+      XCTAssertGreaterThan(device.bytes, 0, "the row carries the file size")
+      XCTAssertLessThan(abs(device.modifiedAt.timeIntervalSinceNow), 60,
+                        "and when the snapshot was taken, not the epoch")
+      XCTAssertFalse(device.isConflictCopy, device.deviceID + " is a plain snapshot")
+    }
+
+    // Merge MAC only: the user's choice, not the folder's contents.
+    let outcome = try service.mergeFromOtherDevices(devices: ["MAC"])
+    XCTAssertEqual(outcome.entries.map(\.dictionary), ["tracer"])
+    XCTAssertEqual(outcome.entries.first?.deviceIDs, ["MAC"])
+
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    let exportURL = scratch.appendingPathComponent("after-one-device-merge.txt")
+    _ = try access.perform { try engine.exportUserDictionary("tracer", to: exportURL) }
+    let export = try XCTUnwrap(RimeUserDictionaryExport.parse(
+      text: try String(contentsOf: exportURL, encoding: .utf8)))
+    let texts = export.entries.map(\.text).joined(separator: ",")
+    XCTAssertTrue(export.entries.contains { $0.text == "世界" }, texts)
+    XCTAssertFalse(export.entries.contains { $0.text == "中文" },
+                   "PHONE was not merged: " + texts)
   }
 
   /// The spec's open `[verify]` in M5, answered — and the answer is **no**. `import_user_dict` reads the

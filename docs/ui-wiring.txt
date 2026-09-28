@@ -46,7 +46,6 @@ deleteWidth
 deletions
 deployer
 deploySync
-deviceID
 dictionariesToSync
 dictionaryName
 differences
@@ -91,7 +90,6 @@ isCharacter
 isClean
 isCold
 isCompatible
-isConflictCopy
 isDegraded
 isDisabled
 isFullShape
@@ -142,7 +140,6 @@ megabytes
 method
 minBytes
 missingTables
-modifiedAt
 noticeExists
 noticePath
 notifications
