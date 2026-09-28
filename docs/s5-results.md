@@ -325,6 +325,21 @@ hard-coded "the keyboard is using the dictionary" line. Pinned by
 `testAnUnreadableLeaseIsHeldWhileFreshAndAgesOut` and `testALeaseFromANewerSchemaIsNotTreatedAsCold`,
 and verified from both sides: making `state` treat an unreadable file as cold fails the first one.
 
+## An unreadable installation.yaml is quarantined, not replaced (S5 §6)
+
+The installation id is what names this device's directory inside the sync folder. An
+`installation.yaml` that is there but does not parse used to go down the "no file yet" path: the seed
+wrote a fresh record, the device **silently minted a new id**, and the consequences only show up later —
+the sync folder grows a second device directory, and the device's own earlier snapshots start looking
+like some other device's (which the merge screen would then offer to import).
+
+The unreadable file is now moved to `installation.yaml.unreadable` with its bytes intact before the
+fresh one is written, `RimeWorkspace.quarantinedInstallationURL` names it, and the app's bootstrap
+turns its existence into a warning on the 配置库 screen — a new id is worth knowing about, because the
+user has to decide whether to put the old snapshots back by hand. Pinned by
+`testAnUnreadableInstallationFileIsQuarantinedRatherThanSilentlyReplaced`, verified from both sides:
+removing the quarantine step fails it.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
