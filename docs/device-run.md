@@ -19,6 +19,7 @@ Everything here runs on the Mac and answers "is the thing I am about to measure 
 | --- | --- | --- |
 | the whole suite | `./scripts/verify-all.sh` | a device run against a tree that does not build, type-check or pass its own checks |
 | the measuring tool | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-capture-check --self-test` | a surprising screenshot reading that turns out to be the tool's |
+| the suite under AddressSanitizer | `swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=address` | a memory error in the engine's own pointer code, before a phone is blamed for it (0 reports as of round 120) |
 | the deployer and its probe | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-deploy --shared RimeData --staging <tmp> --probe nihaoshijie` | an engine that no longer composes, before the keyboard is blamed |
 | the release check | `./scripts/check-release-bundle.sh <path to arkey.app>` | third-party data in the build that gets installed |
 | the download pages | `./scripts/check-catalog-pages.sh` | an import that cannot start because the page the catalogue names is not serving (they were 404s when this was written) |
@@ -33,8 +34,8 @@ during it.
 | # | Do this on the device | Record | Closes |
 | --- | --- | --- | --- |
 | 1 | Type `nihao` in the field with the keyboard up, then `nihaoshijie` | a screenshot of the candidate bar, and of the expanded panel with the syllable row | S1-AC1, S4-AC1, S4-AC5 |
-| 2 | Open the app, 部署 the bundled tracer profile, watch the progress | the deploy duration the diagnostics screen reports for `engine.deploy` | S1-AC8, S2-AC1 |
-| 3 | Type 200 keys in any field, then open 诊断 → 统计 and press 复制 | the `keyboard.boot` milliseconds and footprint, and `keyboard.stats` median/p95 and peak footprint — the paste carries the numbers first and the raw records under them | S1-AC8, S4-AC6, S6-AC6 |
+| 2 | Open the app, 部署 the bundled tracer profile, watch the progress; then press 部署 **again in the same session** | the deploy duration the diagnostics screen reports for `engine.deploy`, and the second message — it must say 已是最新，未重建任何表 rather than implying a rebuild (S1 §6's signal) | S1-AC8, S2-AC1 |
+| 3 | Type 200 keys in any field, then open 诊断 → 统计 and press 复制 | the `keyboard.boot` milliseconds and footprint, and `keyboard.stats` median/p95/p99 and peak footprint — the paste carries the numbers first and the raw records under them; the 配置 section must also show "`librime 1.17.0 · app <version>`" | S1-AC8, S4-AC6, S6-AC6, S6-AC4 |
 | 4 | Record the keyboard for 30 seconds while typing quickly | the video, and the 120 fps judgement from it | S3-AC4 |
 | 5 | Take a screenshot of the keyboard in light mode and one in dark mode, on a light and a dark system appearance | the two PNGs. **These also confirm the rendering, which no test here can:** the cap rule is now one table (`RimeKeyCapRole`), so a cap whose measured colour is more than 0.02 per channel from the palette means the view did not go through it (see [s3-results.md](s3-results.md)) | S3-AC1, S3-AC2 |
 | 6 | Run each screenshot through the tool: `swift run --disable-sandbox --package-path Packages/RimeEngine rime-capture-check --capture <png>` (add `--dark` for the dark one) — it prints the inferred scale, every key that is off and the per-role colour deltas; run `--self-test` once at the desk to prove the tool | the pixels-per-point ratio, the rectangle deltas and the per-role colour deltas | S3-AC1, S3-AC2 |
@@ -46,6 +47,13 @@ during it.
 | 12 | Export the settings from 设置, reset them, import them back on a clean install | the round trip on a device | S2-AC5 |
 | 13 | Commit a word, then long-press it in the candidate bar | the entry disappearing from the user dictionary in the app's 用户词库 screen | S5-AC5 |
 | 14 | Export a user-dictionary snapshot from the app and import it into Squirrel on a Mac; then the reverse | both directions of the round trip | S5-AC1 |
+| 15 | Open 下载配置: each entry shows its licence, size and requirements, and 打开项目页 opens the project's page in **Safari** (not in an in-app browser — `S6NetworkTests` forbids those APIs); the upstream and licence links resolve | the screen, and that Safari opened rather than the app rendering the page | S6-AC4, S6-AC5 |
+| 16 | In 用户词库, pick a folder with 选择同步文件夹…, sync, then 恢复默认 | the snapshot appears under the chosen folder, the screen names it, and 恢复默认 brings the iCloud/文稿 default back | S5-AC1, S5-AC6 |
+| 17 | Export 整组快照（zip） and open it in Files | the zip holds `<installation_id>/tracer.userdb.txt`; 导入… reads it back | S5-AC5 |
+| 18 | With a schema that declares no 中英 switch, tap the emoji slot's key | whether the next input mode is the system emoji keyboard — D5's one device check; if it is not, the fallback is to remove the key | S3-AC3 |
+| 19 | Close the keyboard, then open 用户词库 in the app within a minute | the dictionary actions are available **at once**: the keyboard releases the lease at dismissal (S5 §3.2), so nothing should say the keyboard is still holding it | S5-AC2 |
+| 20 | While composing, swipe left and right on the candidate bar | the page turns the same way the chevrons turn it (S4 §6) | S4-AC5 |
+| 21 | Delete the files inside the app container's `user/tracer.userdb/`, then open the keyboard and the app | the 用户词库 screen names librime's own "Error opening db" line for that dictionary and the 恢复 buttons of the backup set are the way back (S5 §9) | S5-AC3 |
 
 ## Rows that a device does not close
 

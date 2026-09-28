@@ -103,6 +103,27 @@ optional field, so files written before it existed still decode — the keyboard
 boot, and a decode failure there is a keyboard that does not appear. The diagnostics screen shows both,
 and the test pins the round trip, the field's presence in the JSON, and the legacy decode.
 
+## The suite under AddressSanitizer
+
+`swift test --disable-sandbox --sanitize=address` runs the whole engine suite instrumented. It found one
+real defect, and it was ours rather than the pinned build's:
+
+- **First run**: aborted with `heap-use-after-free` inside librime's vendored glog
+  (`LogFileObject::Write` → `strlen`, reached from `RimeInitialize`). The trigger was our side of the
+  contract: the engine was handed a `log_dir` that did not exist — several fixtures never created it,
+  and in that state librime logs "Could not create logging file" on every record.
+  `RimeEngine.startLocked` now creates the log directory before `initialize`; the app already did, at
+  bootstrap, but the engine should not depend on luck for its own precondition.
+- **After the fix**: 279 tests, 0 failures, **0 reports**.
+- A first attempt created the *staging* directory too, and two tests failed at once: the deploy swap's
+  contract is that staging does not exist until the swap renames it into place. Only the log directory
+  is created, and the fixture that used to pre-create it no longer does — pre-creating it would hide
+  the guarantee the engine just took on.
+
+Worth re-running when the engine's pointer code changes. It is not a step of `verify-all.sh` (the
+instrumented build costs a few minutes on top of the suite), and
+[device-run.md](device-run.md)'s pre-flight lists it for the device day.
+
 ## CI runs what a runner can run (S6 §7)
 
 S6 §7 lists what CI can run — `swift test`, the repository licence check, a bundle-content check on an
