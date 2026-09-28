@@ -6,24 +6,42 @@ import RimeEngine
 /// The whole input path is synchronous. The engine owns a serial queue, so a key press is one
 /// call plus one UI update with no scheduling hops; an earlier build hopped through an actor
 /// twice per key and updated every view on screen each time, which read as a laggy keyboard.
-final class KeyboardViewController: UIInputViewController {
+final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
+  /// S3 §5's click sound: the documented path is this protocol plus @B@playInputClick()@B@, which only
+  /// makes a sound while the keyboard is visible and only when the user enabled it in Settings.
+  var enableInputClicksWhenVisible: Bool { true }
+
   private let candidateBar = CandidateBar()
+  /// S4 §6's expanded panel: it replaces the keyboard area, so the keys are hidden while it is open.
+  private lazy var candidatePanel = CandidatePanelView()
+  /// S3 §5's magnified cap. It lives in the controller's view because it draws into the candidate
+  /// slot above the first key row, which the grid does not own.
+  private lazy var callout = KeyCalloutView()
+  private var calloutKey: RimeKeyboardKey?
+  private var feedbackPreferences: RimeKeyboardPreferences = .standard
+  /// Prepared on touch down so the impact lands with the key rather than after the first use.
+  private lazy var haptic = UIImpactFeedbackGenerator(style: .light)
+  private var isPanelExpanded = false
+  private var panelCandidates: [RimeCandidateItem] = []
+  private var panelPage = 0
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
   private var engine: RimeEngine?
+  /// Kept so the appearance can adopt a profile the app activated (S1 §8).
+  private var engineSetup: KeyboardEngine.Setup?
   private var theme = KeyboardTheme.current(for: .default)
   private var keyLayer: KeyLayer = .letters
+  /// One-shot, caps lock and consumption live in the model, so the states are testable off-device.
+  private var shiftController = RimeShiftController()
   private var asciiMode = false
   private var markedText: String?
 
   // Input latency evidence, flushed to the probe log every 25 keys.
-  private var keyCount = 0
-  private var keyTotalMilliseconds = 0.0
-  private var keyMaxMilliseconds = 0.0
+  /// The per-key samples of the current batch. The input path cannot write a record per key (S3-AC5), so the
+  /// samples are kept here and one record is written per window — carrying the window's p95, which is the
+  /// number S4-AC6 is about.
+  private var keyLatency = RimeKeyLatencyWindow()
 
-  /// Keysym the aux-code key sends. Semicolon is the usual lead-in for auxiliary codes; it
-  /// lives in one place so a schema can change it.
-  private var auxCodeKeysym: Int32 { RimeKey.ascii(";") ?? 0x3B }
 
   // MARK: - Lifecycle
 
@@ -47,8 +65,32 @@ final class KeyboardViewController: UIInputViewController {
       keyGrid.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -KeyboardMetrics.bottomInset),
     ])
 
+    candidatePanel.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(candidatePanel)
+    NSLayoutConstraint.activate([
+      candidatePanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      candidatePanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      candidatePanel.topAnchor.constraint(equalTo: view.topAnchor),
+      candidatePanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    callout.isHidden = true
+    view.addSubview(callout)
+
+    candidatePanel.isHidden = true
+    candidatePanel.onSelect = { [weak self] index in self?.selectFromPanel(index) }
+    candidatePanel.onCollapse = { [weak self] in self?.collapsePanel() }
+    candidatePanel.onPage = { [weak self] backward in self?.pagePanel(backward: backward) }
+
     candidateBar.onSelect = { [weak self] index in self?.selectCandidate(index) }
+    candidateBar.onPage = { [weak self] backward in self?.changePage(backward: backward) }
+    candidateBar.onExpand = { [weak self] in self?.expandPanel() }
     keyGrid.onKey = { [weak self] key in self?.handle(key) }
+    keyGrid.onKeyTouchDown = { [weak self] key, point in
+      self?.haptic.prepare()
+      self?.showCallout(for: key, at: point)
+    }
+    keyGrid.onKeyTouchMove = { [weak self] key, point in self?.moveCallout(for: key, at: point) }
+    keyGrid.onKeyTouchEnded = { [weak self] in self?.hideCallout() }
 
     prepareEngine()
   }
@@ -58,8 +100,14 @@ final class KeyboardViewController: UIInputViewController {
     applyCurrentTheme()
     refreshLayout()
     updateHeight()
+    // A profile the app activated is adopted here, before the first keystroke of this appearance,
+    // and only because the composition was just cleared: S1 §8 forbids switching mid-sentence.
     markedText = nil
     try? engine?.clearComposition()
+    if let setup = engineSetup {
+      KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
+      candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
+    }
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -94,6 +142,9 @@ final class KeyboardViewController: UIInputViewController {
       candidateBar.setMessage("Arkey 启动失败：" + reason)
     case .success(let setup):
       engine = setup.engine
+      engineSetup = setup
+      // The app stays away from the user dictionaries while this lease is fresh (S5 §3.2).
+      KeyboardEngine.holdDictionaryLease(setup)
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
@@ -134,6 +185,30 @@ final class KeyboardViewController: UIInputViewController {
     }
   }
 
+  /// S4 §8 / S5-AC5: a long press on a candidate forgets the word. The bar's index is the one on the page it
+  /// is showing, which is librime's numbering; librime answers false when the candidate did not come from the
+  /// user dictionary, and the bar says so rather than pretending it forgot something.
+  private func forgetCandidate(_ index: Int) {
+    guard let engine else { return }
+    do {
+      let forgotten = try engine.deleteCandidate(at: index)
+      apply(try engine.refresh())
+      candidateBar.setMessage(forgotten ? "已忘记这个词" : "这个词不在用户词典里")
+    } catch {
+      report("forget.failed", error, userVisible: "忘记失败：")
+    }
+  }
+
+  /// S3 §5: a page chevron pages the candidate list and never commits, so this only re-renders.
+  private func changePage(backward: Bool) {
+    guard let engine else { return }
+    do {
+      apply(try engine.changePage(backward: backward))
+    } catch {
+      report("page.failed", error, userVisible: "翻页出错：")
+    }
+  }
+
   private func toggleAsciiMode() {
     asciiMode.toggle()
     refreshLayout()
@@ -168,7 +243,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     asciiMode = output.status?.isAsciiMode ?? asciiMode
-    candidateBar.setCandidates(output.candidates, highlighted: output.page?.highlightedIndex ?? 0)
+    candidateBar.setPage(output.page)
     refreshLayout()
   }
 
@@ -180,8 +255,6 @@ final class KeyboardViewController: UIInputViewController {
       typeLiteralKey(value)
     case .space:
       send(RimeKey.space, fallback: " ")
-    case .auxCode:
-      send(auxCodeKeysym, fallback: ";")
     case .backspace:
       if (markedText ?? "").isEmpty {
         textDocumentProxy.deleteBackward()
@@ -194,18 +267,41 @@ final class KeyboardViewController: UIInputViewController {
       }
       textDocumentProxy.insertText("\n")
     case .shift:
-      toggleAsciiMode()
+      // S3 §5: one-shot after a tap, caps lock after a double tap. The case control is ours; the
+      // 中/英 state is the engine's ascii_mode and is not this key.
+      shiftController.tap()
+      refreshLayout()
     case .numbers:
       keyLayer = .numbers
+      refreshLayout()
+    case .symbols:
+      keyLayer = .symbols
       refreshLayout()
     case .letters:
       keyLayer = .letters
       refreshLayout()
     case .globe:
       advanceToNextInputMode()
+    case .language:
+      // S3 §5's 中/英: the state is the engine's ascii_mode, and the key's own label comes from
+      // get_state_label on the next layout pass.
+      toggleAsciiMode()
     case .emoji:
-      // The tracer ships no emoji layer; the key is here so the row matches the system one.
+      // No emoji panel: the slot holds the 中/英 key whenever the schema has one, and this key is only
+      // reached when it does not (D5's "or is removed").
       break
+    }
+    playFeedback()
+  }
+
+  /// S3 §5's key-up feedback: the action has already fired, and both signals are optional. Nothing
+  /// here can block the input path — a click and an impact are fire-and-forget.
+  private func playFeedback() {
+    if feedbackPreferences.keyClickEnabled {
+      UIDevice.current.playInputClick()
+    }
+    if feedbackPreferences.hapticsEnabled {
+      haptic.impactOccurred()
     }
   }
 
@@ -222,7 +318,7 @@ final class KeyboardViewController: UIInputViewController {
     let start = DispatchTime.now().uptimeNanoseconds
     do {
       let output = try engine.processKey(keysym)
-      if !output.handled, (output.commit ?? "").isEmpty, !output.isComposing {
+      if output.needsLiteralFallback {
         textDocumentProxy.insertText(value)
         markedText = nil
       }
@@ -242,7 +338,7 @@ final class KeyboardViewController: UIInputViewController {
     let start = DispatchTime.now().uptimeNanoseconds
     do {
       let output = try engine.processKey(keysym)
-      if !output.handled, (output.commit ?? "").isEmpty, !output.isComposing, let fallback {
+      if output.needsLiteralFallback, let fallback {
         textDocumentProxy.insertText(fallback)
       }
       apply(output)
@@ -257,30 +353,24 @@ final class KeyboardViewController: UIInputViewController {
 
   private func recordKeyLatency(since start: UInt64) {
     let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-    keyCount += 1
-    keyTotalMilliseconds += milliseconds
-    keyMaxMilliseconds = max(keyMaxMilliseconds, milliseconds)
+    keyLatency.record(milliseconds: milliseconds)
     if milliseconds > 50 {
       KeyboardLog.error("slow key: " + String(format: "%.1f ms", milliseconds))
     }
-    if keyCount % 25 == 0 {
+    if keyLatency.isFull {
       flushKeyStatistics()
     }
   }
 
   private func flushKeyStatistics() {
-    guard keyCount > 0, case .success(let setup) = KeyboardEngine.setup else { return }
-    let average = keyTotalMilliseconds / Double(keyCount)
-    let message = "keys=" + String(keyCount)
-      + " avgMs=" + String(format: "%.2f", average)
-      + " maxMs=" + String(format: "%.2f", keyMaxMilliseconds)
+    guard !keyLatency.isEmpty, case .success(let setup) = KeyboardEngine.setup else { return }
+    // The record carries the window's p95: the summary above it then aggregates per-key percentiles, not the
+    // average of twenty-five keys, which would hide every spike S4-AC6 is about.
     setup.probe?.append(RimeProbeRecord(phase: "keyboard.stats",
-                                        milliseconds: average,
-                                        message: message))
-    KeyboardLog.info("key stats: " + message)
-    keyCount = 0
-    keyTotalMilliseconds = 0
-    keyMaxMilliseconds = 0
+                                        milliseconds: keyLatency.p95,
+                                        message: keyLatency.message))
+    KeyboardLog.info("key stats: " + keyLatency.message)
+    keyLatency.reset()
   }
 
   // MARK: - Presentation
@@ -288,19 +378,160 @@ final class KeyboardViewController: UIInputViewController {
   private func applyCurrentTheme() {
     theme = KeyboardTheme.current(for: textDocumentProxy.keyboardAppearance ?? .default)
     view.backgroundColor = theme.background
+    candidateBar.onForget = { [weak self] index in self?.forgetCandidate(index) }
     candidateBar.apply(theme: theme)
+    candidatePanel.apply(theme: theme)
+    callout.apply(theme: theme)
+  }
+
+  // MARK: - Callout
+
+  /// Raises the magnified cap for a key the policy allows one on, positioned by the model's geometry
+  /// so it cannot escape the keyboard (S3 §5, R10).
+  private func showCallout(for key: RimeKeyboardKey, at point: CGPoint) {
+    guard feedbackPreferences.allowsCallout(isPhoneClass: isPhoneClassKeyboard),
+          RimeKeyFeedbackPolicy.raisesCallout(key, isPhoneClass: isPhoneClassKeyboard,
+                                              isRepeatingDelete: false,
+                                              feedback: feedbackPreferences.feedback)
+    else {
+      calloutKey = nil
+      return
+    }
+    calloutKey = key
+    callout.apply(theme: theme)
+    let frame = calloutFrame(for: key, at: point)
+    callout.show(label: label(for: key), frame: frame)
+  }
+
+  private func moveCallout(for key: RimeKeyboardKey, at point: CGPoint) {
+    guard calloutKey != nil else { return }
+    callout.move(to: calloutFrame(for: key, at: point))
+  }
+
+  private func hideCallout() {
+    calloutKey = nil
+    callout.hide()
+  }
+
+  /// The key's frame and the finger, both in the controller's coordinates.
+  private func calloutFrame(for key: RimeKeyboardKey, at point: CGPoint) -> CGRect {
+    let keyFrame = keyGrid.convert(key.frame, to: view)
+    let finger = keyGrid.convert(point, to: view)
+    let placed = RimeKeyboardKey(kind: key.kind, frame: keyFrame, label: key.label,
+                                 accessibilityLabel: key.accessibilityLabel)
+    return RimeCalloutGeometry.frame(for: placed, in: view.bounds, fingerX: finger.x,
+                                     feedback: feedbackPreferences.feedback)
+  }
+
+  private func label(for key: RimeKeyboardKey) -> String {
+    key.label.isEmpty ? key.accessibilityLabel : key.label
+  }
+
+  /// iPad-class devices have no callout on the system keyboard either.
+  private var isPhoneClassKeyboard: Bool {
+    UIDevice.current.userInterfaceIdiom == .phone
+  }
+
+  // MARK: - Candidate panel
+
+  private func expandPanel() {
+    guard let engine, let candidates = try? engine.candidateList(), !candidates.isEmpty else { return }
+    panelCandidates = candidates
+    panelPage = 0
+    isPanelExpanded = true
+    candidatePanel.isHidden = false
+    candidateBar.isHidden = true
+    keyGrid.isHidden = true
+    applyPanelModel()
+    updateHeight()
+  }
+
+  private func collapsePanel() {
+    isPanelExpanded = false
+    candidatePanel.isHidden = true
+    candidateBar.isHidden = false
+    keyGrid.isHidden = false
+    updateHeight()
+  }
+
+  private func applyPanelModel() {
+    let output = try? engine?.refresh()
+    let model = RimeCandidatePanelModel.page(panelCandidates, page: panelPage,
+                                             highlightedIndex: output?.page?.highlightedIndex,
+                                             selectLabels: [],
+                                             syllableRow: output?.syllables)
+    candidatePanel.apply(theme: theme)
+    candidatePanel.apply(model: model)
+  }
+
+  private func pagePanel(backward: Bool) {
+    panelPage += backward ? -1 : 1
+    panelPage = max(0, panelPage)
+    applyPanelModel()
+  }
+
+  /// A candidate tapped in the panel commits and collapses (S4 §6).
+  ///
+  /// The index is the panel's, which numbers the whole candidate list; librime's selection call numbers the
+  /// candidates on the page it is showing. So the engine is paged to the right page first, and the selection
+  /// is made with the page-relative index — the arithmetic lives in `RimeCandidatePanelModel.engineSelection`,
+  /// because getting it wrong commits a different candidate than the one that was tapped.
+  private func selectFromPanel(_ index: Int) {
+    defer { collapsePanel() }
+    guard let engine else { return }
+    do {
+      guard let page = try engine.refresh().page else { return }
+      guard let target = RimeCandidatePanelModel.engineSelection(forGlobalIndex: index,
+                                                                 pageNumber: page.pageNumber,
+                                                                 pageSize: page.pageSize) else { return }
+      var current = page.pageNumber
+      while current != target.page {
+        let moved = try engine.changePage(backward: target.page < current)
+        guard let next = moved.page?.pageNumber, next != current else { break }
+        current = next
+      }
+      selectCandidate(target.indexOnPage)
+    } catch {
+      report("select.failed", error, userVisible: "选词出错：")
+    }
   }
 
   private func refreshLayout() {
+    // The keyboard's own preferences live in the app group, so a calibration change reaches the
+    // keyboard the next time it appears — no deploy, and nothing for the extension to write.
+    let preferences = preferencesStore?.value ?? .standard
+    feedbackPreferences = preferences
+
+    // The 中/英 key's label is the schema's word for the state the keyboard is in, never ours.
+    let languageKey: RimeLanguageKey?
+    if let engine, engine.schemaDeclaresSwitch("ascii_mode") {
+      let isASCII = (try? engine.getOption("ascii_mode")) ?? false
+      let label = (try? engine.stateLabel(option: "ascii_mode", state: isASCII)) ?? (isASCII ? "英" : "中")
+      languageKey = RimeLanguageKey(label: label ?? (isASCII ? "英" : "中"), isASCII: isASCII)
+    } else {
+      languageKey = nil
+    }
+
     keyGrid.configure(theme: theme,
                       layer: keyLayer,
                       asciiMode: asciiMode,
                       returnKeyLabel: returnKeyLabel,
-                      showsGlobeRow: needsInputModeSwitchKey)
+                      showsGlobeRow: needsInputModeSwitchKey,
+                      shift: shiftController.state,
+                      language: languageKey,
+                      feedback: preferences.feedback)
+  }
+
+  private var preferencesStore: RimeKeyboardPreferencesStore? {
+    RimeKeyboardPreferencesStore.appGroup()
   }
 
   private func updateHeight() {
-    let height = KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+    // The panel reaches above the keyboard's own top, so the extension has to ask for a taller frame
+    // while it is open — that overhang is the 63.3 pt the capture measures.
+    let height = isPanelExpanded
+      ? candidatePanel.height(bottomInset: KeyboardMetrics.bottomInset)
+      : KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
     if let heightConstraint {
       if heightConstraint.constant != height {
         heightConstraint.constant = height
