@@ -341,6 +341,20 @@ demand a declaration for an API nobody calls. And the failure is verified from b
 `ProcessInfo.processInfo.systemUptime` added to the engine on purpose, the test reported
 "the manifest and the code disagree: … SystemBootTime …", and that line was removed again.
 
+## Test coverage
+
+| Suite | Tests | What it covers |
+| --- | --- | --- |
+| `S6NetworkTests` | 1 | every Swift file under the engine, the app, the extension and the keyboard UI scanned for the APIs that would open a connection, with the file and line of any finding |
+| `S6PrivacyManifestTests` | 5 | the manifest against the code in both directions: every required-reason API used is declared, and every declaration is used |
+| `S6PackagingTests` | 3 | the app group spelled the same in every declaration, the extension's Full Access and language keys, and the CI workflow naming the chain it may run |
+| `S6ProjectSettingsTests` | 7 | the deployment target the two targets share, the bundle-identifier relationship, the entitlements wiring, the language mode the type-check script uses, the Info.plist arrangement, the archive type the app can open, and the Debug copy phase |
+| `S6NoticesTests` | 6 | the notices list every profile with its licence and source, and the licence screen's text is the same data the release pipeline reads |
+| `S6EngineNoticesTests` | 6 | the engine's own components, versions parsed rather than assumed, and the unverified licences deliberately left unstated |
+| `S6ReleaseCheckTests` | 7 | a third-party file placed in a synthetic bundle fails the check, and every forbidden name the release check refuses |
+| `S6ProbeSummaryTests` | 8 | the probe log as numbers: nearest-rank percentiles (p95 and the p99 the latency budget names), footprints, a phase with no timings, the report's shape and the one size format |
+| `S6ProbePrivacyTests` | 3 | the log's field set, the config.applied record, the profile.activate record, and a live session proving the typed text and the committed candidate never reach the file |
+
 ## What is not done yet
 
 - **The iOS test target** (S6's snapshot tests for the keyboard state matrix) does not exist; it

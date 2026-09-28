@@ -4,11 +4,10 @@ Evidence for S4's engine-level contract. Measured on this machine against the pi
 like [s1-results.md](s1-results.md).
 
 Status: `RimeInputDriver` implements the commit table in one place and `S4InputTests` covers every row
-against a deployed fixture. The keyboard controller's own input path already applies the literal
-fallback inline (`KeyboardViewController` lines 236 and 256); the driver is the same table, extracted
-so it can be tested rather than re-derived per view, and wiring the controller onto it is a
-refactor that waits for a verifiable build. The candidate bar, the expanded panel and the syllable
-row are not built yet.
+against a deployed fixture; the keyboard controller drives it, and the literal fallback is one engine
+predicate used by both. The candidate bar and the expanded panel render from the engine's models
+(`RimeCandidatePanel`), and the syllable row comes from librime's preedit (`S4SegmentTests`). All
+of it is model-tested and type-checked; none of it has run on a device.
 
 ## Measurements that settle spec assumptions
 
@@ -313,5 +312,8 @@ the no-session case still throws. Verified from both sides: disabling the branch
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
+| `S4CompletionTests` | 5 | completion on gives candidates for the first letter, off gives none until an abbreviation rule matches, the abbreviation fixture behaves the other way round, and the patch that turns completion on is written flat and read back through the patch API |
+| `S4LatencyTests` | 4 | the window reports a nearest-rank percentile rather than an average (including the p99 S4 §9 budgets against, and the spike p95 hides), a short window still answers, reset forgets the batch, and the probe message carries avg/p50/p95/p99/max |
+| `S4SegmentTests` | 4 | a multi-syllable input comes back divided from librime's preedit, and a single syllable, an unfinished one or a hand-typed delimiter leaves the row empty rather than faked |
 | `S4SentenceTests` | 3 | sentence composition ranks first with no switch set, the raw input versus the spaced preedit, and a one-commit sentence through both the engine and the driver |
 | `S4InputTests` | 14 | marked text is the raw input with no spaces, the first letter composes, space/return/tap/escape/backspace/paging/option rows, both halves of the punctuation row, a tap that librime declines, and the literal fallback's refusal to invent text for control codes |

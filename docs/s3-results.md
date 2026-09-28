@@ -5,11 +5,13 @@ and the state matrix's geometry. The reference captures themselves are the devic
 outside the repository.
 
 Status: `RimeKeyboardStyle`, `RimeKeyboardLayoutEngine` and `S3LayoutTests` implement and verify
-S3 §3.1/§3.2 and §9's "layout invariants as unit tests". The UIKit views
-(`KeyboardUI/KeyboardKeyGrid.swift` and its files) still carry the tracer's eyeballed metrics
-(3 pt margins, 6 pt gaps, 48 pt keys) and have not been moved onto the engine — that is a view
-rewrite that waits for a verifiable build. Colours, the callout, delete-repeat timing and the
-expanded candidate panel are S3 §4/§5 work and are not built.
+S3 §3.1/§3.2 and §9's "layout invariants as unit tests". The UIKit views render **from those models and
+nothing else**: `KeyboardMetrics` forwards to the measured style, `KeyButton` paints from
+`RimeKeyCapRole`, and `KeyboardKeyGrid` translates the view's vocabulary into it — the tracer's
+eyeballed metrics are gone. Colours, the callout, delete-repeat timing and the expanded candidate panel
+of §4/§5 are built and tested at the model level (`S3AppearanceTests`, `S3CandidatePanelTests`) and
+type-checked as views. What none of it has is a device: no screenshot has been compared to a capture and
+no key has been pressed on a phone.
 
 ## What the model reproduces
 
@@ -129,6 +131,9 @@ not resolve the pressed states, so this is a value the next capture has to settl
 | the callout frame | never outside the keyboard in any layer, always above its key, exactly 1.25× its width, clipped to 39.7 pt on the first row and full height from the second row down |
 | the horizontal clamp | the return key's wide callout is clamped to the right edge and is therefore no longer centred; a letter key's is not clamped at all |
 | shift | one-shot on tap, caps on double tap, caps survives a character, a one-shot is consumed by one, and a backwards clock is not a double tap |
+| the callout follows the finger | it stays clamped while the finger moves, is positioned from the key it belongs to, and is never left behind by a slide |
+| cap roles | every `RimeKeyCapRole` is the palette field it names, so a view cannot paint from a second table |
+| a key picks its role | width and state pick it (letter / wide / action / disabled), and the kind-and-state combinations the measured appearance expects map to the role the capture shows |
 
 ## The candidate slot and the expanded panel (S3 §7, S4 §6)
 
@@ -208,11 +213,12 @@ the engine's own tests, and the rendering still needs a device.
 
 ### Still open on the input side
 
-The 中/英 entry point has no key. S3 §5 asks for one that toggles `ascii_mode` with a label from
-`get_state_label`, but the measured bottom row has four keys (123 / emoji / space / return), so adding a
-fifth would be a deviation from the capture rather than a match to it. `toggleAsciiMode()` is in place
-and drives the engine; what is missing is where the user reaches it — a decision for the next parity
-pass, not a bug to paper over.
+**Resolved since this was written.** The 中/英 key exists without adding a fifth key: the measured
+bottom row's second slot holds the language key when the schema declares an 中英 state, and the emoji key
+otherwise (`RimeLanguageKey` in the layout, `KeyboardViewController`'s language case calling
+`toggleAsciiMode`). The label comes from `get_state_label` as §5 asks, with the schema's own words as
+the fallback when no session is open. What remains is the device check that the key looks and behaves
+right beside a real keyboard. The emoji key's own decision is D5 (see [the decisions table](specs/README.md)).
 
 ## The candidate bar renders from the model
 

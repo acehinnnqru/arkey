@@ -4,9 +4,13 @@ Evidence for the layers of S1 that exist, recorded the way [tracer-bullet-result
 records the tracer's. Everything here is measured on this machine against the pinned librime 1.17.0
 (`librime-xcframework` 1.17.0-pack.9.0.2), not inferred from the source of either project.
 
-Status: the engine API of S1 §4, the workspace layout of §3, and the archive hardening of §5.2 are
-implemented and covered by `swift test` in `Packages/RimeEngine`. The import pipeline of
-§5.1/§5.3/§5.4, the deploy swap of §6 and the app UI are not built yet.
+Status: everything S1 specifies at the layer this machine can run is implemented and covered by
+`swift test` in `Packages/RimeEngine` — the engine API of §4, the workspace layout of §3, the
+archive hardening of §5.2, the import pipeline of §5.1/§5.3/§5.4, the deploy swap and generations of §6,
+the recovery table of §9, and the app UI that drives them. The app and the extension are **type-checked,
+never built or run** (see "Build loop"), so every "works on a phone" claim still waits for
+[device-run.md](device-run.md). The catalogue's own pages are the one part that lives outside this
+repository, and they answer 404 today.
 
 ## Build loop
 
@@ -59,12 +63,13 @@ Verified: the app and the extension build against the engine changes in this doc
 `xcodebuild` for the iOS app needs two things outside the workspace: SwiftPM's manifest cache under
 `~/Library/Caches/org.swift.swiftpm`, and the Swift macro plugin server, whose failure reads
 `PreviewsMacros.SwiftUIView could not be found ... swift-plugin-server produced malformed response`
-rather than anything about the code. Both need an approval this session can raise but that stopped
-being delivered part-way through the S1 app integration, so the app-side Swift written after the
-last successful build (`arkey/RimeAppModel.swift`, `arkey/ProfileLibraryView.swift`, the extension's
-profile adoption) is **not built-verified**. The last escalated build reported three errors in the
-model, all three fixed (a missing `try`, an optional that needed unwrapping, and
-`buildIsUsable(_:)` called as a property); that fix has not been re-run.
+rather than anything about the code. **xcodebuild still does not run here**, so the app is never
+*built*. What replaces it is `scripts/typecheck-app.sh`: the Swift front end over the same source set,
+the same SDK and the same package module (39 files then, 41 now), which is a step of
+`scripts/verify-all.sh` and of the fresh-clone run. The three errors this paragraph used to list
+(a missing `try`, an optional needing unwrapping, `buildIsUsable` called as a property) were fixed at the
+time and the check has been green on every run since; what it cannot cover — macros, linking, running —
+is why the device checklist exists.
 
 The engine package — `swift test --disable-sandbox` from `Packages/RimeEngine` — needs none of this and
 stays the primary check.
