@@ -448,6 +448,63 @@ final class S5UserDictionaryTests: XCTestCase {
                    "PHONE was not merged: " + texts)
   }
 
+  /// S5 §9's corrupt-database row, **measured** in round 110 before it was implemented: librime logs
+  /// `Error opening db '<name>': Corruption: …` and then `… read-only`, rebuilds the database **in
+  /// place** — nothing is renamed, and nothing is restored from the sync folder — and keeps running, with
+  /// the schema still typing from the base dictionary. So the app's half of the row is "surface the
+  /// event": librime's own line, in the report and on the screen.
+  func testACorruptDictionaryIsReportedWithLibrimesOwnReason() async throws {
+    try engine.openSession()
+    _ = try engine.processKeys("shurufa")
+    _ = try engine.selectCandidate(at: 0)
+    engine.closeSession()
+
+    // The negative control: a healthy start has nothing to report.
+    XCTAssertTrue(engine.databaseIssues().isEmpty,
+                  engine.databaseIssues().map(\.message).joined(separator: " | "))
+    let healthy = try RimeSyncService(workspace: workspace, engine: engine).report()
+    XCTAssertFalse(try XCTUnwrap(healthy.dictionaries.first { $0.name == "tracer" }).isDamaged)
+
+    engine.shutdown()
+    let database = workspace.userData.appendingPathComponent("tracer.userdb", isDirectory: true)
+    try Data("this is not a leveldb manifest\n".utf8)
+      .write(to: database.appendingPathComponent("CURRENT"))
+
+    _ = try engine.start()
+    // The database is opened when the schema loads, not when the engine starts: the session comes first,
+    // and only then is there anything in the log to read.
+    try engine.openSession()
+    _ = try engine.processKeys("shurufa")
+    let issues = engine.databaseIssues()
+    let corruption = try XCTUnwrap(issues.first { $0.dictionary == "tracer" && !$0.isReadOnly },
+                                   issues.map(\.message).joined(separator: " | "))
+    XCTAssertTrue(corruption.message.contains("Corruption"), corruption.message)
+    // Measured: the engine keeps running and the schema still types from the base dictionary, which is
+    // exactly why the report has to be the place the event surfaces.
+    let output = try engine.processKeys("shurufa")
+    XCTAssertTrue(output.candidates.contains { $0.text == "输入法" },
+                  output.candidates.map(\.text).joined(separator: ","))
+    XCTAssertTrue(try engine.userDictionaryNames().contains("tracer"),
+                  "librime still lists the database it rebuilt")
+
+    let report = try RimeSyncService(workspace: workspace, engine: engine).report()
+    let entry = try XCTUnwrap(report.dictionaries.first { $0.name == "tracer" })
+    XCTAssertTrue(entry.isDamaged)
+    XCTAssertTrue(entry.databaseIssues.contains { $0.message == corruption.message },
+                  entry.databaseIssues.map(\.message).joined(separator: " | "))
+
+    // What the user loses, and why the screen must not show "0 条" as if it were merely empty: the
+    // rebuilt database has nothing to export.
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    let url = scratch.appendingPathComponent("after-corruption.txt")
+    XCTAssertThrowsError(try access.perform { try engine.exportUserDictionary("tracer", to: url) })
+
+    // The second failure comes with the first attempt to *use* the rebuilt database, which is what
+    // tells the user the dictionary cannot be written either.
+    XCTAssertTrue(engine.databaseIssues().contains { $0.dictionary == "tracer" && $0.isReadOnly },
+                  engine.databaseIssues().map(\.message).joined(separator: " | "))
+  }
+
   /// The spec's open `[verify]` in M5, answered — and the answer is **no**. `import_user_dict` reads the
   /// levers export format; handed the *sync snapshot* format (what Squirrel writes) it consumes the file and
   /// records the wrong thing: the entry that comes back is the spelling ("shu ru fa"), not the phrase

@@ -82,6 +82,17 @@ struct UserDictionaryView: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(entry.name).font(.body.weight(.medium))
       Text(detail(entry)).font(.caption).foregroundStyle(.secondary)
+      if entry.isDamaged {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("librime 打不开词库「" + entry.name + "」，已就地重建为空库；写入也会失败。"
+               + "用下面的备份恢复，或从其他设备快照合并。")
+            .font(.caption2).foregroundStyle(.orange)
+          ForEach(entry.databaseIssues, id: \.message) { issue in
+            Text((issue.isReadOnly ? "只读：" : "损坏：") + issue.message)
+              .font(.caption2).foregroundStyle(.secondary).lineLimit(3)
+          }
+        }
+      }
       otherDeviceRows(entry)
       if entry.conflictCopies > 0 {
         Text("有 " + String(entry.conflictCopies) + " 个 iCloud 冲突副本，会一并读取")

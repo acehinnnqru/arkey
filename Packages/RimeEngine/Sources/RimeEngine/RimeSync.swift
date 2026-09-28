@@ -47,8 +47,13 @@ public struct RimeUserDictionaryReport: Sendable {
     public let conflictCopies: Int
     public let entryCount: Int
     public let modifiedAt: Date?
+    /// librime's own lines about this dictionary, when it could not open it (S5 §9). Empty on a
+    /// healthy database.
+    public let databaseIssues: [RimeDatabaseIssue]
 
     public var isLearned: Bool { databaseBytes > 0 }
+    /// True when librime rebuilt the database empty: the screen's "restore from a backup" case.
+    public var isDamaged: Bool { !databaseIssues.isEmpty }
   }
 
   public let dictionaries: [Entry]
@@ -158,6 +163,7 @@ public struct RimeSyncService {
     let snapshotNames = snapshots.map(\.dictionary)
     let allNames = Array(Set(names + databaseNames + snapshotNames)).sorted()
 
+    let issuesByName = Dictionary(grouping: engine.databaseIssues(), by: \.dictionary)
     var entries: [RimeUserDictionaryReport.Entry] = []
     for name in allNames {
       let database = workspace.userData.appendingPathComponent(name + ".userdb", isDirectory: true)
@@ -191,7 +197,8 @@ public struct RimeSyncService {
                                                     otherDevices: otherDevices,
                                                     conflictCopies: conflicts,
                                                     entryCount: entryCount,
-                                                    modifiedAt: modified))
+                                                    modifiedAt: modified,
+                                                    databaseIssues: issuesByName[name] ?? []))
     }
 
     return RimeUserDictionaryReport(dictionaries: entries,

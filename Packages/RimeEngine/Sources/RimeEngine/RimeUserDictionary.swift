@@ -303,6 +303,48 @@ public struct RimeUserDictionaryExport: Sendable {
   }
 }
 
+// MARK: - Database failures
+
+/// A dictionary librime reported it could not open.
+///
+/// **Measured** (round 110; see [s5-results.md](../../../../docs/s5-results.md)): when a leveldb is
+/// corrupt, librime logs `Error opening db '<name>': Corruption: …` and then `… read-only`, rebuilds
+/// an empty database **in place** — nothing is renamed, and nothing is restored from
+/// `sync/<id>/<dict>.userdb.txt` — and keeps running, with the schema still typing from the base
+/// dictionary. So the only sign the user would ever see is librime's own log line, which is why this is
+/// parsed out of the log rather than inferred from the filesystem.
+public struct RimeDatabaseIssue: Sendable, Hashable {
+  public let dictionary: String
+  /// librime's line, verbatim: its severity, file, line and text.
+  public let message: String
+  /// The follow-up failure that means the database could not be opened for writing either, which is
+  /// what makes export and learning fail afterwards.
+  public let isReadOnly: Bool
+}
+
+extension RimeEngine {
+  /// The dictionaries librime reported it could not open, in log order, one row per dictionary and
+  /// kind. Empty on a healthy start.
+  public func databaseIssues() -> [RimeDatabaseIssue] {
+    var seen: Set<String> = []
+    var issues: [RimeDatabaseIssue] = []
+    for record in logBuffer.snapshot() {
+      let message = record.message
+      guard let range = message.range(of: "Error opening db '") else { continue }
+      let rest = message[range.upperBound...]
+      guard let end = rest.firstIndex(of: "'") else { continue }
+      let dictionary = String(rest[..<end])
+      let isReadOnly = message.contains("read-only")
+      let key = dictionary + (isReadOnly ? "/read-only" : "/corrupt")
+      guard !seen.contains(key) else { continue }
+      seen.insert(key)
+      issues.append(RimeDatabaseIssue(dictionary: dictionary, message: message,
+                                      isReadOnly: isReadOnly))
+    }
+    return issues
+  }
+}
+
 /// One snapshot file found in the sync folder, from this device or another.
 public struct RimeSyncSnapshot: Sendable, Hashable {
   public let dictionary: String
