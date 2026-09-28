@@ -230,6 +230,32 @@ extension RimeAppModel {
     refreshDictionaries()
   }
 
+  /// S5 §6/§10: read every other device's snapshot in the shared folder and merge it in additively.
+  /// The engine converts each one to the levers format first, because `restore_user_dict` would
+  /// replace this device's words with the other device's instead of joining them.
+  func mergeDictionaries() async {
+    guard !isSyncing else { return }
+    isSyncing = true
+    let service = RimeSyncService(workspace: workspace, engine: engine)
+    do {
+      let outcome = try service.mergeFromOtherDevices()
+      if outcome.isEmpty {
+        syncMessage = "同步目录里还没有其他设备的快照。"
+      } else {
+        let devices = Set(outcome.entries.flatMap(\.deviceIDs)).sorted().joined(separator: "、")
+        let read = outcome.entries.reduce(0) { $0 + $1.entriesRead }
+        syncMessage = "已从 " + devices + " 合并 " + String(outcome.entries.count)
+          + " 个词库：读取 " + String(read) + " 条，并入 "
+          + String(outcome.totalImported) + " 条"
+      }
+    } catch {
+      syncMessage = "合并失败：" + String(describing: error)
+      errorMessage = syncMessage
+    }
+    isSyncing = false
+    refreshDictionaries()
+  }
+
   /// Removes a dictionary entirely. This is the deletion librime's levers API leaves us: import is
   /// additive, so a single word is forgotten from the keyboard's candidate bar (S4 §8), not here.
   func removeDictionary(_ name: String) {

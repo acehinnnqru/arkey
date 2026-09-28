@@ -345,6 +345,56 @@ final class S5UserDictionaryTests: XCTestCase {
                    "a sync archives the snapshot it is about to replace")
   }
 
+  func testAMergeAddsAnotherDevicesWordsAndKeepsOurs() async throws {
+    // This device learns 输入法 and syncs, which is what puts a snapshot in the shared folder.
+    try engine.openSession()
+    _ = try engine.processKeys("shurufa")
+    _ = try engine.selectCandidate(at: 0)
+    engine.closeSession()
+    let service = RimeSyncService(workspace: workspace, engine: engine)
+    _ = try service.syncNow()
+
+    // Another device's snapshot, written the way librime writes one, holding a word this device never
+    // learned — 世界, whose code the tracer's prism knows.
+    let sync = try XCTUnwrap(service.syncDirectory)
+    let other = sync.appendingPathComponent("BBBB", isDirectory: true)
+    try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+    let snapshot = """
+    # Rime user dictionary
+    #@/db_name\ttracer
+    #@/db_type\tuserdb
+    #@/rime_version\t1.17.0
+    #@/tick\t1
+    #@/user_id\tother
+    shi jie\t世界\tc=4 d=0 t=1
+    """
+    try snapshot.write(to: other.appendingPathComponent("tracer.userdb.txt"),
+                       atomically: true, encoding: .utf8)
+
+    let outcome = try service.mergeFromOtherDevices()
+    XCTAssertEqual(outcome.entries.map(\.dictionary), ["tracer"])
+    XCTAssertEqual(outcome.entries.first?.deviceIDs, ["BBBB"])
+    XCTAssertEqual(outcome.entries.first?.entriesRead, 1)
+    XCTAssertGreaterThan(outcome.totalImported, 0, "librime reported importing nothing")
+    XCTAssertNotNil(outcome.entries.first?.backup, "the merge archives before it writes")
+
+    // Both words are there: the import is additive, which is the whole point of a merge.
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    let exportURL = scratch.appendingPathComponent("after-merge.txt")
+    _ = try access.perform { try engine.exportUserDictionary("tracer", to: exportURL) }
+    let export = try XCTUnwrap(RimeUserDictionaryExport.parse(
+      text: try String(contentsOf: exportURL, encoding: .utf8)))
+    let texts = export.entries.map(\.text).joined(separator: ",")
+    XCTAssertTrue(export.entries.contains { $0.text == "输入法" }, texts)
+    XCTAssertTrue(export.entries.contains { $0.text == "世界" }, texts)
+
+    // Nothing left behind in staging, and the other device's own file is untouched.
+    let staging = workspace.staging.appendingPathComponent("sync-import", isDirectory: true)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path))
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: other.appendingPathComponent("tracer.userdb.txt").path))
+  }
+
   /// The spec's open `[verify]` in M5, answered — and the answer is **no**. `import_user_dict` reads the
   /// levers export format; handed the *sync snapshot* format (what Squirrel writes) it consumes the file and
   /// records the wrong thing: the entry that comes back is the spelling ("shu ru fa"), not the phrase

@@ -62,6 +62,25 @@ public struct RimeSyncOutcome: Sendable {
   public var snapshotCount: Int { snapshots.count }
 }
 
+/// What one merge of the shared folder brought in, per dictionary.
+public struct RimeMergeOutcome: Sendable {
+  public struct Entry: Sendable, Hashable {
+    public let dictionary: String
+    /// The other devices whose snapshots were read, sorted.
+    public let deviceIDs: [String]
+    /// Entries in those files, before librime decided what was new.
+    public let entriesRead: Int
+    /// What `import_user_dict` reports it imported.
+    public let imported: Int
+    /// The pre-merge copy S5 §4 asks for, when the sync folder could hold one.
+    public let backup: URL?
+  }
+
+  public let entries: [Entry]
+  public var totalImported: Int { entries.reduce(0) { $0 + $1.imported } }
+  public var isEmpty: Bool { entries.isEmpty }
+}
+
 public enum RimeSyncError: Error, CustomStringConvertible, Sendable {
   case noSyncDirectory
   case refused(String)
@@ -342,5 +361,67 @@ public struct RimeSyncService {
   public func importExportFile(_ url: URL, into name: String) throws -> Int {
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
     return try access.perform { try engine.importUserDictionary(name, from: url) }
+  }
+
+  // MARK: Merging the other devices (S5 §6, §10)
+
+  /// Every snapshot another device left in the shared folder, read and imported **additively**:
+  /// `import_user_dict` adds and updates, it never removes (measured), so two devices that
+  /// learned different words end with both.
+  ///
+  /// `restore_user_dict` — the door the single-file import uses — *replaces* a dictionary, so it
+  /// cannot be the door here: merging three devices through it would leave only the last one's words.
+  /// Each snapshot is therefore converted to the levers format first, which is the same conversion,
+  /// and the same measured reason, as importing one Squirrel snapshot by hand (S5 §5).
+  @discardableResult
+  public func mergeFromOtherDevices() throws -> RimeMergeOutcome {
+    guard let syncDirectory else { throw RimeSyncError.noSyncDirectory }
+    let mine = installationID
+    let others = RimeSyncDiscovery.snapshots(in: syncDirectory, fileManager: fileManager)
+      .filter { $0.deviceID != mine }
+    guard !others.isEmpty else { return RimeMergeOutcome(entries: []) }
+
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    if let holder = access.blocker() {
+      throw RimeSyncError.refused(RimeDictionaryAccessError
+        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    }
+
+    // One small file per snapshot; nothing is written into the user's folder.
+    let staging = workspace.staging.appendingPathComponent("sync-import", isDirectory: true)
+    try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
+    defer { try? fileManager.removeItem(at: staging) }
+
+    var results: [RimeMergeOutcome.Entry] = []
+    let byDictionary = Dictionary(grouping: others, by: \.dictionary)
+    try access.perform {
+      for (dictionary, snapshots) in byDictionary.sorted(by: { $0.key < $1.key }) {
+        let archived = try? backup(dictionary: dictionary)
+        let ordered = snapshots.sorted { $0.deviceID < $1.deviceID }
+        var read = 0
+        var imported = 0
+        for snapshot in ordered {
+          let text = (try? String(contentsOf: snapshot.url, encoding: .utf8)) ?? ""
+          guard let parsed = RimeUserDictionarySnapshot.parse(text: text) else { continue }
+          read += parsed.entries.count
+          let entries = parsed.entries.map { entry in
+            // The levers weight is a commit count; a word that was only ever deleted keeps 1 so it
+            // stays visible to the editor instead of arriving as a zero-weight ghost.
+            RimeUserDictionaryExport.Entry(text: entry.text, code: entry.code,
+                                           weight: max(1, entry.commits - entry.deletions))
+          }
+          let file = staging.appendingPathComponent(snapshot.deviceID + "-" + dictionary + ".txt")
+          try RimeUserDictionaryExport(entries: entries).serialize()
+            .write(to: file, atomically: true, encoding: .utf8)
+          imported += (try? engine.importUserDictionary(dictionary, from: file)) ?? 0
+        }
+        results.append(RimeMergeOutcome.Entry(dictionary: dictionary,
+                                              deviceIDs: ordered.map(\.deviceID),
+                                              entriesRead: read,
+                                              imported: imported,
+                                              backup: archived ?? nil))
+      }
+    }
+    return RimeMergeOutcome(entries: results)
   }
 }
