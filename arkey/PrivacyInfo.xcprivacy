@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Arkey's privacy manifest (S6).
+
+  What the app and the keyboard extension actually do, checked against the code rather than assumed:
+
+    * no network request of any kind happens unless the user asks for a config download, and nothing
+      is sent anywhere ("data not collected" is the nutrition label);
+    * UserDefaults, in the app group only: the keyboard's own settings (click, haptics, callout,
+      repeat timing, palette mode) are stored there so the keyboard and the app agree without a
+      deploy. Nothing is stored outside the app group, and the category is declared with the
+      app-group reason rather than the app-only one;
+    * file size and timestamp metadata is read for files in the app container and the app group
+      (storage accounting, snapshot discovery) and for files the user picks (the imported archive),
+      which is why both file-timestamp reasons are declared;
+    * the free-space check before a deploy reads the volume's available capacity.
+
+  Reason codes are Apple's approved ones; see docs/s6-results.md for the source and the date they
+  were checked.
+-->
+<plist version="1.0">
+<dict>
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string>
+                <string>3B52.1</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>E174.1</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>1C8F.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

@@ -41,12 +41,15 @@ final class KeyboardPreviewView: UIView {
       keyGrid.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
 
-    candidateBar.setCandidates([
-      RimeCandidateItem(text: "你好"),
+    // The same model the keyboard renders, so the preview cannot drift from the real bar: labels,
+    // comments, the highlighted cell and the page chevrons all come from one type.
+    candidateBar.setPage(RimePage(candidates: [
+      RimeCandidateItem(text: "你好", comment: "ni hao"),
       RimeCandidateItem(text: "你"),
       RimeCandidateItem(text: "拟"),
       RimeCandidateItem(text: "尼"),
-    ], highlighted: 0)
+    ], highlightedIndex: 0, pageNumber: 1, pageSize: 5, isLastPage: false,
+       selectLabels: ["1", "2", "3", "4"]))
 
     keyGrid.configure(theme: theme,
                       layer: .letters,

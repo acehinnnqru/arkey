@@ -6,12 +6,29 @@ import UIKit
 /// Reads the probe log the keyboard writes, so a failure on a device can be copied out of the
 /// app instead of guessed at from a truncated line above the keys.
 struct DiagnosticsView: View {
+  @StateObject private var model = RimeAppModel.shared
   @State private var records: [RimeProbeRecord] = []
   @State private var status = "读取中…"
   @State private var showingClearConfirmation = false
 
   var body: some View {
     List {
+      Section("配置") {
+        // S1 §9: every degraded mode names the exact path this process resolves.
+        Text(model.resolvedSummary).font(.footnote)
+        if let resolved = model.resolved {
+          Text("shared  " + resolved.directories.sharedDataDir)
+            .font(.caption2).foregroundStyle(.secondary)
+          Text("prebuilt  " + resolved.directories.prebuiltDataDir)
+            .font(.caption2).foregroundStyle(.secondary)
+          Text("user  " + resolved.directories.userDataDir)
+            .font(.caption2).foregroundStyle(.secondary)
+        }
+        Text(model.engineStatus).font(.caption).foregroundStyle(.secondary)
+        Text("已安装配置 " + String(model.profiles.count) + " 个")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+
       Section("容器") {
         Text(status)
           .font(.footnote)
@@ -25,6 +42,17 @@ struct DiagnosticsView: View {
             .foregroundStyle(.secondary)
         }
       } else {
+        // S1-AC8 and S4-AC6: the numbers first, because that is what the acceptance criteria read, and
+        // the raw lines under them for the case the numbers do not explain.
+        Section("统计") {
+          ForEach(RimeProbeSummary(records: records).orderedPhases, id: \.name) { phase in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(phase.name).font(.footnote.bold())
+              Text(summaryLine(phase)).font(.caption).foregroundStyle(.secondary)
+            }
+          }
+        }
+
         Section("键盘日志（" + String(records.count) + " 条）") {
           ForEach(Array(records.enumerated()), id: \.offset) { _, record in
             VStack(alignment: .leading, spacing: 3) {
@@ -95,10 +123,40 @@ struct DiagnosticsView: View {
   }
 
   private func copyAll() {
+    // The numbers first, then the evidence they came from: one paste carries both, which is what a device
+    // run needs when it leaves the phone (S1-AC8, S4-AC6).
     let lines = records.map(detail)
-    UIPasteboard.general.string = lines.isEmpty
-      ? status
-      : status + "\n" + lines.joined(separator: "\n")
+    guard !lines.isEmpty else {
+      UIPasteboard.general.string = status
+      return
+    }
+    UIPasteboard.general.string = status + "\n\n"
+      + RimeProbeSummary(records: records).report()
+      + "\n\n— 原始记录 —\n" + lines.joined(separator: "\n")
+  }
+
+  /// One phase as a line: how many samples, and the numbers a reader compares against the spec.
+  private func summaryLine(_ phase: RimeProbeSummary.Phase) -> String {
+    var parts = [String(phase.count) + " 次"]
+    if let median = phase.medianMilliseconds {
+      parts.append("中位 " + String(format: "%.1f", median) + " ms")
+    }
+    if let p95 = phase.p95Milliseconds {
+      parts.append("p95 " + String(format: "%.1f", p95) + " ms")
+    }
+    if let worst = phase.maxMilliseconds {
+      parts.append("最差 " + String(format: "%.1f", worst) + " ms")
+    }
+    if let bytes = phase.lastFootprintBytes {
+      parts.append("占用 " + RimeProbe.formatted(bytes: bytes))
+    }
+    if let bytes = phase.maxFootprintBytes, bytes != phase.lastFootprintBytes {
+      parts.append("峰值 " + RimeProbe.formatted(bytes: bytes))
+    }
+    if let message = phase.lastMessage {
+      parts.append(message)
+    }
+    return parts.joined(separator: " · ")
   }
 
   private func detail(_ record: RimeProbeRecord) -> String {
@@ -107,7 +165,7 @@ struct DiagnosticsView: View {
       parts.append(String(format: "%.1f ms", milliseconds))
     }
     if let bytes = record.footprintBytes, bytes > 0 {
-      parts.append(String(format: "%.1f MB", RimeProbe.megabytes(bytes)))
+      parts.append(RimeProbe.formatted(bytes: bytes))
     }
     if let message = record.message {
       parts.append(message)

@@ -2,11 +2,13 @@ import SwiftUI
 import RimeEngine
 import UIKit
 
-/// The host app exists to give the keyboard somewhere to type, and to hold the diagnostics.
+/// The host app exists to give the keyboard somewhere to type, and to own everything the keyboard
+/// must not do itself: import, deploy, activate, and say why.
+///
 /// The text field owns the screen: a keyboard, custom or not, must never push it out of sight.
 struct ContentView: View {
+  @StateObject private var model = RimeAppModel.shared
   @State private var text = ""
-  @State private var engineStatus = "engine check running..."
   @State private var keyboardHeight: CGFloat = 0
   @FocusState private var isEditing: Bool
 
@@ -26,11 +28,38 @@ struct ContentView: View {
               .stroke(.quaternary)
           }
 
-        // Same engine the keyboard uses, so a failure here is a failure there.
-        Text(engineStatus)
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
+        // The same engine and the same profile the keyboard uses, so a failure here is a failure
+        // there — and the profile line says which of the three states is in effect (S1 §9).
+        VStack(alignment: .leading, spacing: 2) {
+          Text(model.resolvedSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(model.engineStatus)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+
+        // S1 §9: the degraded state names the repair *and* offers it. The action decides the screen,
+        // so the button cannot lead somewhere that does not fix the problem it just described.
+        if let recovery = model.recovery {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Label(recovery.message, systemImage: "exclamationmark.triangle")
+              .font(.caption)
+              .foregroundStyle(.orange)
+              .lineLimit(3)
+            Spacer(minLength: 0)
+            NavigationLink(recovery.action.title) {
+              switch recovery.action {
+              case .deploy: DeployView(model: model)
+              case .chooseProfile: ProfileLibraryView(model: model)
+              }
+            }
+            .font(.caption.bold())
+            .buttonStyle(.borderedProminent)
+          }
+        }
       }
       .padding()
       // The system announces the keyboard frame, but a third-party keyboard is not always
@@ -43,18 +72,31 @@ struct ContentView: View {
           NavigationLink("键盘") { KeyboardPreviewScreen() }
         }
         ToolbarItem(placement: .topBarTrailing) {
-          NavigationLink("诊断") { DiagnosticsView() }
+          Menu {
+            NavigationLink("配置库") { ProfileLibraryView(model: model) }
+            NavigationLink("方案与输入") { SchemaSettingsView(model: model) }
+            NavigationLink("用户词库") { UserDictionaryView(model: model) }
+            NavigationLink("键盘") { KeyboardSettingsView(model: model) }
+            NavigationLink("标点") { PunctuationView(model: model) }
+            NavigationLink("按键") { KeyBindingsView(model: model) }
+            NavigationLink("自定义短语") { CustomPhraseView(model: model) }
+            NavigationLink("部署") { DeployView(model: model) }
+            NavigationLink("许可证") { NoticesView(model: model) }
+            NavigationLink("诊断") { DiagnosticsView() }
+          } label: {
+            Label("更多", systemImage: "ellipsis.circle")
+          }
         }
       }
       .onAppear {
         LaunchProbe.mark("viewAppear")
       }
       .task {
-        // The engine check is a diagnostic, not startup work: it runs off the main thread so
-        // entering the app never waits for librime, and the field is not focused automatically
-        // because that spawns the keyboard extension on the launch path too.
-        let status = await Task.detached(priority: .utility) { EngineCheck.run() }.value
-        engineStatus = status
+        // Bootstrap is a diagnostic plus the workspace seeding, not startup work: entering the app
+        // never waits for librime, and the field is not focused automatically because that spawns
+        // the keyboard extension on the launch path too.
+        LaunchProbe.mark("bootstrapStart")
+        await model.bootstrap()
         LaunchProbe.mark("checkDone")
         LaunchProbe.flush()
       }
@@ -70,40 +112,6 @@ struct ContentView: View {
       .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
         keyboardHeight = 0
       }
-    }
-  }
-}
-
-/// Runs the tracer's vertical slice inside the iOS app sandbox: resolve directories, start
-/// librime, type nihao against the prebuilt tables shipped in the bundle, commit the candidate.
-enum EngineCheck {
-  /// Off the main actor on purpose: it runs on a background task so startup never waits for it.
-  nonisolated static func run() -> String {
-    do {
-      guard let shared = RimeDirectories.bundledSharedDataURL() else {
-        return "RimeData missing from the bundle"
-      }
-      let directories = try RimeDirectories.resolve(appGroupID: "group.com.acehinnnqru.arkey",
-                                                    sharedDataURL: shared)
-      let probeURL = URL(fileURLWithPath: directories.logDir, isDirectory: true)
-        .appendingPathComponent("probe.jsonl")
-      let probe = RimeProbeLog(url: probeURL)
-      let engine = RimeEngine(configuration: RimeConfiguration(directories: directories),
-                              probeLog: probe)
-      let start = try engine.start()
-      try engine.openSession()
-      let composing = try engine.processKeys("nihao")
-      let candidate = composing.candidates.first?.text ?? "(no candidate)"
-      let committed = try engine.selectCandidate(at: 0).commit ?? "(no commit)"
-      engine.shutdown()
-      let ms = Int(start.milliseconds ?? 0)
-      probe.append(RimeProbeRecord(phase: "app.check", milliseconds: start.milliseconds,
-                                   message: "root=" + directories.writableRoot.rawValue
-                                     + " nihao -> " + candidate + " -> " + committed))
-      return "librime " + RimeEngine.librimeVersion + "  root=" + directories.writableRoot.rawValue
-        + "  init=" + String(ms) + "ms  nihao -> " + candidate + " -> " + committed
-    } catch {
-      return "engine error: " + String(describing: error)
     }
   }
 }
