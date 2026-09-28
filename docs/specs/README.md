@@ -31,9 +31,9 @@ against the test or artifact that carries it, and what is still missing where so
 | D3 | Device matrix: the specs assume iPhone portrait for v1; landscape, iPad and 九宫格 are each separate work | open |
 | D4 | Feedback scope: callout, click, haptics, delete repeat specified; the space-bar caret trackpad is not | open |
 | D5 | Emoji: implemented as "the key advances to the next input mode", which is where the system emoji keyboard lives — the tracer bullet's "unreachable" was a guess, and this API is the counter-evidence. One device check settles it: if the next mode is not the emoji keyboard, the fallback (remove the key) applies | implemented, one device check |
-| D6 | Sync transport: specified as the app's iCloud container plus explicit file import/export | open |
-| D7 | Dictionary ownership: specified as a lease with a visible refusal while the keyboard holds it | open |
-| D8 | App Store intent: S6 covers the 2.5.2 posture and the Safari fallback either way | open |
+| D6 | Sync transport: **resolved as specified** — the app's iCloud container by default, explicit file import/export, and (round 112) a folder the user picks, held as a bookmark and validated whenever it changes | resolved |
+| D7 | Dictionary ownership: **resolved as specified** — the keyboard claims the lease at appearance, heartbeats while it is up and releases at dismissal; the app's gate refuses with the holder named, and a crashed extension is covered by the staleness rule | resolved |
+| D8 | App Store intent: **resolved in writing** — the 2.5.2 posture, the App Privacy answers and the review notes are in [app-store.md](../app-store.md); the submission itself is account state. The app initiates no network request, so the Safari fallback has nothing to switch off | resolved, submission external |
 | D9 | Default schema: moot — nothing third-party is installed by default, so the first entry is whatever the download page offers | resolved by D1 |
 
 ## Conventions

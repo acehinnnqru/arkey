@@ -92,6 +92,20 @@ with the table as it stands it prints `38 rows, 38 criteria` and `25 cited names
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
+## CI runs what a runner can run (S6 §7)
+
+S6 §7 lists what CI can run — `swift test`, the repository licence check, a bundle-content check on an
+archive built without signing, and the markdown link checks — and what it cannot (device measurements,
+the Squirrel round trip, anything needing a real keyboard session). The definition is now committed as
+`.github/workflows/verify.yml`: one step runs `scripts/verify-all.sh` (which is exactly the list
+above), one builds Release for `iphoneos` with `CODE_SIGNING_ALLOWED=NO` and feeds the result to
+`check-release-bundle.sh`, and one runs `check-catalog-pages.sh`, which needs the network.
+
+**It has not run yet**: this repository has no push behind it. That is why S6-AC1 stays "partly" — the
+workflow is a definition whose commands are separately exercised by `verify-all.sh` on this machine, and
+`S6PackagingTests` pins that it names the chain, builds unsigned, and does **not** claim to run
+`xcodebuild test` (the iOS test target is S6-AC2 and does not exist) or a device job.
+
 ## The repository half of "nothing third-party" (S6 §5)
 
 S6 §5 says "the check in §4 enforces the bundle half; a repository check (a pre-commit hook or CI step)

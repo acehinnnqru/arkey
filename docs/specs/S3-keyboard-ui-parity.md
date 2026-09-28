@@ -192,7 +192,10 @@ users and is also a review risk.
 - **Material versus fixed palette** (§4): the recommendation is the system `.keyboard` `UIInputView`
   with the measured palette as fallback; the alternative is a fixed palette everywhere, which is
   predictable but visibly wrong over a light host in dark mode.
-- **D5** (emoji): the system emoji keyboard is not reachable from an extension, so the emoji key either
-  opens our own panel or is removed.
+- **D5** (emoji): **decided and implemented** — the key advances to the next input mode
+  (`advanceToNextInputMode()`), which is where the system emoji keyboard lives; the earlier "not reachable
+  from an extension" was a guess, and this API is the counter-evidence. One device check settles it: if the
+  next mode is not the emoji keyboard, the fallback (remove the key) applies. See
+  [the decisions table](README.md).
 - **Still to capture**: the collapsed Chinese candidate row while composing — the one state the five
   captures do not cover — and a landscape frame only if D3 keeps landscape.
