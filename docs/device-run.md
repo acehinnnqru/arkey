@@ -20,6 +20,7 @@ Everything here runs on the Mac and answers "is the thing I am about to measure 
 | the whole suite | `./scripts/verify-all.sh` | a device run against a tree that does not build, type-check or pass its own checks |
 | the measuring tool | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-capture-check --self-test` | a surprising screenshot reading that turns out to be the tool's |
 | the suite under AddressSanitizer | `swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=address` | a memory error in the engine's own pointer code, before a phone is blamed for it (0 reports as of round 120) |
+| the suite under ThreadSanitizer | `swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=thread` | a race in the engine's serial-queue design (0 reports as of round 121) |
 | the deployer and its probe | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-deploy --shared RimeData --staging <tmp> --probe nihaoshijie` | an engine that no longer composes, before the keyboard is blamed |
 | the release check | `./scripts/check-release-bundle.sh <path to arkey.app>` | third-party data in the build that gets installed |
 | the download pages | `./scripts/check-catalog-pages.sh` | an import that cannot start because the page the catalogue names is not serving (they were 404s when this was written) |

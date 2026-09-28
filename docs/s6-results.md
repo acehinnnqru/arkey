@@ -103,10 +103,16 @@ optional field, so files written before it existed still decode — the keyboard
 boot, and a decode failure there is a keyboard that does not appear. The diagnostics screen shows both,
 and the test pins the round trip, the field's presence in the JSON, and the legacy decode.
 
-## The suite under AddressSanitizer
+## The suite under the sanitizers
 
-`swift test --disable-sandbox --sanitize=address` runs the whole engine suite instrumented. It found one
-real defect, and it was ours rather than the pinned build's:
+Both sanitizers run the whole engine suite instrumented, and both are clean as of round 121:
+**AddressSanitizer 279 tests / 0 reports**, **ThreadSanitizer 279 tests / 0 reports**. ThreadSanitizer
+matters more than it looks for this design — the engine is one serial queue with a probe log, a log
+buffer and a notification relay around it, and a race there would be a keyboard that works until it does
+not — so "0 reports" is the evidence behind S3-AC5's "nothing on the input path animates or awaits".
+
+`swift test --disable-sandbox --sanitize=address` found one real defect on its first run, and it was ours
+rather than the pinned build's:
 
 - **First run**: aborted with `heap-use-after-free` inside librime's vendored glog
   (`LogFileObject::Write` → `strlen`, reached from `RimeInitialize`). The trigger was our side of the
@@ -120,9 +126,10 @@ real defect, and it was ours rather than the pinned build's:
   is created, and the fixture that used to pre-create it no longer does — pre-creating it would hide
   the guarantee the engine just took on.
 
-Worth re-running when the engine's pointer code changes. It is not a step of `verify-all.sh` (the
-instrumented build costs a few minutes on top of the suite), and
-[device-run.md](device-run.md)'s pre-flight lists it for the device day.
+Worth re-running when the engine's pointer code changes. It is not a step of `verify-all.sh` (each
+instrumented build costs a few minutes on top of the suite), the [README](../README.md) lists both
+commands, and [device-run.md](device-run.md)'s pre-flight lists the AddressSanitizer one for the device
+day.
 
 ## CI runs what a runner can run (S6 §7)
 
