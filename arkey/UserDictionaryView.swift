@@ -15,6 +15,7 @@ struct UserDictionaryView: View {
   @State private var isImporting = false
   @State private var importMessage = ""
   @State private var pendingRemoval: String?
+  @State private var isChoosingSyncFolder = false
   @State private var query = ""
 
   var body: some View {
@@ -75,6 +76,12 @@ struct UserDictionaryView: View {
     .fileImporter(isPresented: $isImporting, allowedContentTypes: [.item]) { result in
       guard let name = pendingImport, case .success(let url) = result else { return }
       importMessage = model.importDictionary(from: url, into: name)
+    }
+    .fileImporter(isPresented: $isChoosingSyncFolder, allowedContentTypes: [.folder]) { result in
+      switch result {
+      case .success(let url): model.chooseSyncFolder(url)
+      case .failure(let error): model.errorMessage = "选择文件夹失败：" + String(describing: error)
+      }
     }
   }
 
@@ -204,6 +211,19 @@ struct UserDictionaryView: View {
         Text(directory).font(.caption2).foregroundStyle(.secondary)
       } else {
         Text("尚未播种同步目录").font(.caption2).foregroundStyle(.secondary)
+      }
+      // S5 §6's alternative: a folder the user picked, held as a bookmark, validated when it changes.
+      if let choice = model.syncChoice {
+        Text("自定义文件夹（" + Self.stamp.string(from: choice.chosenAt) + "选择）")
+          .font(.caption2).foregroundStyle(.secondary)
+        Button("恢复默认（iCloud / 文稿）") { model.useDefaultSyncFolder() }
+          .font(.caption)
+      } else {
+        Button("选择同步文件夹…") { isChoosingSyncFolder = true }
+          .font(.caption)
+      }
+      if let problem = model.syncChoiceProblem {
+        Text(problem).font(.caption2).foregroundStyle(.orange)
       }
       if let id = report.installationID {
         Text("installation_id " + id).font(.caption2).foregroundStyle(.secondary)

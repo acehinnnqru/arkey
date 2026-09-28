@@ -38,6 +38,10 @@ final class RimeAppModel: ObservableObject {
   /// live — an activation is "live" without being a deploy — so the transitions happen here rather
   /// than being inferred from whether a message happens to exist.
   @Published var settingsFooter: RimeSettingsFooterState = .unchanged
+  /// S5 §6's alternative transport: the folder the user picked, when they picked one.
+  @Published var syncChoice: RimeSyncFolderChoice?
+  /// Why the stored choice was not used, if it was not.
+  @Published var syncChoiceProblem: String?
   @Published var importWarnings: [String] = []
   @Published var errorMessage: String?
   @Published var schemas: [String] = []
@@ -85,7 +89,17 @@ final class RimeAppModel: ObservableObject {
     didBootstrap = true
     do {
       try workspace.createDirectories()
-      let sync = RimeSyncLocation.defaultDirectory(workspace: workspace)
+      // S5 §6: the user's chosen folder wins over the default, and a choice that no longer validates
+      // (the folder was deleted, or access was revoked) falls back with a sentence rather than a
+      // silent write into the wrong place.
+      var sync = RimeSyncLocation.defaultDirectory(workspace: workspace)
+      if let choice = workspace.loadSyncChoice() {
+        do {
+          sync = try choice.validate()
+        } catch {
+          syncChoiceProblem = "已选同步文件夹不可用，回落到默认目录：" + String(describing: error)
+        }
+      }
       try FileManager.default.createDirectory(at: sync, withIntermediateDirectories: true)
       _ = try workspace.seedInstallation(syncDirectory: sync)
       try workspace.applyStoragePolicy()

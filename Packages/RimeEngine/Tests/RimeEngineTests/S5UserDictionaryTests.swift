@@ -174,6 +174,12 @@ final class S5UserDictionaryTests: XCTestCase {
     try store.claim(pid: getpid())
     store.release()
     XCTAssertNil(store.current())
+
+    // A late heartbeat must not resurrect it: the keyboard releases at dismissal, and a timer that
+    // fires afterwards cannot re-block the app's dictionary work.
+    store.heartbeat(pid: getpid())
+    XCTAssertNil(store.current())
+    XCTAssertTrue(store.isCold())
   }
 
   func testTheAppRefusesDictionaryWorkWhileTheKeyboardHoldsTheLease() throws {
@@ -503,6 +509,50 @@ final class S5UserDictionaryTests: XCTestCase {
     // tells the user the dictionary cannot be written either.
     XCTAssertTrue(engine.databaseIssues().contains { $0.dictionary == "tracer" && $0.isReadOnly },
                   engine.databaseIssues().map(\.message).joined(separator: " | "))
+  }
+
+  /// S5 §6's alternative transport: the user's folder is stored as a bookmark, validated when it
+  /// changes, and seeded into `installation.yaml` — the file librime actually reads.
+  func testAChosenSyncFolderIsStoredValidatedAndSeeded() throws {
+    let folder = scratch.appendingPathComponent("picked-sync", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let choice = RimeSyncFolderChoice(path: folder.path, bookmark: Data("bookmark".utf8))
+    XCTAssertEqual(try choice.validate().path, folder.path)
+
+    let before = workspace.loadInstallation()?.installationID
+    try workspace.saveSyncChoice(choice)
+    XCTAssertEqual(workspace.loadSyncChoice(), choice, "the bookmark round-trips through the store")
+
+    // "Validated whenever it changes": the three ways a folder can be unusable are named.
+    XCTAssertThrowsError(try RimeSyncFolderChoice(path: "sync/relative", bookmark: Data()).validate()) { error in
+      guard case RimeSyncFolderChoice.ValidationError.relativePath = error else {
+        return XCTFail("expected relativePath, got \(error)")
+      }
+    }
+    XCTAssertThrowsError(try RimeSyncFolderChoice(path: folder.appendingPathComponent("gone").path,
+                                                  bookmark: Data()).validate()) { error in
+      guard case RimeSyncFolderChoice.ValidationError.missing = error else {
+        return XCTFail("expected missing, got \(error)")
+      }
+    }
+    let file = scratch.appendingPathComponent("not-a-folder")
+    try Data("x".utf8).write(to: file)
+    XCTAssertThrowsError(try RimeSyncFolderChoice(path: file.path, bookmark: Data()).validate()) { error in
+      guard case RimeSyncFolderChoice.ValidationError.notADirectory = error else {
+        return XCTFail("expected notADirectory, got \(error)")
+      }
+    }
+
+    let installation = try workspace.setSyncDirectory(try choice.validate())
+    XCTAssertEqual(installation.syncDirectory, folder.path)
+    XCTAssertEqual(workspace.loadInstallation()?.syncDirectory, folder.path)
+    XCTAssertEqual(installation.installationID, before,
+                   "the id is kept: two devices sharing one is what creates conflict copies")
+
+    // Going back to the default is spelled by clearing the choice, not by writing a second one.
+    try workspace.saveSyncChoice(nil)
+    XCTAssertNil(workspace.loadSyncChoice())
+    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.syncChoiceFile.path))
   }
 
   /// The spec's open `[verify]` in M5, answered — and the answer is **no**. `import_user_dict` reads the

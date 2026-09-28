@@ -255,9 +255,43 @@ making `databaseIssues()` return nothing fails it.
 The spec's §9 row is amended in place with this measurement, because the sentence it carried was wrong
 about what librime does.
 
+## The sync folder can be the user's own (S5 §6)
+
+§6 gives the transport two shapes: the app's iCloud container by default, and "the alternative is a
+folder the user picks through the Files picker, held as a security-scoped bookmark and validated
+whenever it changes". Only the first existed — there was no bookmark anywhere in the tree. Now:
+
+- `RimeSyncFolderChoice` (engine) holds the path, the bookmark bytes and when it was chosen, and
+  `validate()` answers the three ways a folder can be unusable **by name** — a relative path (which
+  librime would accept silently and then write a `sync/` next to the process), a folder that is gone,
+  and a file where a directory should be.
+- `RimeWorkspace` stores the choice beside the workspace and exposes `setSyncDirectory`, the one
+  place where `installation.yaml` is rewritten on purpose — keeping the installation id, because two
+  devices sharing one is what creates conflict copies.
+- The 用户词库 screen shows the folder, offers 选择同步文件夹… and 恢复默认, and the app re-validates the
+  stored choice at launch: a folder that disappeared falls back to the default **with a sentence**
+  rather than writing somewhere nobody looks.
+
+The engine never resolves the bookmark — the app holds the security scope — which is what makes the
+choice storable, comparable and testable without a device. Pinned by
+`testAChosenSyncFolderIsStoredValidatedAndSeeded`.
+
+## The lease is released at dismissal (S5 §3.2)
+
+`RimeLeaseStore.release` carried a doc comment that said "called when the keyboard disappears" — and
+nothing in the extension called it. The keyboard claimed the lease at appearance and kept heartbeating
+it, so after the user closed the keyboard the file lingered for a whole staleness window and the app
+refused dictionary work for a reason the user could not see. `viewWillDisappear` releases it now,
+next to the key-statistics flush.
+
+The safety net is unchanged and still the point: a crashed extension leaves the file behind, and the
+staleness rule covers that. What the test pins is the other half — a **late heartbeat cannot resurrect
+a released lease**, because `heartbeat` only updates a lease that already exists for this pid. That
+is the property that makes "release at dismissal" final rather than merely likely.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
 | `S5DictionaryEditTests` | 8 | adding an entry, replacing a weight instead of duplicating, the additive-import measurement, the named error for a dictionary with no database, removing the whole dictionary, the refusal while the keyboard holds the lease, and the export format round-tripping through its own writer |
-| `S5UserDictionaryTests` | 14 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |
+| `S5UserDictionaryTests` | 15 | both text formats and the refusal to confuse them, conflict-copy names, discovery across devices, the lease's warm/cold rules and its liveness seam, the app's refusal while the keyboard holds the lease, the end-to-end path (learn 输入法 → user dictionary → levers export → snapshot in the sync folder), and the backup set: named beside the snapshot, pruned to the last three, the live snapshot excluded from its own backups, the file parsed back as a snapshot, and a restore that brings the word back after the dictionary is gone |

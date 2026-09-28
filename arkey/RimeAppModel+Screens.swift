@@ -193,6 +193,7 @@ extension RimeAppModel {
 
   func refreshDictionaries() {
     let service = RimeSyncService(workspace: workspace, engine: engine)
+    syncChoice = workspace.loadSyncChoice()
     do {
       let report = try service.report()
       dictionaryReport = report
@@ -277,6 +278,46 @@ extension RimeAppModel {
     }
     isSyncing = false
     refreshDictionaries()
+  }
+
+  // MARK: - The sync folder (S5 §6)
+
+  /// S5 §6: the user picks a folder, the app holds a bookmark for it, validates it and re-seeds
+  /// `installation.yaml` — the file librime actually reads. The default (iCloud Drive) comes back by
+  /// choosing nil.
+  func chooseSyncFolder(_ url: URL) {
+    let scoped = url.startAccessingSecurityScopedResource()
+    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+    do {
+      let bookmark = try url.bookmarkData()
+      let choice = RimeSyncFolderChoice(path: url.path, bookmark: bookmark)
+      let validated = try choice.validate()
+      try workspace.saveSyncChoice(choice)
+      _ = try workspace.setSyncDirectory(validated)
+      syncChoice = choice
+      syncChoiceProblem = nil
+      deployMessage = "同步文件夹已改为 " + validated.path
+      settingsFooter = .applied("同步文件夹已更新")
+      refreshDictionaries()
+    } catch {
+      errorMessage = "选择同步文件夹失败：" + String(describing: error)
+    }
+  }
+
+  func useDefaultSyncFolder() {
+    do {
+      try workspace.saveSyncChoice(nil)
+      let fallback = RimeSyncLocation.defaultDirectory(workspace: workspace)
+      try FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+      _ = try workspace.setSyncDirectory(fallback)
+      syncChoice = nil
+      syncChoiceProblem = nil
+      deployMessage = "同步文件夹已回到默认：" + fallback.path
+      settingsFooter = .applied("同步文件夹已更新")
+      refreshDictionaries()
+    } catch {
+      errorMessage = "恢复默认同步文件夹失败：" + String(describing: error)
+    }
   }
 
   /// Removes a dictionary entirely. This is the deletion librime's levers API leaves us: import is

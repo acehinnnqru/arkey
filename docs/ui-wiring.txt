@@ -221,6 +221,7 @@ staleAfter
 storageKey
 superKey
 switchLabel
+syncChoiceFile
 syncUserData
 tab
 textPaths
@@ -236,7 +237,6 @@ userID
 userKeys
 userSyncDirectory
 userValue
-validate
 validationBudgets
 wideKeyCap
 withConfig

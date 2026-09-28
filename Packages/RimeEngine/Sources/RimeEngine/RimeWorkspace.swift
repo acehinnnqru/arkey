@@ -67,6 +67,54 @@ public struct RimeInstallation: Sendable, Hashable {
   }
 }
 
+// MARK: - The chosen sync folder (S5 §6)
+
+/// A sync folder the user picked, held as a bookmark so the app can reach it again after a relaunch,
+/// and validated "whenever it changes": the path has to be absolute, present and a directory.
+///
+/// The bookmark itself is not resolved here — that is the platform's job, and the app is the side that
+/// holds the security scope — so this type can be stored, compared and validated without a UI.
+public struct RimeSyncFolderChoice: Codable, Sendable, Hashable {
+  public let path: String
+  public let bookmark: Data
+  public let chosenAt: Date
+
+  public init(path: String, bookmark: Data, chosenAt: Date = Date()) {
+    self.path = path
+    self.bookmark = bookmark
+    self.chosenAt = chosenAt
+  }
+
+  public enum ValidationError: Error, CustomStringConvertible, Sendable {
+    case relativePath(String)
+    case missing(String)
+    case notADirectory(String)
+
+    public var description: String {
+      switch self {
+      case .relativePath(let path):
+        return "the sync folder must be absolute, and " + path + " is not: librime accepts a "
+          + "relative one silently and then writes a sync/ next to the process's working directory"
+      case .missing(let path):
+        return "the sync folder is not there any more: " + path
+      case .notADirectory(let path):
+        return "the sync folder is a file, not a directory: " + path
+      }
+    }
+  }
+
+  /// The folder as a URL, or the named reason it cannot be used.
+  public func validate(fileManager: FileManager = .default) throws -> URL {
+    guard path.hasPrefix("/") else { throw ValidationError.relativePath(path) }
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+      throw ValidationError.missing(path)
+    }
+    guard isDirectory.boolValue else { throw ValidationError.notADirectory(path) }
+    return URL(fileURLWithPath: path, isDirectory: true)
+  }
+}
+
 // MARK: - Workspace
 
 /// `<app group>/rime/`: everything the app writes and the keyboard reads.
@@ -210,6 +258,45 @@ public struct RimeWorkspace: Sendable {
     let record = RimeInstallation(installationID: installationID, syncDirectory: syncDirectory.path)
     try record.yaml.write(to: installationRecord, atomically: true, encoding: .utf8)
     return record
+  }
+
+  /// S5 §6's alternative transport: the user picked a sync folder. This is the one case where
+  /// `installation.yaml` is rewritten, because the user asked for exactly that; the installation id is
+  /// kept, since a second device sharing it is what creates conflict copies.
+  @discardableResult
+  public func setSyncDirectory(_ directory: URL,
+                               fileManager: FileManager = .default) throws -> RimeInstallation {
+    try createDirectories(fileManager: fileManager)
+    let id = loadInstallation()?.installationID ?? UUID().uuidString
+    let record = RimeInstallation(installationID: id, syncDirectory: directory.path)
+    try record.yaml.write(to: installationRecord, atomically: true, encoding: .utf8)
+    return record
+  }
+
+  // MARK: The chosen sync folder (S5 §6)
+
+  /// Where the user's choice is kept. The bookmark is opaque here — the platform resolves it and the
+  /// app holds the security scope — the engine only checks the path it names.
+  public var syncChoiceFile: URL { root.appendingPathComponent("sync-choice.json") }
+
+  public func loadSyncChoice() -> RimeSyncFolderChoice? {
+    guard let data = try? Data(contentsOf: syncChoiceFile) else { return nil }
+    return try? JSONDecoder().decode(RimeSyncFolderChoice.self, from: data)
+  }
+
+  /// Passing nil clears the choice, which is how "go back to the default (iCloud) folder" is spelled.
+  public func saveSyncChoice(_ choice: RimeSyncFolderChoice?,
+                             fileManager: FileManager = .default) throws {
+    guard let choice else {
+      if fileManager.fileExists(atPath: syncChoiceFile.path) {
+        try fileManager.removeItem(at: syncChoiceFile)
+      }
+      return
+    }
+    try createDirectories(fileManager: fileManager)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+    try encoder.encode(choice).write(to: syncChoiceFile, options: .atomic)
   }
 
   public var userSyncDirectory: URL {
