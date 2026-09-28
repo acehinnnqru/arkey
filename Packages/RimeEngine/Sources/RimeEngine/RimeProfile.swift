@@ -115,16 +115,38 @@ public struct RimeProfileDeployRecord: Codable, Sendable, Hashable {
   public var generation: Int
   public var deployedAt: Date
   public var engineVersion: String
+  /// S6 §4's versioning: the **app** version beside the engine's, so a bug report names both. Optional
+  /// because a tool or a test process has no app to name, and because metadata written before this
+  /// field existed has to keep decoding.
+  public var appVersion: String?
   public var durationSeconds: Double
   public var warnings: [String]
 
-  public init(generation: Int, deployedAt: Date, engineVersion: String, durationSeconds: Double,
-              warnings: [String] = []) {
+  public init(generation: Int, deployedAt: Date, engineVersion: String,
+              appVersion: String? = RimeHostVersion.current,
+              durationSeconds: Double, warnings: [String] = []) {
     self.generation = generation
     self.deployedAt = deployedAt
     self.engineVersion = engineVersion
+    self.appVersion = appVersion
     self.durationSeconds = durationSeconds
     self.warnings = warnings
+  }
+}
+
+/// The host app's own version. The engine is a library, but the number a bug report needs beside
+/// librime's belongs to whoever is hosting it.
+public enum RimeHostVersion {
+  /// `CFBundleShortVersionString` and the build number, or nil where there is no app (a test process,
+/// a command-line tool).
+  public static var current: String? {
+    guard let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else {
+      return nil
+    }
+    if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String, build != version {
+      return version + " (" + build + ")"
+    }
+    return version
   }
 }
 
@@ -166,17 +188,21 @@ public struct RimeActiveProfile: Codable, Sendable, Hashable {
   public var generation: Int
   public var deployedAt: Date
   public var engineVersion: String
+  /// The app version that wrote this pointer, for the same reason the profile records it (S6 §4).
+  public var appVersion: String?
   public var sourceDigest: String?
   public var previousProfileID: String?
 
   public init(profileID: String, generation: Int, deployedAt: Date = Date(),
               engineVersion: String = RimeEngineVersion.pinned,
+              appVersion: String? = RimeHostVersion.current,
               sourceDigest: String? = nil, previousProfileID: String? = nil) {
     self.schemaVersion = Self.currentSchemaVersion
     self.profileID = profileID
     self.generation = generation
     self.deployedAt = deployedAt
     self.engineVersion = engineVersion
+    self.appVersion = appVersion
     self.sourceDigest = sourceDigest
     self.previousProfileID = previousProfileID
   }

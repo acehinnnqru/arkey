@@ -2,6 +2,7 @@ abbreviatedStateLabel
 activeRecord
 alt
 appName
+appVersion
 availableHeight
 blocker
 boolValue

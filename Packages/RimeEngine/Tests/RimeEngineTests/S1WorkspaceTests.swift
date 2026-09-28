@@ -228,6 +228,35 @@ final class S1WorkspaceTests: XCTestCase {
     XCTAssertEqual(workspace.userSyncDirectory.lastPathComponent, "AAAA")
   }
 
+  // MARK: Versioning (S6 §4)
+
+  /// S6 §4: "the app version and the librime version are recorded in every profile's meta.json and shown
+  /// in diagnostics". The engine's was there; the app's was nowhere in the tree.
+  func testTheAppVersionTravelsWithTheProfileAndOlderFilesStillDecode() throws {
+    let record = RimeProfileDeployRecord(generation: 2, deployedAt: Date(), engineVersion: "1.17.0",
+                                         appVersion: "1.0 (7)", durationSeconds: 1.5)
+    let metadata = RimeProfileMetadata(id: "tracer-1", displayName: "Tracer",
+                                       source: RimeProfileSource(kind: .files), deploy: record)
+    let data = try RimeJSON.encode(metadata)
+    XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("1.0 (7)"),
+                  "meta.json has to carry it: " + String(decoding: data, as: UTF8.self))
+    XCTAssertEqual(try RimeJSON.decode(RimeProfileMetadata.self, from: data).deploy?.appVersion,
+                   "1.0 (7)")
+
+    let pointer = RimeActiveProfile(profileID: "tracer-1", generation: 2, appVersion: "1.0 (7)")
+    let pointerData = try RimeJSON.encode(pointer)
+    XCTAssertEqual(try RimeJSON.decode(RimeActiveProfile.self, from: pointerData).appVersion,
+                   "1.0 (7)")
+
+    // A file written before the field existed must keep decoding: the keyboard reads active.json at
+    // boot, and a decode failure there is a keyboard that does not appear.
+    let legacy = #"{"schemaVersion":1,"profileID":"tracer-1","generation":1,"#
+      + #""deployedAt":"2026-01-01T00:00:00Z","engineVersion":"1.17.0"}"#
+    let active = try RimeJSON.decode(RimeActiveProfile.self, from: Data(legacy.utf8))
+    XCTAssertEqual(active.profileID, "tracer-1")
+    XCTAssertNil(active.appVersion)
+  }
+
   // MARK: Storage
 
   func testStorageReportAccountsForEachProfileAndTheUserDirectory() throws {

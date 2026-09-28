@@ -25,6 +25,11 @@ struct DiagnosticsView: View {
             .font(.caption2).foregroundStyle(.secondary)
         }
         Text(model.engineStatus).font(.caption).foregroundStyle(.secondary)
+        // S6 §4: a bug report has to name both versions, so the screen shows both — the app's from its
+        // own bundle, the engine's from the library that is linked into it.
+        Text("librime " + RimeEngine.librimeVersion
+             + (RimeHostVersion.current.map { " · app " + $0 } ?? " · app 未知"))
+          .font(.caption).foregroundStyle(.secondary)
         Text("已安装配置 " + String(model.profiles.count) + " 个")
           .font(.caption).foregroundStyle(.secondary)
       }
