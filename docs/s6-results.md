@@ -124,7 +124,11 @@ It found two real holes in the checks themselves:
 - **`check-release-bundle.sh` reported success for a bundle that does not exist**: a typo, or a build
   that produced nothing, printed "0 Rime data files in 0 data directories; 0 errors, 1 warnings" and
   exited 0 — the one answer a release check must never give. It now fails with a message that says a typo
-  and a missing build look the same from there.
+  and a missing build look the same from there. The **tool underneath had the same hole for the same
+  reason**: `RimeReleaseCheck.check` fed a nonexistent path to `FileManager.enumerator`, which yields
+  nothing rather than failing, so "not there" became "no RimeData directory" and `isClean` stayed true.
+  The library refuses a missing bundle now (round 124), with the wrapper's guard left in place as the
+  cheaper first check, and `rime-release-check` exits 1 for a path that is not there.
 
 The full run finishes with `13 expectations held, 0 violated`; the type-check mutation is behind
 `--typecheck` because it costs a build, and the bundle mutations are skipped when no built `.app` is
@@ -416,7 +420,7 @@ demand a declaration for an API nobody calls. And the failure is verified from b
 | `S6ProjectSettingsTests` | 7 | the deployment target the two targets share, the bundle-identifier relationship, the entitlements wiring, the language mode the type-check script uses, the Info.plist arrangement, the archive type the app can open, and the Debug copy phase |
 | `S6NoticesTests` | 6 | the notices list every profile with its licence and source, and the licence screen's text is the same data the release pipeline reads |
 | `S6EngineNoticesTests` | 6 | the engine's own components, versions parsed rather than assumed, and the unverified licences deliberately left unstated |
-| `S6ReleaseCheckTests` | 7 | a third-party file placed in a synthetic bundle fails the check, and every forbidden name the release check refuses |
+| `S6ReleaseCheckTests` | 8 | a third-party file placed in a synthetic bundle fails the check, and every forbidden name the release check refuses |
 | `S6ProbeSummaryTests` | 8 | the probe log as numbers: nearest-rank percentiles (p95 and the p99 the latency budget names), footprints, a phase with no timings, the report's shape and the one size format |
 | `S6ProbePrivacyTests` | 4 | the log's field set, the `config.applied` record, the `profile.activate` record, a live session proving the typed text and the committed candidate never reach the file, and six concurrent writers keeping every line |
 
