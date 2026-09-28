@@ -92,6 +92,21 @@ with the table as it stands it prints `38 rows, 38 criteria` and `25 cited names
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
+## The repository half of "nothing third-party" (S6 §5)
+
+S6 §5 says "the check in §4 enforces the bundle half; a repository check (a pre-commit hook or CI step)
+enforces the other" — and there was no such check. `scripts/check-repository-clean.sh` is it: it
+walks `git ls-files` (exactly what a commit would carry) and fails on the shapes third-party Rime data
+takes — a `*.dict.yaml`/`*.schema.yaml`/`*.yaml`/`*.bin` outside `RimeData/`, a runtime path
+(`RimeData.local/`, `profiles/`, `user/`, `staging/`, `backups/`), a database or an archive
+(`*.userdb`, `*.zip`, `*.tar*`, `*.dmg` …), or a tracked file over 4 MB. It also has two
+**positive controls**, so a check that silently stopped looking fails instead of passing: the licence has
+to be the MIT text, and the tree has to have at least a hundred tracked files.
+
+It is a step in `verify-all.sh` now, and the header records it as the third thing the chain checks.
+Verified from both sides in a throwaway clone: a fake `rime_ice.dict.yaml` at the root and a
+`user/tracer.userdb/CURRENT` path were each named and failed the check, and removing them restored it.
+
 ## The type-check script reports the build it hides
 
 `scripts/typecheck-app.sh` builds the engine for the simulator before it type-checks the app, and

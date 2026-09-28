@@ -30,10 +30,27 @@ final class CandidateBar: UIView {
   private var theme = KeyboardTheme.current(for: .default)
 
   private static let chevronWidth: CGFloat = 32
+
+  /// S4 §6: "swipe on the bar pages as well". A swipe recognizer on the container does not steal the
+  /// cells' taps — a tap has no movement — so the two gestures coexist the way the system keyboard's do.
+  private func addSwipePaging() {
+    for (direction, pagesForward) in [(UISwipeGestureRecognizer.Direction.left, true),
+                                      (UISwipeGestureRecognizer.Direction.right, false)] {
+      let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+      swipe.direction = direction
+      swipe.accessibilityLabel = pagesForward ? "下一页" : "上一页"
+      addGestureRecognizer(swipe)
+    }
+  }
+
+  @objc private func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
+    onPage?(gesture.direction == .left)
+  }
   private static let maxCells = 9
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    addSwipePaging()
 
     cellsStack.axis = .horizontal
     cellsStack.alignment = .fill

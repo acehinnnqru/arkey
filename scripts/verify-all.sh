@@ -3,8 +3,9 @@
 #
 #   1. the engine tests (swift test, macOS, no device);
 #   2. the status table's own check — every criterion has a row and every row's evidence exists;
-#   3. the app and extension type-check, which is the only gate the UI code has without a build;
-#   4. the release bundle check, when a built .app is available (pass one, or let this find the last build).
+#   3. the repository check — nothing third-party is committed (S6 §5);
+#   4. the app and extension type-check, which is the only gate the UI code has without a build;
+#   5. the release bundle check, when a built .app is available (pass one, or let this find the last build).
 #
 # Anything that fails stops the run. A skipped step is said out loud rather than passed over in silence.
 #
@@ -32,6 +33,9 @@ step "screen wiring"
 
 step "document links"
 ./scripts/check-doc-links.sh | tail -2
+
+step "repository is clean of third-party data"
+./scripts/check-repository-clean.sh
 
 step "app and extension type-check"
 ./scripts/typecheck-app.sh | tail -1
