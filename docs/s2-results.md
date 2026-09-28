@@ -304,6 +304,16 @@ Covered by `testSchemaOrderAndDefaultAreTheListOrder` (enable, reorder, the depl
 same edit twice leaving the file byte-identical, and turning one off) and, for the refusals,
 `testSchemaListWritesAsAWholeListAndRefusesUnknownIDs`.
 
+## S2 §5.5's probe line: `config.applied`
+
+S2 §5's fifth step asks for a probe entry per applied change. It was the one step with nothing behind it —
+the engine recorded its own phases and the app's screens wrote patches, but no record joined the two. It
+does now: `RimeProbeRecord.configApplied(_:)` builds one line from the change the patch write
+returned ("config, key: old -> new"), and every path that writes a setting appends it to the same log
+the keyboard writes — 方案/输入/开关/模糊音/方案列表 and reset. The record is deliberately made of
+configuration values only, which is what `S6ProbePrivacyTests` pins from both sides: the factory's
+shape, and a live session that types a word and proves it never reaches the file.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |

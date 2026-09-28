@@ -131,6 +131,20 @@ takes about pointing at GitHub rather than distributing.
 `RimeNotices.text` is the same content as plain text, for the share sheet and the clipboard: a user who
 wants to check what they installed should not have to photograph a screen.
 
+## The probe log's shape is a test, not a promise (S6 §3)
+
+S6 §3 says the probe log records phases, milliseconds and footprints "and never records keystrokes".
+That is a property of the log, so it is checked against one: `S6ProbePrivacyTests` runs a live
+session with a probe log attached, types a distinctive string and commits a candidate, then reads every
+byte the engine wrote — the raw input and the committed text are both absent, every line is a JSON
+object whose fields are exactly the five the record declares, and an engine phase is present so the
+check cannot pass on an empty file. **Verified from both sides**: adding one probe record that carries
+the typed text (a temporary change to `processKeys`) failed both assertions immediately, and
+reverting it restored green.
+
+The same suite pins S2 §5.5's `config.applied` record — the key and both sides of a change — which
+the app now writes whenever a setting is applied.
+
 ## The privacy manifest
 
 `arkey/PrivacyInfo.xcprivacy` declares no tracking, no collected data, and the two required-reason API
