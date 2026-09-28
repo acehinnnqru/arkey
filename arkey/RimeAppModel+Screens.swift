@@ -367,6 +367,26 @@ extension RimeAppModel {
     }
   }
 
+  /// S5 §5's second export: **the whole set as one zip**, in the sync folder's own shape
+  /// (`<installation_id>/<dict>.userdb.txt`), so it can be handed to another machine and unzipped over
+  /// a sync folder — or imported here through the same shape-detecting path.
+  func exportAllDictionaries() -> URL? {
+    let url = workspace.root.appendingPathComponent("exports", isDirectory: true)
+      .appendingPathComponent("arkey-dictionaries.zip")
+    do {
+      try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                              withIntermediateDirectories: true)
+      let export = try RimeSyncService(workspace: workspace, engine: engine)
+        .exportAllSnapshots(to: url)
+      syncMessage = "已导出 " + String(export.dictionaries.count) + " 个词库快照（"
+        + RimeProbe.formatted(bytes: UInt64(export.bytes)) + "）"
+      return url
+    } catch {
+      errorMessage = "导出整组快照失败：" + String(describing: error)
+      return nil
+    }
+  }
+
   /// S5 §5's "Import from Files": a Squirrel snapshot or this app's own levers export, told apart by shape
   /// rather than by which button was pressed. The engine backs the dictionary up before the import (S5-AC3),
   /// and the access gate refuses while the keyboard holds the lease. Returns the sentence to show, or "" when

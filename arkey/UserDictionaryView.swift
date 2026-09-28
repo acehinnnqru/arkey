@@ -10,6 +10,8 @@ struct UserDictionaryView: View {
   @State private var exported: URL?
   /// S5 §5: the snapshot a Squirrel user imports, as opposed to the levers export this app reads back.
   @State private var exportedSnapshot: URL?
+  /// S5 §5's other export: every dictionary's snapshot in one zip.
+  @State private var exportedSet: URL?
   /// S5 §5: the dictionary whose row asked for an import, and the file picker's state.
   @State private var pendingImport: String?
   @State private var isImporting = false
@@ -206,6 +208,12 @@ struct UserDictionaryView: View {
       if !report.isLeaseCold {
         Text("键盘正在使用词库，所以现在不能同步。关掉键盘后再试。")
           .font(.caption).foregroundStyle(.orange)
+      }
+      if let set = exportedSet {
+        ShareLink(item: set) { Text("分享整组快照（zip）") }.font(.caption)
+      } else {
+        Button("导出整组快照（zip）") { exportedSet = model.exportAllDictionaries() }
+          .font(.caption)
       }
       if let directory = report.syncDirectory {
         Text(directory).font(.caption2).foregroundStyle(.secondary)

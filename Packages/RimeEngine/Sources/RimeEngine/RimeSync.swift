@@ -388,6 +388,58 @@ public struct RimeSyncService {
     return try access.perform { try engine.exportUserDictionary(name, to: url) }
   }
 
+  // MARK: The whole set as one zip (S5 §5)
+
+  /// What one export of the whole set holds.
+  public struct RimeDictionarySetExport: Sendable {
+    public let dictionaries: [String]
+    public let installationID: String
+    public let bytes: Int
+    public let data: Data
+  }
+
+  /// S5 §5's second export: "the whole set as one zip". Every dictionary's snapshot is refreshed first —
+  /// so the zip is today's state rather than whatever happened to be in the folder — and the paths inside
+  /// are `<installation_id>/<dict>.userdb.txt`, the shape the sync folder itself has. That is the
+  /// point: unzipping it over a sync folder is a valid sync, not a new format, and `importSnapshot` /
+  /// `mergeFromOtherDevices` read what comes out.
+  @discardableResult
+  public func exportAllSnapshots() throws -> RimeDictionarySetExport {
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    if let holder = access.blocker() {
+      throw RimeSyncError.refused(RimeDictionaryAccessError
+        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    }
+    let id = installationID ?? "unseeded"
+    let names = (try? dictionariesToSync()) ?? []
+    try access.perform {
+      for name in names {
+        _ = try? engine.backupUserDictionary(name)
+      }
+    }
+
+    var writer = RimeZipWriter()
+    var included: [String] = []
+    let mine = snapshots()
+      .filter { $0.deviceID == id }
+      .sorted { $0.dictionary < $1.dictionary }
+    for snapshot in mine {
+      guard let contents = try? Data(contentsOf: snapshot.url), !contents.isEmpty else { continue }
+      try writer.addFile(path: id + "/" + snapshot.url.lastPathComponent, contents: contents)
+      included.append(snapshot.dictionary)
+    }
+    let data = writer.data()
+    return RimeDictionarySetExport(dictionaries: included, installationID: id,
+                                   bytes: data.count, data: data)
+  }
+
+  @discardableResult
+  public func exportAllSnapshots(to url: URL) throws -> RimeDictionarySetExport {
+    let export = try exportAllSnapshots()
+    try export.data.write(to: url, options: .atomic)
+    return export
+  }
+
   @discardableResult
   public func importExportFile(_ url: URL, into name: String) throws -> Int {
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)

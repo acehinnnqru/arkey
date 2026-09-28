@@ -555,6 +555,37 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.syncChoiceFile.path))
   }
 
+  /// S5 §5's second export: the whole set as one zip, in the sync folder's own shape.
+  func testTheWholeSetExportsAsOneZipThatUnzipsIntoASyncFolder() async throws {
+    try engine.openSession()
+    _ = try engine.processKeys("shurufa")
+    _ = try engine.selectCandidate(at: 0)
+    engine.closeSession()
+
+    let service = RimeSyncService(workspace: workspace, engine: engine)
+    let export = try service.exportAllSnapshots()
+    XCTAssertEqual(export.dictionaries, ["tracer"])
+    XCTAssertGreaterThan(export.bytes, 0, "an empty zip would pass a weaker test")
+
+    // Read it back with the reader that guards every import, then extract it: the paths are the sync
+    // folder's own, so what comes out is a valid sync rather than a new format.
+    let archive = try RimeZipArchive(data: export.data)
+    let id = try XCTUnwrap(service.installationID)
+    XCTAssertEqual(archive.entries.map(\.path), [id + "/tracer.userdb.txt"])
+
+    let destination = scratch.appendingPathComponent("unzipped", isDirectory: true)
+    try archive.extract(to: destination)
+    let extracted = destination.appendingPathComponent(id)
+      .appendingPathComponent("tracer.userdb.txt")
+    let snapshot = try XCTUnwrap(RimeUserDictionarySnapshot.parse(
+      text: try String(contentsOf: extracted, encoding: .utf8)))
+    XCTAssertTrue(snapshot.entries.contains { $0.text == "输入法" },
+                  snapshot.entries.map(\.text).joined(separator: ","))
+
+    // And discovery reads exactly that shape, so a receiving device merges it like any other folder.
+    XCTAssertEqual(RimeSyncDiscovery.snapshots(in: destination).map(\.dictionary), ["tracer"])
+  }
+
   /// The spec's open `[verify]` in M5, answered — and the answer is **no**. `import_user_dict` reads the
   /// levers export format; handed the *sync snapshot* format (what Squirrel writes) it consumes the file and
   /// records the wrong thing: the entry that comes back is the spelling ("shu ru fa"), not the phrase
