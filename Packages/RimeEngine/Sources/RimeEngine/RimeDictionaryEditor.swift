@@ -42,9 +42,8 @@ public struct RimeDictionaryEditor {
     }
 
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine, leaseStore: leaseStore)
-    if let holder = access.blocker() {
-      throw RimeSyncError.refused(RimeDictionaryAccessError
-        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    if let blocker = access.blocker() {
+      throw RimeSyncError.refused(blocker.description)
     }
     let directory = workspace.staging.appendingPathComponent("dictionary-edit", isDirectory: true)
     try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -82,9 +81,8 @@ public struct RimeDictionaryEditor {
   @discardableResult
   public func removeDictionary(_ name: String) throws -> Bool {
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine, leaseStore: leaseStore)
-    if let holder = access.blocker() {
-      throw RimeSyncError.refused(RimeDictionaryAccessError
-        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    if let blocker = access.blocker() {
+      throw RimeSyncError.refused(blocker.description)
     }
     let database = workspace.userData.appendingPathComponent(name + ".userdb", isDirectory: true)
     guard fileManager.fileExists(atPath: database.path) else { return false }

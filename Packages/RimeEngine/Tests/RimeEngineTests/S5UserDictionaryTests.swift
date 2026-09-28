@@ -182,6 +182,65 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertTrue(store.isCold())
   }
 
+  /// The lease failure mode that used to be invisible: a file that cannot be read. "We cannot tell" is
+  /// not "nobody is typing" — the leveldb lock does not care why we are wrong — so it counts as held
+  /// while it is fresh, with the file's modification date standing in for the heartbeat it cannot
+  /// provide, and it ages out like any other instead of wedging the app forever.
+  func testAnUnreadableLeaseIsHeldWhileFreshAndAgesOut() throws {
+    let store = RimeLeaseStore(workspace: workspace)
+    let url = workspace.root.appendingPathComponent("keyboard.lease.json")
+    try Data("this is not a lease".utf8).write(to: url)
+
+    guard case .unreadable = store.state() else {
+      return XCTFail("expected an unreadable state, got " + String(describing: store.state()))
+    }
+    XCTAssertFalse(store.isCold(), "a fresh unreadable lease is not safe to proceed past")
+
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    guard case .unreadableLease = access.blocker() else {
+      return XCTFail("expected an unreadableLease blocker")
+    }
+    XCTAssertThrowsError(try access.requireExclusiveAccess()) { error in
+      guard case RimeDictionaryAccessError.leaseUnreadable = error else {
+        return XCTFail("expected leaseUnreadable, got " + String(describing: error))
+      }
+    }
+
+    // The report carries the same sentence the screen shows, and does not call it "cold".
+    let report = try RimeSyncService(workspace: workspace, engine: engine).report()
+    XCTAssertFalse(report.isLeaseCold)
+    XCTAssertNotNil(report.leaseBlocker)
+
+    // Fresh garbage is left alone by the prune...
+    store.prune()
+    XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+
+    // ...but a file that is both unreadable and old has aged out: cold, no blocker, and pruned.
+    try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-3600)],
+                                          ofItemAtPath: url.path)
+    XCTAssertEqual(store.state(), .cold)
+    XCTAssertTrue(store.isCold())
+    XCTAssertNil(access.blocker())
+    store.prune()
+    XCTAssertFalse(FileManager.default.fileExists(atPath: url.path),
+                   "an unreadable lease that aged out is removed, not left as a ghost")
+  }
+
+  /// A lease written by a schema version this build does not know is the same case as garbage: not
+  /// readable, so not evidence that nobody is typing.
+  func testALeaseFromANewerSchemaIsNotTreatedAsCold() throws {
+    let store = RimeLeaseStore(workspace: workspace)
+    let url = workspace.root.appendingPathComponent("keyboard.lease.json")
+    var lease = RimeKeyboardLease(pid: getpid())
+    lease.schemaVersion = RimeKeyboardLease.currentSchemaVersion + 1
+    try RimeJSON.encode(lease).write(to: url)
+
+    guard case .unreadable = store.state(now: lease.heartbeat) else {
+      return XCTFail("expected an unreadable state for a newer schema")
+    }
+    XCTAssertFalse(store.isCold(now: lease.heartbeat))
+  }
+
   func testTheAppRefusesDictionaryWorkWhileTheKeyboardHoldsTheLease() throws {
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
     XCTAssertNil(access.blocker())

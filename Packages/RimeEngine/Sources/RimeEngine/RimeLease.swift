@@ -92,22 +92,55 @@ public struct RimeLeaseStore: Sendable {
     return lease
   }
 
+  /// What the lease file says, without collapsing "nobody is typing" into "we cannot tell".
+  public enum State: Sendable, Equatable {
+    /// No file, a stale heartbeat, or a process that is gone: the dictionaries are free.
+    case cold
+    /// A live process holds them.
+    case held(RimeKeyboardLease)
+    /// A file is there and cannot be read: a corrupt write, or one whose schema version we do not know.
+    ///
+    /// **Unknown is not "nobody is typing".** The leveldb lock this file protects does not care why we
+    /// are wrong, so an unreadable lease counts as held while it is *fresh* — and since there is no
+    /// heartbeat to read, the file's modification date stands in for one. A garbage file that is also
+    /// old therefore ages out like any other, instead of wedging the app forever.
+    case unreadable(modifiedAt: Date, reason: String)
+  }
+
+  public func state(now: Date = Date(),
+                    staleAfter: TimeInterval = RimeKeyboardLease.staleAfter) -> State {
+    guard fileManager.fileExists(atPath: url.path) else { return .cold }
+    guard let lease = current() else {
+      let attributes = try? fileManager.attributesOfItem(atPath: url.path)
+      let modified = (attributes?[.modificationDate] as? Date) ?? .distantPast
+      guard now.timeIntervalSince(modified) < staleAfter else { return .cold }
+      return .unreadable(modifiedAt: modified,
+                         reason: "the lease file exists but could not be read")
+    }
+    guard now.timeIntervalSince(lease.heartbeat) < staleAfter, liveness(lease.pid) else { return .cold }
+    return .held(lease)
+  }
+
   /// The lease a caller must respect, or nil when it is safe to take the dictionaries.
   public func liveHolder(now: Date = Date(), staleAfter: TimeInterval = RimeKeyboardLease.staleAfter)
     -> RimeKeyboardLease? {
-    guard let lease = current() else { return nil }
-    guard now.timeIntervalSince(lease.heartbeat) < staleAfter else { return nil }
-    guard liveness(lease.pid) else { return nil }
-    return lease
+    if case .held(let lease) = state(now: now, staleAfter: staleAfter) { return lease }
+    return nil
   }
 
+  /// False for a live holder **and** for a fresh unreadable file: both mean "do not touch the
+  /// dictionaries yet".
   public func isCold(now: Date = Date(), staleAfter: TimeInterval = RimeKeyboardLease.staleAfter) -> Bool {
-    liveHolder(now: now, staleAfter: staleAfter) == nil
+    if case .cold = state(now: now, staleAfter: staleAfter) { return true }
+    return false
   }
 
-  /// Removes a lease that cannot be live, so diagnostics do not show a ghost forever.
+  /// Removes a lease that cannot be live, so diagnostics do not show a ghost forever. That includes an
+  /// unreadable file once it has aged out — the case the old version of this method never reached,
+  /// because it required the file to decode.
   public func prune(now: Date = Date()) {
-    guard current() != nil, liveHolder(now: now) == nil else { return }
+    guard fileManager.fileExists(atPath: url.path) else { return }
+    guard isCold(now: now) else { return }
     try? fileManager.removeItem(at: url)
   }
 
@@ -126,12 +159,18 @@ public struct RimeLeaseStore: Sendable {
 
 public enum RimeDictionaryAccessError: Error, CustomStringConvertible, Sendable {
   case keyboardIsUsingIt(pid: Int32, since: Date)
+  /// A lease file that cannot be read. Refused while fresh, for the same reason a live holder is.
+  case leaseUnreadable(modifiedAt: Date, reason: String)
 
   public var description: String {
     switch self {
     case .keyboardIsUsingIt(let pid, let since):
       return "键盘正在使用用户词库（pid " + String(pid) + "，自 "
         + ISO8601DateFormatter().string(from: since) + "）。关闭键盘后再试，或稍候片刻。"
+    case .leaseUnreadable(let modifiedAt, let reason):
+      return "词库租约文件无法读取（" + reason + "，最后修改 "
+        + ISO8601DateFormatter().string(from: modifiedAt) + "）。暂时按“键盘可能正在使用”处理；"
+        + "若键盘并未使用词库，稍候片刻即可。"
     }
   }
 }
@@ -152,14 +191,37 @@ public struct RimeDictionaryAccess {
     self.leaseStore = leaseStore ?? RimeLeaseStore(workspace: workspace)
   }
 
-  /// Nil when the app may proceed; otherwise the keyboard that is holding the dictionaries.
-  public func blocker(now: Date = Date()) -> RimeKeyboardLease? {
-    leaseStore.liveHolder(now: now)
+  /// Why the app may not touch the dictionaries, or nil when it may.
+  public enum Blocker: Sendable, Equatable, CustomStringConvertible {
+    case keyboard(pid: Int32, since: Date)
+    case unreadableLease(modifiedAt: Date, reason: String)
+
+    public var error: RimeDictionaryAccessError {
+      switch self {
+      case .keyboard(let pid, let since):
+        return .keyboardIsUsingIt(pid: pid, since: since)
+      case .unreadableLease(let modifiedAt, let reason):
+        return .leaseUnreadable(modifiedAt: modifiedAt, reason: reason)
+      }
+    }
+
+    public var description: String { error.description }
+  }
+
+  public func blocker(now: Date = Date()) -> Blocker? {
+    switch leaseStore.state(now: now) {
+    case .cold:
+      return nil
+    case .held(let lease):
+      return .keyboard(pid: lease.pid, since: lease.openedAt)
+    case .unreadable(let modifiedAt, let reason):
+      return .unreadableLease(modifiedAt: modifiedAt, reason: reason)
+    }
   }
 
   public func requireExclusiveAccess(now: Date = Date()) throws {
-    if let holder = blocker(now: now) {
-      throw RimeDictionaryAccessError.keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt)
+    if let blocker = blocker(now: now) {
+      throw blocker.error
     }
   }
 

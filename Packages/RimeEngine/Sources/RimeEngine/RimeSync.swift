@@ -60,8 +60,11 @@ public struct RimeUserDictionaryReport: Sendable {
   public let syncDirectory: String?
   public let installationID: String?
   public let userID: String?
-  /// False while the keyboard holds the lease: the screen then says why it cannot act.
+  /// False while the keyboard holds the lease — or while the lease cannot be read: the screen then
+  /// says why it cannot act, using `leaseBlocker`'s own sentence rather than guessing.
   public let isLeaseCold: Bool
+  /// Why the app may not touch the dictionaries right now, or nil when it may.
+  public let leaseBlocker: RimeDictionaryAccess.Blocker?
 
   public var totalBytes: Int { dictionaries.reduce(0) { $0 + $1.databaseBytes } }
 }
@@ -201,11 +204,13 @@ public struct RimeSyncService {
                                                     databaseIssues: issuesByName[name] ?? []))
     }
 
+    let blocker = RimeDictionaryAccess(workspace: workspace, engine: engine).blocker(now: now)
     return RimeUserDictionaryReport(dictionaries: entries,
                                     syncDirectory: syncDirectory?.path,
                                     installationID: installationID,
                                     userID: engine.userID(),
-                                    isLeaseCold: RimeLeaseStore(workspace: workspace).isCold(now: now))
+                                    isLeaseCold: blocker == nil,
+                                    leaseBlocker: blocker)
   }
 
   /// Dictionaries the filesystem knows about even when librime has not loaded them: a profile the
@@ -232,9 +237,8 @@ public struct RimeSyncService {
     guard let syncDirectory else { throw RimeSyncError.noSyncDirectory }
     try fileManager.createDirectory(at: syncDirectory, withIntermediateDirectories: true)
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
-    if let holder = access.blocker() {
-      throw RimeSyncError.refused(RimeDictionaryAccessError
-        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    if let blocker = access.blocker() {
+      throw RimeSyncError.refused(blocker.description)
     }
 
     let started = Date()
@@ -406,9 +410,8 @@ public struct RimeSyncService {
   @discardableResult
   public func exportAllSnapshots() throws -> RimeDictionarySetExport {
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
-    if let holder = access.blocker() {
-      throw RimeSyncError.refused(RimeDictionaryAccessError
-        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    if let blocker = access.blocker() {
+      throw RimeSyncError.refused(blocker.description)
     }
     let id = installationID ?? "unseeded"
     let names = (try? dictionariesToSync()) ?? []
@@ -468,9 +471,8 @@ public struct RimeSyncService {
     guard !others.isEmpty else { return RimeMergeOutcome(entries: []) }
 
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
-    if let holder = access.blocker() {
-      throw RimeSyncError.refused(RimeDictionaryAccessError
-        .keyboardIsUsingIt(pid: holder.pid, since: holder.openedAt).description)
+    if let blocker = access.blocker() {
+      throw RimeSyncError.refused(blocker.description)
     }
 
     // One small file per snapshot; nothing is written into the user's folder.

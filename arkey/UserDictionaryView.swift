@@ -205,8 +205,10 @@ struct UserDictionaryView: View {
       .disabled(model.isSyncing || !report.isLeaseCold || model.syncDisabledReason != nil)
       Text("读取共享目录里其他设备的快照，增量并入本机词库；合并前会先备份。")
         .font(.caption2).foregroundStyle(.secondary)
-      if !report.isLeaseCold {
-        Text("键盘正在使用词库，所以现在不能同步。关掉键盘后再试。")
+      if let leaseReason = report.leaseBlocker {
+        // The engine's own sentence: a live keyboard and an unreadable lease file are different
+        // situations, and the screen should not describe one as the other.
+        Text(leaseReason.description)
           .font(.caption).foregroundStyle(.orange)
       }
       if let set = exportedSet {
