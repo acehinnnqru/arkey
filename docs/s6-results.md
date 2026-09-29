@@ -138,7 +138,7 @@ The script no longer suppresses them: it prints the diagnostics and puts the cou
 sees (`extension: no type errors, 4 warning(s)` was how the extension's two were found). Warnings do
 not fail the check — an SDK deprecation should not break a build — and
 `check-verification-scripts.sh --typecheck` now asserts both halves: a planted type error fails, and a
-planted warning is *reported rather than hidden* (15 expectations when it runs).
+planted warning is *reported rather than hidden* (16 expectations when it runs).
 
 ## The checks fail when they should (S6 §2)
 
