@@ -128,12 +128,37 @@ final class S6ProjectSettingsTests: XCTestCase {
     XCTAssertEqual(archive["CFBundleTypeRole"] as? String, "Viewer")
   }
 
+  /// S6 §2.1: the Xcode project gains one test target for the app — the layer that runs on the
+  /// simulator, where UIKit is real and the views lay out for a screen. Nothing here can run it (no
+  /// xcodebuild in this sandbox), so what this test can do is check that the target is wired the way a
+  /// unit-test bundle has to be: hosted by the app, loading its binary, depending on it, and carrying
+  /// the app's own deployment target.
+  func testTheTestTargetIsWiredToTheAppAsAUnitTestBundle() throws {
+    let text = try project()
+    XCTAssertTrue(text.contains("productType = \"com.apple.product-type.bundle.unit-test\";"),
+                  "no unit-test bundle in the project")
+    XCTAssertTrue(text.contains("TEST_HOST = \"$(BUILT_PRODUCTS_DIR)/arkey.app/"
+                  + "$(BUNDLE_EXECUTABLE_FOLDER_PATH)/arkey\";"),
+                  "the test bundle has no host, so it cannot see the app's code or run on the simulator")
+    XCTAssertTrue(text.contains("BUNDLE_LOADER = \"$(TEST_HOST)\";"),
+                  "without the loader the test bundle does not link against the app")
+    XCTAssertTrue(text.contains("TestTargetID = 1B05164E3062E34E00EDD6AE;"),
+                  "the target attributes do not point the test bundle at the app")
+    XCTAssertTrue(text.contains("path = arkeyTests;"), "the test sources are not in the project")
+    let count = try FileManager.default.contentsOfDirectory(
+      at: repositoryRoot.appendingPathComponent("arkeyTests"),
+      includingPropertiesForKeys: nil).filter { $0.pathExtension == "swift" }.count
+    XCTAssertGreaterThan(count, 0, "the test target has no sources to build")
+  }
+
   /// Both targets generate their Info.plist, and the extension also starts from a file: that combination is what
   /// merges the generated keys into the hand-written one, so the file it names has to exist.
   func testTheInfoPlistArrangementIsCoherent() throws {
     let text = try project()
     let generated = text.components(separatedBy: "GENERATE_INFOPLIST_FILE = ").dropFirst().filter { $0.hasPrefix("YES") }
-    XCTAssertEqual(generated.count, 4, "four build configurations generate their Info.plist")
+    XCTAssertEqual(generated.count, 6,
+                   "six build configurations generate their Info.plist: the app, the extension and the "
+                     + "test bundle, in Debug and Release")
 
     // Line-anchored: "GENERATE_INFOPLIST_FILE = YES;" contains "INFOPLIST_FILE = " as a substring, and a split on
     // the bare prefix collects "YES" as if it were a path — which is what this test did on its first run.

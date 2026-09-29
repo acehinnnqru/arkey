@@ -38,7 +38,9 @@ final class S6PackagingTests: XCTestCase {
     XCTAssertTrue(text.contains("check-verification-scripts.sh"),
                   "the checks are checked too: each must fail when its subject is broken")
     XCTAssertFalse(text.contains("xcodebuild test"),
-                   "the iOS test target is S6-AC2 and does not exist yet: CI must not claim to run it")
+                   "the simulator run is not wired into CI yet: it needs a shared scheme and a "
+                     + "simulator step, and claiming it here before that exists is the lie this "
+                     + "assertion is for")
     XCTAssertFalse(text.contains("scripts/device"),
                    "device work is a written checklist, not a job")
   }

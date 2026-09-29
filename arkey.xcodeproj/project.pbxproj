@@ -13,6 +13,7 @@
 		A5C0DE000000000000000006 /* RimeEngine in Frameworks */ = {isa = PBXBuildFile; productRef = A5C0DE000000000000000002 /* RimeEngine */; };
 		A5C0DE000000000000000008 /* RimeData in Resources */ = {isa = PBXBuildFile; fileRef = A5C0DE000000000000000007 /* RimeData */; };
 		A5C0DE000000000000000009 /* RimeData in Resources */ = {isa = PBXBuildFile; fileRef = A5C0DE000000000000000007 /* RimeData */; };
+		A5C0DE000000000000000018 /* RimeEngine in Frameworks */ = {isa = PBXBuildFile; productRef = A5C0DE000000000000000002 /* RimeEngine */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -22,6 +23,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 1B0516663062E3D700EDD6AE;
 			remoteInfo = ARKeyboard;
+		};
+		A5C0DE00000000000000001A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1B0516473062E34E00EDD6AE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1B05164E3062E34E00EDD6AE;
+			remoteInfo = arkey;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -43,6 +51,7 @@
 		1B05164F3062E34E00EDD6AE /* arkey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = arkey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B0516673062E3D700EDD6AE /* ARKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ARKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5C0DE000000000000000007 /* RimeData */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RimeData; sourceTree = "<group>"; };
+		A5C0DE000000000000000014 /* arkeyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = arkeyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -74,6 +83,11 @@
 			path = KeyboardUI;
 			sourceTree = "<group>";
 		};
+		A5C0DE000000000000000015 /* arkeyTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = arkeyTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +108,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A5C0DE000000000000000017 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5C0DE000000000000000018 /* RimeEngine in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -103,6 +125,7 @@
 				1B0516513062E34E00EDD6AE /* arkey */,
 				1B0516683062E3D700EDD6AE /* ARKeyboard */,
 				A5C0DE00000000000000000D /* KeyboardUI */,
+				A5C0DE000000000000000015 /* arkeyTests */,
 				A5C0DE000000000000000007 /* RimeData */,
 				1B0516503062E34E00EDD6AE /* Products */,
 			);
@@ -113,6 +136,7 @@
 			children = (
 				1B05164F3062E34E00EDD6AE /* arkey.app */,
 				1B0516673062E3D700EDD6AE /* ARKeyboard.appex */,
+				A5C0DE000000000000000014 /* arkeyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -147,6 +171,30 @@
 			productName = arkey;
 			productReference = 1B05164F3062E34E00EDD6AE /* arkey.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A5C0DE000000000000000010 /* arkeyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A5C0DE000000000000000011 /* Build configuration list for PBXNativeTarget "arkeyTests" */;
+			buildPhases = (
+				A5C0DE000000000000000016 /* Sources */,
+				A5C0DE000000000000000017 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A5C0DE000000000000000019 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A5C0DE000000000000000015 /* arkeyTests */,
+				A5C0DE00000000000000000D /* KeyboardUI */,
+			);
+			name = arkeyTests;
+			packageProductDependencies = (
+				A5C0DE000000000000000002 /* RimeEngine */,
+			);
+			productName = arkeyTests;
+			productReference = A5C0DE000000000000000014 /* arkeyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		1B0516663062E3D700EDD6AE /* ARKeyboard */ = {
 			isa = PBXNativeTarget;
@@ -188,6 +236,10 @@
 					1B0516663062E3D700EDD6AE = {
 						CreatedOnToolsVersion = 26.5;
 					};
+					A5C0DE000000000000000010 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 1B05164E3062E34E00EDD6AE;
+					};
 				};
 			};
 			buildConfigurationList = 1B05164A3062E34E00EDD6AE /* Build configuration list for PBXProject "arkey" */;
@@ -210,6 +262,7 @@
 			targets = (
 				1B05164E3062E34E00EDD6AE /* arkey */,
 				1B0516663062E3D700EDD6AE /* ARKeyboard */,
+				A5C0DE000000000000000010 /* arkeyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -270,6 +323,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A5C0DE000000000000000016 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -277,6 +337,11 @@
 			isa = PBXTargetDependency;
 			target = 1B0516663062E3D700EDD6AE /* ARKeyboard */;
 			targetProxy = 1B05166C3062E3D700EDD6AE /* PBXContainerItemProxy */;
+		};
+		A5C0DE000000000000000019 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1B05164E3062E34E00EDD6AE /* arkey */;
+			targetProxy = A5C0DE00000000000000001A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -548,6 +613,44 @@
 			};
 			name = Release;
 		};
+		A5C0DE000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XQYB6GQJJ5;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.acehinnnqru.arkeyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/arkey.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/arkey";
+			};
+			name = Debug;
+		};
+		A5C0DE000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XQYB6GQJJ5;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.acehinnnqru.arkeyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/arkey.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/arkey";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -574,6 +677,15 @@
 			buildConfigurations = (
 				1B0516713062E3D700EDD6AE /* Debug */,
 				1B0516723062E3D700EDD6AE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A5C0DE000000000000000011 /* Build configuration list for PBXNativeTarget "arkeyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A5C0DE000000000000000012 /* Debug */,
+				A5C0DE000000000000000013 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

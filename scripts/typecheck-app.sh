@@ -20,6 +20,14 @@ PACKAGE="Packages/RimeEngine"
 OUT=".build/typecheck"
 RIME_INCLUDE="$PACKAGE/.build/checkouts/librime-xcframework/Sources/RimeHeaders/include"
 MODULES="$PACKAGE/.build/arm64-apple-ios-simulator/debug/Modules"
+# XCTest is not in the SDK proper: the Swift overlay lives in the platform's Developer/usr/lib and the
+# Clang module in its Developer/Library/Frameworks, and the importer needs both (found the hard way — the
+# headers alone give "function like macros not supported", the overlay alone "underlying Objective-C
+# module 'XCTest' not found"). Only the test-target check imports it.
+XCTEST_PLATFORM="$(xcrun --sdk iphonesimulator --show-sdk-platform-path)"
+XCTEST_MODULES="$XCTEST_PLATFORM/Developer/usr/lib"
+XCTEST_FRAMEWORKS="$XCTEST_PLATFORM/Developer/Library/Frameworks"
+XCTEST_FLAGS=(-I "$XCTEST_MODULES" -F "$XCTEST_FRAMEWORKS" -Xcc -F"$XCTEST_FRAMEWORKS")
 
 echo "== building RimeEngine for $TARGET =="
 # The build's output used to be discarded, which turned an engine compile error into a bare exit 1 with no
@@ -38,7 +46,7 @@ fi
 
 echo "== stripping #Preview blocks into $OUT =="
 rm -rf "$OUT"
-mkdir -p "$OUT/app" "$OUT/extension" "$OUT/cache"
+mkdir -p "$OUT/app" "$OUT/extension" "$OUT/tests" "$OUT/cache"
 strip_previews() {
   # Strip one #Preview block, whatever shape it takes, and keep everything after it. The first version
   # dropped the rest of the file whenever the block's closing brace was the only brace on its line —
@@ -66,6 +74,13 @@ for file in ARKeyboard/*.swift; do
   strip_previews "$file" > "$OUT/extension/$(basename "$file")"
 done
 cp KeyboardUI/*.swift "$OUT/extension/"
+# S6 §2.1's unit-test target: its sources plus the keyboard UI they exercise, the same way the app and
+# the extension each carry KeyboardUI. XCTest comes from the platform's Developer frameworks, added to
+# the check below.
+for file in arkeyTests/*.swift; do
+  strip_previews "$file" > "$OUT/tests/$(basename "$file")"
+done
+cp KeyboardUI/*.swift "$OUT/tests/"
 
 check() {
   local name="$1"; shift
@@ -99,17 +114,21 @@ check() {
 }
 
 # A file one of the globs above misses would turn "no type errors" into a claim about a source set nobody
-# looked at, so the counts are compared before checking: every Swift file under the three directories has to be
-# in exactly one of the two source sets.
+# looked at, so the counts are compared before checking: every Swift file under the four directories has to
+# be in exactly one of the three source sets. KeyboardUI is checked three times — it is compiled into the
+# app, the extension and the test bundle.
 expected=$(( $(ls arkey/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
-            + $(ls ARKeyboard/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) ))
-compiled=$(( $(ls "$OUT"/app/*.swift | wc -l) + $(ls "$OUT"/extension/*.swift | wc -l) ))
+            + $(ls ARKeyboard/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
+            + $(ls arkeyTests/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) ))
+compiled=$(( $(ls "$OUT"/app/*.swift | wc -l) + $(ls "$OUT"/extension/*.swift | wc -l) \
+            + $(ls "$OUT"/tests/*.swift | wc -l) ))
 if [ "$expected" -ne "$compiled" ]; then
   echo "typecheck FAILED: $expected Swift files in the tree, $compiled prepared for checking" >&2
   exit 1
 fi
-echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ') app + $(ls ARKeyboard/*.swift | wc -l | tr -d ' ') extension + KeyboardUI twice) =="
+echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ') app + $(ls ARKeyboard/*.swift | wc -l | tr -d ' ') extension + $(ls arkeyTests/*.swift | wc -l | tr -d ' ') tests + KeyboardUI three times) =="
 
 check "app" "$OUT"/app/*.swift
 check "extension" "$OUT"/extension/*.swift
+check "tests" "${XCTEST_FLAGS[@]}" "$OUT"/tests/*.swift
 echo "typecheck ok"
