@@ -7,7 +7,9 @@
 #
 #   1. every AC id in docs/specs/*.md has a row in docs/status.md, and no row invents an id;
 #   2. every row's state is met, partly or open;
-#   3. every test function, test suite and Swift type named in a row exists in the tree.
+#   3. every test function, test suite and Swift type named in a row exists in the tree;
+#   4. the numbers a row quotes — the test count, the suite count, the type-check's source count — are the
+#      ones the tree produces.
 #
 # Usage: scripts/check-status-evidence.sh
 set -euo pipefail
@@ -109,6 +111,28 @@ if [ "$row_suites" != "?" ] && [ "$row_suites" != "$tree_suites" ]; then
   fail "the S6-AC1 row says $row_suites suites and the tree declares $tree_suites"
 else
   echo "  the table says $row_suites suites (the tree declares $tree_suites)"
+fi
+
+echo "== the Swift-file count in the table =="
+# Two rows quote how many Swift files the type-check prepares (app, extension and the iOS test target,
+# KeyboardUI compiled into each of the three). Those two numbers had drifted apart — 49 in S6-AC1 and 48
+# in S6-AC2 for the same measurement — because, like the test count before them, nothing compared them
+# (round 139). The rule is typecheck-app.sh's, which also enforces that its globs cover every Swift file
+# in the four directories, so a file none of them sees cannot shrink the source set these numbers describe.
+swift_count=$(( $(ls "$root"/arkey/*.swift | wc -l) \
+              + $(ls "$root"/ARKeyboard/*.swift | wc -l) \
+              + $(ls "$root"/arkeyTests/*.swift | wc -l) \
+              + $(ls "$root"/KeyboardUI/*.swift | wc -l) * 3 ))
+row_swift_a="$(grep -oE "over [0-9]+ Swift files" <<<"$(grep -E "^\| S6-AC1 \|" "$status")" | grep -oE "[0-9]+" || true)"
+row_swift_b="$(grep -oE "\([0-9]+ Swift files over" <<<"$(grep -E "^\| S6-AC2 \|" "$status")" | grep -oE "[0-9]+" || true)"
+if [ -z "$row_swift_a" ] || [ -z "$row_swift_b" ]; then
+  fail "the type-check's source set is quoted as ${row_swift_a:-nothing} Swift files in S6-AC1 and ${row_swift_b:-nothing} in S6-AC2; both rows have to say it"
+else
+  [ "$row_swift_a" = "$row_swift_b" ] \
+    || fail "S6-AC1 says $row_swift_a Swift files and S6-AC2 says $row_swift_b; they quote the same type-check"
+  [ "$row_swift_a" = "$swift_count" ] \
+    || fail "the rows say $row_swift_a Swift files and the four source directories hold $swift_count"
+  echo "  the table says $row_swift_a Swift files (the tree prepares $swift_count)"
 fi
 
 echo "== device-run references =="

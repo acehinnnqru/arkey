@@ -151,6 +151,26 @@ final class S6ProjectSettingsTests: XCTestCase {
     XCTAssertGreaterThan(count, 0, "the test target has no sources to build")
   }
 
+  /// The scheme is what `xcodebuild test` runs: a target the scheme does not name is a target that
+  /// never runs, and a rename that misses the scheme breaks `test` without breaking `build`. The
+  /// scheme has to be in `xcshareddata` for a fresh clone to see it at all.
+  func testTheSharedSchemeRunsTheTestTarget() throws {
+    let scheme = repositoryRoot.appendingPathComponent(
+      "arkey.xcodeproj/xcshareddata/xcschemes/arkey.xcscheme")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: scheme.path),
+                  "the scheme is not shared, so a fresh clone cannot run the tests")
+    let text = try String(contentsOf: scheme, encoding: .utf8)
+
+    XCTAssertTrue(text.contains("BlueprintIdentifier = \"A5C0DE000000000000000010\""),
+                  "the scheme does not name the test target's id")
+    XCTAssertTrue(text.contains("BuildableName = \"arkeyTests.xctest\""),
+                  "the scheme does not build the test bundle")
+    XCTAssertTrue(try project().contains("A5C0DE000000000000000010 /* arkeyTests */"),
+                  "the scheme's id is not a target in the project file")
+    XCTAssertTrue(text.contains("container:arkey.xcodeproj"),
+                  "the scheme points at some other project")
+  }
+
   /// Both targets generate their Info.plist, and the extension also starts from a file: that combination is what
   /// merges the generated keys into the hand-written one, so the file it names has to exist.
   func testTheInfoPlistArrangementIsCoherent() throws {

@@ -104,6 +104,13 @@ cp "$work/status.bak" docs/status.md
 
 expect_fail "status check, a test count that is not the run's" ./scripts/check-status-evidence.sh --tests 999
 
+# The same shape of staleness one row over: both rows quote the type-check's source count, and they said
+# 49 and 48 at once (round 139). The number is rewritten rather than assumed, so the mutation still
+# applies after a source file moves the count.
+sed -E "s/\([0-9]+ Swift files over app/(1 Swift files over app/" "$work/status.bak" > docs/status.md
+expect_fail "status check, two rows quoting different Swift-file counts" ./scripts/check-status-evidence.sh --tests "$table_tests"
+cp "$work/status.bak" docs/status.md
+
 printf '\npublic func aFunctionNoScreenCalls() {}\n' >> Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift
 expect_fail "screen wiring, a new public symbol nobody calls" ./scripts/check-ui-wiring.sh
 restore Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift

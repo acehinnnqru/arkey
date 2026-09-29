@@ -80,6 +80,7 @@ yet" for two files that had been built and tested. Both were caught by reading, 
 | every relative link in `docs/` resolves (`scripts/check-doc-links.sh`) | a cross-reference into a renamed or deleted file, left behind by an edit — ninety rounds of editing later, all 61 of them still resolve |
 | the test count in the S6-AC1 row equals the number the suite just ran | the one hand-written number in the table drifting from the suite, which it had done |
 | the **suite** count in the same row equals the number of `final class …: XCTestCase` declarations | the same row's other hand-written number: it said 39 suites while the tree declared 40, and nothing looked |
+| the **source** count both rows quote equals what `scripts/typecheck-app.sh` prepares | the two rows drifting apart from each other: S6-AC1 said 49 Swift files and S6-AC2 said 48 for the same type-check, and neither was compared with anything |
 | the specs' open `[verify]` markers equal the ledger rows in status.md | an obligation added to a spec without being written down, or one answered and left in the ledger |
 The wiring check has its own history, and it earned its place: comparing the engine's public API with what the
 screens call — by hand, twice — found the long press that forgets a word (engine-tested, no gesture) and the
@@ -97,6 +98,11 @@ The suite count was added the same way it was found: the isolation run in round 
 alone, 40 of 40 passing) made the tree's real number visible, the row said 39, and the new assertion
 fails for exactly that — verified in a throwaway clone by editing the row back to 39 and watching it exit
 1. Both numbers in that row are now checked against the tree rather than trusted.
+
+The type-check's source count was the third hand-written number, and it was found by reading rather than
+by failing: S6-AC1 said the check covers 49 Swift files, S6-AC2 said 48 for the same check, and the script
+prints the number it prepared — 49. It is compared now too, against both rows in the table and against the
+four source directories, and the meta-check plants a stale one to prove the comparison bites.
 
 ## Both versions travel with the profile (S6 §4)
 
@@ -138,7 +144,7 @@ planted warning is *reported rather than hidden* (15 expectations when it runs).
 
 A verification script is itself unverified: it passes on a clean tree, and one that passes on everything
 looks exactly the same. `scripts/check-verification-scripts.sh` plants a fault for each check — a
-criterion row removed, a cited test renamed, a wrong test count, an unwired public symbol, a link to
+criterion row removed, a cited test renamed, a wrong test count, a stale source count, an unwired public symbol, a link to
 nothing, a config outside `RimeData/`, a local config left in a bundle, a bundle path that does not
 exist, and (with `--typecheck`) a type error in an app file — and requires each check to **fail**. It
 does all of it in a temporary clone, copying the working tree's `scripts/` in first, so it never touches
@@ -161,7 +167,7 @@ It found two real holes in the checks themselves:
   The library refuses a missing bundle now (round 124), with the wrapper's guard left in place as the
   cheaper first check, and `rime-release-check` exits 1 for a path that is not there.
 
-The full run finishes with `13 expectations held, 0 violated`; the type-check mutation is behind
+The full run finishes with `14 expectations held, 0 violated`; the type-check mutation is behind
 `--typecheck` because it costs a build, and the bundle mutations are skipped when no built `.app` is
 available.
 
@@ -467,7 +473,7 @@ demand a declaration for an API nobody calls. And the failure is verified from b
 | `S6NetworkTests` | 1 | every Swift file under the engine, the app, the extension and the keyboard UI scanned for the APIs that would open a connection, with the file and line of any finding |
 | `S6PrivacyManifestTests` | 5 | the manifest against the code in both directions: every required-reason API used is declared, and every declaration is used |
 | `S6PackagingTests` | 3 | the app group spelled the same in every declaration, the extension's Full Access and language keys, and the CI workflow naming the chain it may run |
-| `S6ProjectSettingsTests` | 8 | the deployment target the two targets share, the bundle-identifier relationship, the entitlements wiring, the language mode the type-check script uses, the Info.plist arrangement, the archive type the app can open, and the Debug copy phase |
+| `S6ProjectSettingsTests` | 9 | the deployment target the two targets share, the bundle-identifier relationship, the entitlements wiring, the language mode the type-check script uses, the Info.plist arrangement, the archive type the app can open, and the Debug copy phase |
 | `S6NoticesTests` | 6 | the notices list every profile with its licence and source, and the licence screen's text is the same data the release pipeline reads |
 | `S6EngineNoticesTests` | 6 | the engine's own components, versions parsed rather than assumed, and the unverified licences deliberately left unstated |
 | `S6ReleaseCheckTests` | 8 | a third-party file placed in a synthetic bundle fails the check, and every forbidden name the release check refuses |
