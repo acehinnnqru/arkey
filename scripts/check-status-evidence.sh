@@ -98,6 +98,19 @@ else
   echo "  the table says ${row_tests:-?} tests${expected_tests:+ (run: $expected_tests)}"
 fi
 
+echo "== the suite count in the table =="
+# The same row also says how many suites declare those tests, and that number drifted the same way (39
+# while the tree declared 40). It is counted from the class declarations, so it needs nothing from the
+# caller.
+row_suites="$(grep -oE "^\| S6-AC1 \|.*[0-9]+ suites" "$status" | grep -oE "[0-9]+ suites" | head -1 | grep -oE "[0-9]+" || true)"
+tree_suites="$(grep -rhoE "^final class [A-Za-z0-9_]+: XCTestCase" "$root/Packages/RimeEngine/Tests/RimeEngineTests" | wc -l | tr -d " ")"
+if [ -z "$row_suites" ]; then row_suites="?"; fi
+if [ "$row_suites" != "?" ] && [ "$row_suites" != "$tree_suites" ]; then
+  fail "the S6-AC1 row says $row_suites suites and the tree declares $tree_suites"
+else
+  echo "  the table says $row_suites suites (the tree declares $tree_suites)"
+fi
+
 echo "== device-run references =="
 # The device checklist is a set of instructions someone follows once, away from the code. A path or a tool it
 # names has to exist when they follow it: a stale reference is an instruction that fails on the day it matters.

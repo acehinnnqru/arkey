@@ -5,7 +5,7 @@ behind the desktop Rime input method — with the host app owning everything a k
 do itself: import, deploy, activate, and say why.
 
 **State: implemented and verified on the Mac; never built or run on a device.** The engine and the
-models are covered by `swift test` (39 suites; the count and the row-by-row state with the evidence
+models are covered by `swift test` (40 suites; the count and the row-by-row state with the evidence
 behind each row are in [docs/status.md](docs/status.md)). The app and the extension are **type-checked
 only**. What is left needs a phone, a Mac with Squirrel and an App Store Connect session:
 [docs/device-run.md](docs/device-run.md) is the checklist.

@@ -69,7 +69,7 @@ S6 is the verification spec, and its own map — `docs/status.md` — is the one
 drifted twice in this session: a claim about the syllable row that had never been measured, and a "not built
 yet" for two files that had been built and tested. Both were caught by reading, which does not scale.
 
-NaNscripts/check-status-evidence.sh` now checks it:
+`scripts/check-status-evidence.sh` now checks it:
 
 | Check | What it catches |
 | --- | --- |
@@ -79,6 +79,7 @@ NaNscripts/check-status-evidence.sh` now checks it:
 | engine API that no screen calls equals the baseline in `docs/ui-wiring.txt` | a feature that exists in the engine and nowhere the user can reach it — the two found by hand were the long-press forget and the snapshot export |
 | every relative link in `docs/` resolves (`scripts/check-doc-links.sh`) | a cross-reference into a renamed or deleted file, left behind by an edit — ninety rounds of editing later, all 61 of them still resolve |
 | the test count in the S6-AC1 row equals the number the suite just ran | the one hand-written number in the table drifting from the suite, which it had done |
+| the **suite** count in the same row equals the number of `final class …: XCTestCase` declarations | the same row's other hand-written number: it said 39 suites while the tree declared 40, and nothing looked |
 | the specs' open `[verify]` markers equal the ledger rows in status.md | an obligation added to a spec without being written down, or one answered and left in the ledger |
 The wiring check has its own history, and it earned its place: comparing the engine's public API with what the
 screens call — by hand, twice — found the long press that forgets a word (engine-tested, no gesture) and the
@@ -92,6 +93,11 @@ with the table as it stands it prints `38 rows, 38 criteria` and `25 cited names
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
+The suite count was added the same way it was found: the isolation run in round 131 (every suite run
+alone, 40 of 40 passing) made the tree's real number visible, the row said 39, and the new assertion
+fails for exactly that — verified in a throwaway clone by editing the row back to 39 and watching it exit
+1. Both numbers in that row are now checked against the tree rather than trusted.
+
 ## Both versions travel with the profile (S6 §4)
 
 §4's versioning bullet — "the app version and the librime version are recorded in every profile's
@@ -102,6 +108,31 @@ bundle's version and build; `RimeProfileDeployRecord` and `RimeActiveProfile` ca
 optional field, so files written before it existed still decode — the keyboard reads `active.json` at
 boot, and a decode failure there is a keyboard that does not appear. The diagnostics screen shows both,
 and the test pins the round trip, the field's presence in the JSON, and the legacy decode.
+
+## The build is warning-free, and the type-check stopped hiding them
+
+`scripts/typecheck-app.sh` ran `swiftc` with `-suppress-warnings`, so the app and the extension had a
+build whose warnings nobody could see — and the engine's warnings only appeared when a file was actually
+recompiled. Running the same command by hand (round 129) turned up **ten**:
+
+| Where | What it was |
+| --- | --- |
+| the app | a dead `try?` around a non-throwing classifier call |
+| the extension | a dead `??` whose left side was already a `String`, and an unused `try?` result on the lease claim |
+| the engine | a stored `FileManager` in a `Sendable` struct (an error under Swift 6), a method reference converted to a `@Sendable` closure, two `@Sendable` closures capturing non-Sendable `self`, two redundant `try?`s and an unused loop index |
+| the tests | two redundant `try`s and an unused `fileManager` binding |
+
+All ten are fixed: `RimeLeaseStore` and `RimeDeploymentCoordinator` are `@unchecked Sendable` with the
+reason written down (the injectable `FileManager` and, for the engine, the queue discipline that is
+already the design), `RimeEngine` likewise, `processIsAlive` is a `@Sendable` constant rather than a
+method reference, and the dead expressions are gone. **Engine sources, engine tests, the app and the
+extension all compile with zero warnings now.**
+
+The script no longer suppresses them: it prints the diagnostics and puts the count in the line a reader
+sees (`extension: no type errors, 4 warning(s)` was how the extension's two were found). Warnings do
+not fail the check — an SDK deprecation should not break a build — and
+`check-verification-scripts.sh --typecheck` now asserts both halves: a planted type error fails, and a
+planted warning is *reported rather than hidden* (15 expectations when it runs).
 
 ## The checks fail when they should (S6 §2)
 
@@ -133,6 +164,22 @@ It found two real holes in the checks themselves:
 The full run finishes with `13 expectations held, 0 violated`; the type-check mutation is behind
 `--typecheck` because it costs a build, and the bundle mutations are skipped when no built `.app` is
 available.
+
+## The suite is isolated, repeatable and deterministic
+
+Four checks of the test suite itself, run in round 131–132 because a suite that only passes in the order
+it was written is not evidence:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| every suite alone | `swift test --filter <Suite>` for each of the 40 | 40 passed, 0 failed — no suite depends on another's leftovers |
+| repeated | three full runs, back to back | 287 tests, 0 failures each time |
+| in parallel | `swift test --parallel` (test classes at once, one process, shared global librime state) | exit 0, 287 of 287 |
+| the golden fixture's stability | `ARKEY_UPDATE_GOLDEN=1 swift test --filter S3GoldenTests` twice, comparing hashes | byte-for-byte identical to the checked-in file both times |
+
+The parallel run is the one worth keeping in mind: librime is process-global and every suite builds its
+own workspace, so running them concurrently is the sharpest available test of whether the engine's
+serial-queue discipline actually holds under interleaving rather than in a tidy sequence.
 
 ## The suite under the sanitizers
 
