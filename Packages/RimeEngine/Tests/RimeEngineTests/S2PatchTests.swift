@@ -266,7 +266,7 @@ final class S2PatchTests: XCTestCase {
     XCTAssertTrue(deployedRules.contains("derive/^sh/s/"))
     // The schema's own rules are still there, and no generated rule appears twice.
     XCTAssertEqual(deployedRules.filter { $0 == "derive/^zh/z/" }.count, 1)
-    XCTAssertEqual(try RimeFuzzyPinyin.enabledPresets(in: deployedRules).sorted(), ["sh_s", "zh_z"])
+    XCTAssertEqual(RimeFuzzyPinyin.enabledPresets(in: deployedRules).sorted(), ["sh_s", "zh_z"])
   }
 
   /// An imported tree, or a user with an editor, can hand Arkey a patch written as **nested maps** — the

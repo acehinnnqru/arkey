@@ -514,8 +514,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let languageKey: RimeLanguageKey?
     if let engine, engine.schemaDeclaresSwitch("ascii_mode") {
       let isASCII = (try? engine.getOption("ascii_mode")) ?? false
+      // The schema's own word for the state, and the two words the measured keyboard shows when the
+      // schema (or a session-less read) has none. The fallback belongs on this line only: the extra
+      // `??` that used to be here was dead code, and the compiler said so once warnings were visible.
       let label = (try? engine.stateLabel(option: "ascii_mode", state: isASCII)) ?? (isASCII ? "英" : "中")
-      languageKey = RimeLanguageKey(label: label ?? (isASCII ? "英" : "中"), isASCII: isASCII)
+      languageKey = RimeLanguageKey(label: label, isASCII: isASCII)
     } else {
       languageKey = nil
     }

@@ -70,14 +70,32 @@ cp KeyboardUI/*.swift "$OUT/extension/"
 check() {
   local name="$1"; shift
   echo "== type-checking $name =="
-  # shellcheck disable=SC2068
-  swiftc -typecheck -target "$TARGET" -sdk "$SDK" -swift-version 5 \
-    -I "$MODULES" \
-    -Xcc -fmodule-map-file="$RIME_INCLUDE/module.modulemap" -Xcc -I"$RIME_INCLUDE" \
-    -module-cache-path "$(pwd)/$OUT/cache" \
-    -suppress-warnings \
-    $@
-  echo "   $name: no type errors"
+  # Warnings are *not* suppressed. They used to be, and one was hiding a dead `try?` in the app
+  # (found in round 129 by running the same command by hand). They do not fail the check — an SDK
+  # deprecation should not break the build — but they are counted into the line a reader sees, so a
+  # new one cannot arrive invisibly.
+  local output status
+  if output="$(swiftc -typecheck -target "$TARGET" -sdk "$SDK" -swift-version 5 \
+      -I "$MODULES" \
+      -Xcc -fmodule-map-file="$RIME_INCLUDE/module.modulemap" -Xcc -I"$RIME_INCLUDE" \
+      -module-cache-path "$(pwd)/$OUT/cache" \
+      "$@" 2>&1)"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [ "$status" -ne 0 ]; then
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+  local warnings
+  warnings="$(printf '%s\n' "$output" | grep -c 'warning:' || true)"
+  if [ "$warnings" -gt 0 ]; then
+    printf '%s\n' "$output" >&2
+    echo "   $name: no type errors, $warnings warning(s)"
+  else
+    echo "   $name: no type errors"
+  fi
 }
 
 # A file one of the globs above misses would turn "no type errors" into a claim about a source set nobody

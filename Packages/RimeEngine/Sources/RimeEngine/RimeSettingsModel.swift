@@ -263,7 +263,7 @@ public enum RimeSettingsModel {
                                     userPatchedSwitches: Bool) -> [RimeSwitchDescriptor] {
     guard let entries = config.value("switches")?.listValue else { return [] }
     var descriptors: [RimeSwitchDescriptor] = []
-    for (index, entry) in entries.enumerated() {
+    for entry in entries {
       guard let map = entry.mapValue, let name = map["name"]?.stringValue else { continue }
       let states = (map["states"]?.listValue ?? []).compactMap(\.stringValue)
       let reset = map["reset"]?.intValue ?? 0

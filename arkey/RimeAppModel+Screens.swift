@@ -117,7 +117,7 @@ extension RimeAppModel {
   /// ones, so the ones that are off are read from the profile's sources.
   var installedSchemaIDs: [String] {
     guard let id = activeProfileID ?? profiles.first?.id else { return [] }
-    return (try? RimeTreeClassifier.classify(root: workspace.profile(id).source).schemaIDs) ?? []
+    return RimeTreeClassifier.classify(root: workspace.profile(id).source).schemaIDs
   }
 
   /// The enabled schemas, in the order the keyboard offers them; the first is the default (S2 §3).

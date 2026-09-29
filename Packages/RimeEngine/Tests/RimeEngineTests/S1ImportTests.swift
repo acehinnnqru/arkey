@@ -235,8 +235,6 @@ final class S1ImportTests: XCTestCase {
 
   func testValidationNamesEveryBrokenFile() throws {
     let tree = try makeConfigTree()
-    let fileManager = FileManager.default
-
     // 1. A schema in schema_list with no file.
     try """
     config_version: "1"

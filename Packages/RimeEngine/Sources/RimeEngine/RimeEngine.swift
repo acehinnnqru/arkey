@@ -34,7 +34,11 @@ public struct RimeConfiguration: Sendable {
 /// This replaced an actor. The actor was correct but every key press paid two hops and the
 /// ordering of concurrent keystrokes was left to the scheduler, which showed up as a keyboard
 /// that felt laggy and occasionally dropped input.
-public final class RimeEngine {
+/// `@unchecked Sendable` is the queue claim written down: every path to the engine's mutable state
+/// goes through `perform` on one serial queue, which is also what makes a keystroke a single
+/// synchronous call (S3-AC5). The actor above was rejected for the measured reason, so the discipline is
+/// the queue — and this attribute is where that discipline becomes a promise callers can rely on.
+public final class RimeEngine: @unchecked Sendable {
   let queue = DispatchQueue(label: "com.acehinnnqru.arkey.rime-engine")
   /// Identifies the engine's own queue, so a call made from inside it can be detected.
   private static let queueKey = DispatchSpecificKey<UInt8>()

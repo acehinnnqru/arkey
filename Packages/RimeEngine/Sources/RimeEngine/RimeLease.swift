@@ -33,7 +33,11 @@ public struct RimeKeyboardLease: Codable, Sendable, Hashable {
   public static let staleAfter: TimeInterval = 15
 }
 
-public struct RimeLeaseStore: Sendable {
+/// `@unchecked` because of the injectable `FileManager`: the class is not annotated Sendable, but the
+/// handful of calls this type makes on it (existence, attributes, remove, atomic write) are the ones
+/// FileManager documents as safe to share, and everything else here is immutable. The alternative —
+/// only ever using `.default` — would take away the seam a test may want.
+public struct RimeLeaseStore: @unchecked Sendable {
   /// Whether a pid still exists. Injectable because kill() is not a reliable existence check for
   /// every pid, and because a test must not depend on which pids this machine happens to have.
   public typealias LivenessCheck = @Sendable (Int32) -> Bool
@@ -144,7 +148,10 @@ public struct RimeLeaseStore: Sendable {
     try? fileManager.removeItem(at: url)
   }
 
-  public static func processIsAlive(_ pid: Int32) -> Bool {
+  /// A `@Sendable` constant rather than a method: converting a method reference to a `@Sendable`
+  /// closure is a warning today and an error under the Swift 6 language mode, and this is a plain
+  /// function of its argument with nothing to capture.
+  public static let processIsAlive: @Sendable (Int32) -> Bool = { pid in
     guard pid > 0 else { return false }
     if pid == getpid() { return true }
     errno = 0

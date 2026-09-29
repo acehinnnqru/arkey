@@ -32,7 +32,7 @@ final class S6EngineNoticesTests: XCTestCase {
   }
 
   func testTheNoticesTextNamesTheEngineAndItsComponents() {
-    let workspace = try! RimeWorkspace(root: FileManager.default.temporaryDirectory
+    let workspace = RimeWorkspace(root: FileManager.default.temporaryDirectory
       .appendingPathComponent("notices-\(UUID().uuidString)", isDirectory: true))
     let engine = RimeEngine(configuration: RimeConfiguration(directories: RimeDirectories(
       sharedDataDir: workspace.root.path, prebuiltDataDir: workspace.root.path,

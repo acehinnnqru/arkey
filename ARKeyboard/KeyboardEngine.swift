@@ -69,7 +69,7 @@ enum KeyboardEngine {
   /// silently; that is the same degraded mode that stops learning from working, and the app's own
   /// read of the lease is what tells it which of the two states it is in.
   static func holdDictionaryLease(_ setup: Setup) {
-    try? setup.lease.claim(pid: getpid(), host: "keyboard")
+    _ = try? setup.lease.claim(pid: getpid(), host: "keyboard")
   }
 
   static func touchDictionaryLease(_ setup: Setup) {

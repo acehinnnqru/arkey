@@ -74,7 +74,7 @@ expect_fail() {
 
 restore() { git checkout -- "$1"; }
 
-# The number the status check compares its run against: "279 tests across 39 suites".
+# The number the status check compares its run against: "287 tests across 40 suites".
 table_tests="$(grep -oE '[0-9]+ tests across' docs/status.md | head -1 | grep -oE '[0-9]+')"
 if [ -z "$table_tests" ]; then
   echo "could not read the test count out of docs/status.md" >&2
@@ -132,6 +132,25 @@ if [ "$with_typecheck" = "1" ]; then
   # stripper stopped looking, and it is why this script exists.
   printf '\nlet broken: Int = "not an int"\n' >> arkey/ContentView.swift
   expect_fail "type-check, a type error after a #Preview block" ./scripts/typecheck-app.sh
+  restore arkey/ContentView.swift
+
+  # A warning must not fail the check — and must not be hidden by it either. It used to be hidden:
+  # -suppress-warnings was on, and a dead `try?` and a dead `??` lived in the app and the extension
+  # for months (round 129).
+  printf '\nprivate func arkeyUnusedProbe() { let unused = 1 }\n' >> arkey/ContentView.swift
+  if ./scripts/typecheck-app.sh >"$work/warnings.txt" 2>&1; then
+    if grep -qE "no type errors, [1-9][0-9]* warning" "$work/warnings.txt"; then
+      printf "  ok    type-check, a warning is reported rather than hidden\n"
+      passed=$((passed + 1))
+    else
+      printf "  VIOLATION  type-check: the warning was not reported\n"
+      tail -3 "$work/warnings.txt" | sed 's/^/            /'
+      violations=$((violations + 1))
+    fi
+  else
+    printf "  VIOLATION  type-check: a warning failed the check\n"
+    violations=$((violations + 1))
+  fi
   restore arkey/ContentView.swift
 fi
 

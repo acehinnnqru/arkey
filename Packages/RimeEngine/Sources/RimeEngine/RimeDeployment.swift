@@ -51,7 +51,10 @@ public enum RimeDeploymentFailure: Error, CustomStringConvertible, Sendable {
 /// Runs in the app only. The extension never deploys: librime's maintenance takes tens of seconds on
 /// a real config, which is longer than a keyboard extension is allowed to live, and it would hold
 /// the user's session while it ran.
-public struct RimeDeploymentCoordinator {
+/// `@unchecked Sendable` like the lease store: a stateless handle over the workspace and the engine,
+/// plus the same injectable `FileManager`. Its async form hops to a background queue, so the value has
+/// to cross that boundary.
+public struct RimeDeploymentCoordinator: @unchecked Sendable {
   public let workspace: RimeWorkspace
   public let engine: RimeEngine
   private let fileManager: FileManager
@@ -233,7 +236,7 @@ public struct RimeDeploymentCoordinator {
     var active = RimeActiveProfile(profileID: profileID,
                                    generation: metadata?.deploy?.generation ?? 1,
                                    engineVersion: RimeEngineVersion.pinned,
-                                   sourceDigest: try? RimeDigest.sha256(ofTree: layout.source))
+                                   sourceDigest: RimeDigest.sha256(ofTree: layout.source))
     if let previous, previous.profileID != profileID {
       active.previousProfileID = previous.profileID
     }
@@ -272,7 +275,7 @@ public struct RimeDeploymentCoordinator {
 
     var active = RimeActiveProfile(profileID: profileID, generation: generation,
                                    engineVersion: RimeEngineVersion.pinned,
-                                   sourceDigest: try? RimeDigest.sha256(ofTree: layout.source))
+                                   sourceDigest: RimeDigest.sha256(ofTree: layout.source))
     active.previousProfileID = metadata.id
     try workspace.writeActiveProfile(active)
     _ = try engine.rebind(to: RimeBindings.client(workspace: workspace, profileID: profileID,
