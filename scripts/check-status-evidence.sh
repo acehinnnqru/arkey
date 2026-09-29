@@ -35,7 +35,9 @@ done
 for id in $row_ids; do
   echo "$spec_ids" | grep -qx "$id" || fail "$id has a row in docs/status.md but is in no spec"
 done
-echo "  $(echo "$row_ids" | wc -l | tr -d " ") rows, $(echo "$spec_ids" | wc -l | tr -d " ") criteria"
+row_count="$(echo "$row_ids" | wc -l | tr -d " ")"
+criteria_count="$(echo "$spec_ids" | wc -l | tr -d " ")"
+echo "  $row_count rows, $criteria_count criteria"
 
 echo "== row states =="
 while IFS= read -r line; do
@@ -186,6 +188,27 @@ for token in $cited; do
   esac
 done
 echo "  $checked cited names checked"
+
+echo "== the numbers the results doc quotes =="
+# docs/s6-results.md describes what this check prints, and two of the numbers it repeated had gone
+# stale: it said 38 and 25 cited names where the check now counts 65 (round 139). A description of a
+# check that no longer matches the check describes nothing, so the numbers it quotes are compared with
+# this run's. Only the two phrases that quote these counts are read, not every digit in the document —
+# the rest of it records runs that happened, and those numbers were true when they were written.
+results="$root/docs/s6-results.md"
+for quoted in $(grep -ohE "[0-9]+ cited names" "$results" | grep -oE "^[0-9]+" | sort -u); do
+  [ "$quoted" = "$checked" ] || fail "the results doc says $quoted cited names and this run counted $checked"
+done
+quoted_counts="$(grep -ohE "[0-9]+ criteria, [0-9]+ rows|[0-9]+ rows, [0-9]+ criteria" "$results" \
+  | sed -E 's/^([0-9]+) criteria, ([0-9]+) rows$/\1 \2/; s/^([0-9]+) rows, ([0-9]+) criteria$/\2 \1/')"
+while read -r quoted_criteria quoted_rows; do
+  [ -n "${quoted_criteria:-}" ] || continue
+  [ "$quoted_criteria" = "$criteria_count" ] \
+    || fail "the results doc says $quoted_criteria criteria and the specs declare $criteria_count"
+  [ "$quoted_rows" = "$row_count" ] \
+    || fail "the results doc says $quoted_rows rows and the table has $row_count"
+done <<<"$quoted_counts"
+echo "  it repeats $row_count rows, $criteria_count criteria and $checked cited names, which is this run"
 
 if [ "$failures" -ne 0 ]; then
   echo "status check FAILED: $failures finding(s)"

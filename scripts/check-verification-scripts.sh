@@ -111,6 +111,13 @@ sed -E "s/\([0-9]+ Swift files over app/(1 Swift files over app/" "$work/status.
 expect_fail "status check, two rows quoting different Swift-file counts" ./scripts/check-status-evidence.sh --tests "$table_tests"
 cp "$work/status.bak" docs/status.md
 
+# And the numbers docs/s6-results.md repeats from the same run: it said 38 and 25 cited names while the
+# check counted 65.
+cp docs/s6-results.md "$work/results.bak"
+sed -E "s/[0-9]+ cited names/1 cited names/" "$work/results.bak" > docs/s6-results.md
+expect_fail "status check, a results doc quoting a stale count" ./scripts/check-status-evidence.sh --tests "$table_tests"
+cp "$work/results.bak" docs/s6-results.md
+
 printf '\npublic func aFunctionNoScreenCalls() {}\n' >> Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift
 expect_fail "screen wiring, a new public symbol nobody calls" ./scripts/check-ui-wiring.sh
 restore Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift
