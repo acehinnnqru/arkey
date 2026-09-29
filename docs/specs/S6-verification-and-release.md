@@ -23,7 +23,11 @@ The tracer's lesson is why engine tests come first: the extension's build/instal
 ### 2.1 The iOS test target
 
 The Xcode project gains one test target for the app (and one for the keyboard extension if snapshot
-rendering needs the extension's process). It hosts:
+rendering needs the extension's process). **Status:** the app's target exists — `arkeyTests`, a unit-test
+bundle hosted by the app, with one shared scheme that runs it, its sources type-checked by
+`scripts/typecheck-app.sh` and its structure pinned by `S6ProjectSettingsTests`. It has not been *run*:
+`xcodebuild` does not work in the environment this repository was developed in, so a simulator run is the
+one step left. The target hosts:
 
 - the geometry check of [S3](S3-keyboard-ui-parity.md) §2.3, reading reference captures from a path
   outside the repository, skipped with a clear message when they are absent;

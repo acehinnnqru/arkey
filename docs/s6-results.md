@@ -33,7 +33,7 @@ it again on demand:
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
 | status evidence | 38 criteria, 38 rows, 38 cited names, ok |
-| type-check | app and extension, no type errors — 41 Swift files, and the script compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
+| type-check | app, extension and the iOS test target, no type errors — 49 Swift files, and the script compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
 The count is the one part of the chain that moves for good reasons, so the script prints the XCTest summary
@@ -183,8 +183,11 @@ serial-queue discipline actually holds under interleaving rather than in a tidy 
 
 ## The suite under the sanitizers
 
-Both sanitizers run the whole engine suite instrumented, and both are clean as of round 121:
-**AddressSanitizer 279 tests / 0 reports**, **ThreadSanitizer 279 tests / 0 reports**. ThreadSanitizer
+Both sanitizers run the whole engine suite instrumented, and both are clean:
+**AddressSanitizer 287 tests / 0 reports**, **ThreadSanitizer 287 tests / 0 reports** (re-run in round 133
+after `RimeEngine`, `RimeLeaseStore` and `RimeDeploymentCoordinator` were marked
+`@unchecked Sendable` — the attribute is a claim about the queue discipline, and TSan is the evidence
+that the claim holds under the suite's interleavings rather than only in the tidy sequential run). ThreadSanitizer
 matters more than it looks for this design — the engine is one serial queue with a probe log, a log
 buffer and a notification relay around it, and a race there would be a keyboard that works until it does
 not — so "0 reports" is the evidence behind S3-AC5's "nothing on the input path animates or awaits".
@@ -464,7 +467,7 @@ demand a declaration for an API nobody calls. And the failure is verified from b
 | `S6NetworkTests` | 1 | every Swift file under the engine, the app, the extension and the keyboard UI scanned for the APIs that would open a connection, with the file and line of any finding |
 | `S6PrivacyManifestTests` | 5 | the manifest against the code in both directions: every required-reason API used is declared, and every declaration is used |
 | `S6PackagingTests` | 3 | the app group spelled the same in every declaration, the extension's Full Access and language keys, and the CI workflow naming the chain it may run |
-| `S6ProjectSettingsTests` | 7 | the deployment target the two targets share, the bundle-identifier relationship, the entitlements wiring, the language mode the type-check script uses, the Info.plist arrangement, the archive type the app can open, and the Debug copy phase |
+| `S6ProjectSettingsTests` | 8 | the deployment target the two targets share, the bundle-identifier relationship, the entitlements wiring, the language mode the type-check script uses, the Info.plist arrangement, the archive type the app can open, and the Debug copy phase |
 | `S6NoticesTests` | 6 | the notices list every profile with its licence and source, and the licence screen's text is the same data the release pipeline reads |
 | `S6EngineNoticesTests` | 6 | the engine's own components, versions parsed rather than assumed, and the unverified licences deliberately left unstated |
 | `S6ReleaseCheckTests` | 8 | a third-party file placed in a synthetic bundle fails the check, and every forbidden name the release check refuses |

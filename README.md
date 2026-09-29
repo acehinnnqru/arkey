@@ -18,6 +18,7 @@ only**. What is left needs a phone, a Mac with Squirrel and an App Store Connect
 | `KeyboardUI` | the keyboard's views: key grid, cap roles, callout, candidate bar and expanded panel |
 | `ARKeyboard` | the keyboard extension: the input path, profile adoption, the dictionary lease |
 | `arkey` | the host app: profile library, settings screens, deploy, user dictionary, notices, diagnostics |
+| `arkeyTests` | the iOS unit-test target (S6 §2.1): geometry, row and accessibility invariants measured off the laid-out views, run by `xcodebuild test -scheme arkey` on a simulator. Its sources are type-checked here; running it needs Xcode |
 | `arkey.xcodeproj` | the app and extension targets, both on iOS 18.6 |
 | `RimeData` | the tracer config: our own MIT pinyin schema and dictionary, no third-party data |
 | `docs/` | the specs (`specs/`) with the decisions and `[verify]` ledger, one results document per spec, the status table and the device checklist |

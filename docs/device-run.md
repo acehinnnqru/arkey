@@ -18,10 +18,10 @@ Everything here runs on the Mac and answers "is the thing I am about to measure 
 | Step | Command | What it rules out |
 | --- | --- | --- |
 | the whole suite | `./scripts/verify-all.sh` | a device run against a tree that does not build, type-check or pass its own checks |
-| the measuring tool | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-capture-check --self-test` | a surprising screenshot reading that turns out to be the tool's |
+| the measuring tool | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-capture-check --self-test` — success looks like `scale: 3 px per point (inferred)`, `geometry: every key within 1.5 pt` and `keyCap`/`backing` `off by 0.000` | a surprising screenshot reading that turns out to be the tool's |
 | the suite under AddressSanitizer | `swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=address` | a memory error in the engine's own pointer code, before a phone is blamed for it (0 reports as of round 120) |
 | the suite under ThreadSanitizer | `swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=thread` | a race in the engine's serial-queue design (0 reports as of round 121) |
-| the deployer and its probe | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-deploy --shared RimeData --staging <tmp> --probe nihaoshijie` | an engine that no longer composes, before the keyboard is blamed |
+| the deployer and its probe | `swift run --disable-sandbox --package-path Packages/RimeEngine rime-deploy --shared RimeData --staging <tmp> --probe nihaoshijie` — success looks like `preedit: ni hao shi jie` and candidates `你好世界, 你好, 你`, with a handful of `*.bin` files reported | an engine that no longer composes, before the keyboard is blamed |
 | the release check | `./scripts/check-release-bundle.sh <path to arkey.app>` | third-party data in the build that gets installed |
 | the download pages | `./scripts/check-catalog-pages.sh` | an import that cannot start because the page the catalogue names is not serving (they were 404s when this was written) |
 
@@ -29,6 +29,12 @@ And the pieces that are not in this repository: the rime-ice archive the catalog
 with Squirrel for the round trip (S5-AC1), and an App Store Connect session for the privacy answers (S6-AC5).
 None of them can be produced by a test, and all three are worth fetching before the device day rather than
 during it.
+
+All five rows above were rehearsed on the Mac in round 134, and the expected output of the two tools is
+written into the table so the person running them is comparing against something rather than a memory.
+Four pass as written; the fifth — the catalogue pages — reports the project's own three URLs as 404 and
+every upstream credit as 200, which is a publishing step, not a code one. That is the row that needs a
+person.
 
 ## The steps, and the rows they close
 
@@ -61,7 +67,7 @@ during it.
 | Row | Blocked on |
 | --- | --- |
 | S1-AC6 | a **Debug build** with the copy phase run once. The phase exists (`PBXShellScriptBuildPhase` on the app target, pinned by `S6ProjectSettingsTests`) and the install is done (`RimeLocalDataInstaller` from `bootstrap()` under `#if DEBUG`) |
-| S6-AC2 | the iOS test target (snapshot tests for the keyboard state matrix), which needs the Xcode project and a build to be trustable |
+| S6-AC2 | a **simulator run** of the test target that exists now: `xcodebuild test -project arkey.xcodeproj -scheme arkey -destination 'platform=iOS Simulator,name=iPhone 16'`. The bundle, its scheme and its sources are in the repository; the environment it was written in cannot run them |
 | S6-AC5 | the App Store Connect privacy answers, which are not a repository artifact |
 | S5-AC5 | the in-app per-word forget: measured impossible through librime's API (`export_user_dict` fails after `delete_candidate`, and neither a maintenance nor a deploy releases it), so the app deliberately offers only the whole-dictionary reset |
 
