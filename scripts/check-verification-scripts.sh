@@ -118,6 +118,16 @@ sed -E "s/[0-9]+ cited names/1 cited names/" "$work/results.bak" > docs/s6-resul
 expect_fail "status check, a results doc quoting a stale count" ./scripts/check-status-evidence.sh --tests "$table_tests"
 cp "$work/results.bak" docs/s6-results.md
 
+# The other direction: a check that fails on prose is a check people learn to ignore. Quoting a command line
+# in the table had the type lookup report "type Simulator,name=iPhone is declared nowhere", because a `case`
+# pattern matches a prefix (round 141). The lookup is anchored now, and this is the case that says so.
+cat >> docs/status.md <<'LINE'
+
+The simulator run is `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`.
+LINE
+expect_ok "status check, a quoted command line is not a missing type" ./scripts/check-status-evidence.sh --tests "$table_tests"
+cp "$work/status.bak" docs/status.md
+
 printf '\npublic func aFunctionNoScreenCalls() {}\n' >> Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift
 expect_fail "screen wiring, a new public symbol nobody calls" ./scripts/check-ui-wiring.sh
 restore Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift

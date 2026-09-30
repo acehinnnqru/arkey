@@ -173,10 +173,16 @@ for token in $cited; do
       fi
       checked=$((checked + 1))
       ;;
-    [A-Z][A-Za-z0-9]*)
+    *)
       case "$token" in
         */*|*.*) continue ;;
       esac
+      # A Swift type name is an identifier and nothing else. `case` patterns match a prefix, so the old
+      # `[A-Z][A-Za-z0-9]*` arm also matched the words a backticked command line splits into — quoting
+      # `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` in a status row had the
+      # check report "type Simulator,name=iPhone is declared nowhere" (round 141). Anchored, a token that is
+      # not an identifier is not looked up at all.
+      [[ "$token" =~ ^[A-Z][A-Za-z0-9]*$ ]] || continue
       # Apple's own types are cited as the things we are talking about, not ours to declare.
       case " UIInputView " in *" $token "*) continue ;; esac
       if ! grep -rqE "(struct|enum|final class|class|func|var|let) $token\b" \

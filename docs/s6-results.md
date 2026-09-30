@@ -138,13 +138,14 @@ The script no longer suppresses them: it prints the diagnostics and puts the cou
 sees (`extension: no type errors, 4 warning(s)` was how the extension's two were found). Warnings do
 not fail the check — an SDK deprecation should not break a build — and
 `check-verification-scripts.sh --typecheck` now asserts both halves: a planted type error fails, and a
-planted warning is *reported rather than hidden* (17 expectations when it runs).
+planted warning is *reported rather than hidden* (18 expectations when it runs).
 
 ## The checks fail when they should (S6 §2)
 
 A verification script is itself unverified: it passes on a clean tree, and one that passes on everything
 looks exactly the same. `scripts/check-verification-scripts.sh` plants a fault for each check — a
-criterion row removed, a cited test renamed, a wrong test count, a stale source count, an unwired public symbol, a link to
+criterion row removed, a cited test renamed, a wrong test count, a stale source count, a quoted command line
+that must *not* be read as a missing type, an unwired public symbol, a link to
 nothing, a config outside `RimeData/`, a local config left in a bundle, a bundle path that does not
 exist, and (with `--typecheck`) a type error in an app file — and requires each check to **fail**. It
 does all of it in a temporary clone, copying the working tree's `scripts/` in first, so it never touches
@@ -167,7 +168,7 @@ It found two real holes in the checks themselves:
   The library refuses a missing bundle now (round 124), with the wrapper's guard left in place as the
   cheaper first check, and `rime-release-check` exits 1 for a path that is not there.
 
-The full run finishes with `15 expectations held, 0 violated`; the type-check mutation is behind
+The full run finishes with `16 expectations held, 0 violated`; the type-check mutation is behind
 `--typecheck` because it costs a build, and the bundle mutations are skipped when no built `.app` is
 available.
 
@@ -230,7 +231,45 @@ above), one builds Release for `iphoneos` with `CODE_SIGNING_ALLOWED=NO` and fee
 **It has not run yet**: this repository has no push behind it. That is why S6-AC1 stays "partly" — the
 workflow is a definition whose commands are separately exercised by `verify-all.sh` on this machine, and
 `S6PackagingTests` pins that it names the chain, builds unsigned, and does **not** claim to run
-`xcodebuild test` (the iOS test target is S6-AC2 and does not exist) or a device job.
+`xcodebuild test` or a device job: the simulator run S6-AC2 needs is a step someone runs, not a job the
+workflow pretends to have run.
+
+## The iOS test target runs (S6 §2.1, S6-AC2)
+
+S6-AC2 asks for a test target that **runs**. The target, its shared scheme and its sources had been in the
+tree since round 138 and had only ever been type-checked, because `xcodebuild` cannot nest Xcode's plugin
+server and SwiftPM's manifest sandbox inside the harness's workspace sandbox. Under an escalated sandbox —
+the same condition the tracer's builds were recorded under — it runs:
+
+    xcodebuild test -project arkey.xcodeproj -scheme arkey \
+      -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+      -derivedDataPath .build/DerivedData-test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+The first run was worth the wait: it found two things no other check in this repository can see.
+
+- **It did not build.** `Multiple commands produce .../arkey.app/Info.plist`: the app's sources are a
+  *synchronized folder* (Xcode 16 and later), which copies what it contains into the target, and
+  `arkey/Info.plist` is also the file the Info.plist step writes. The extension's folder had carried a
+  membership exception for its own Info.plist from the start; the app's had none. No type-check, no test on
+  the Mac and no reading of the build settings can see that — only a build can. Fixed with the same kind of
+  exception set, and `S6ProjectSettingsTests` pins it from both sides now: drop the reference from the
+  folder, or empty the exception's membership list, and the test fails.
+- **Then it ran and failed.** 8 tests executed, 5 passed, 3 failed with 191 assertions: every key was
+  0 x 0. `KeyboardKeyGrid.layoutSubviews` rebuilt its keys when the width changed and then **returned**,
+  leaving them unplaced until some later pass — invisible on a device, where UIKit schedules one anyway,
+  and a blank keyboard wherever it does not. Placing the keys in the same pass fixed it. Putting the
+  `return` back reproduces exactly 191 failures; removing it makes the run green again.
+- **Green:** `Executed 8 tests, with 0 failures`, `** TEST SUCCEEDED **`, twice in a row — 5 geometry and
+  row invariants measured off the laid-out views, 3 candidate-bar accessibility ones. This is the only place
+  in the project where a view is laid out at all.
+
+A third thing came out of the writing: the status check looks up every Swift type a row cites, and its
+pattern matched a *prefix*, so quoting the command line above in a row had it report "type
+Simulator,name=iPhone is declared nowhere". The lookup is anchored to identifiers now, and the meta-check
+carries that case so the false positive cannot come back.
+
+What the criterion still lacks is its second half: the golden snapshot is generated and compared by
+`S3GoldenTests` on macOS, and no test that runs on a simulator compares the fixture.
 
 ## The repository half of "nothing third-party" (S6 §5)
 
@@ -258,19 +297,22 @@ still fails, but it says why.
 
 ## One command for the verification state
 
-The four gates this machine can run are chained in `scripts/verify-all.sh`, in the order that fails fastest:
+The steps this machine can run are chained in `scripts/verify-all.sh`, in the order that fails fastest:
 
 | Step | What it proves |
 | --- | --- |
 | `swift test` (engine, macOS) | the engine and the models |
 | `scripts/check-status-evidence.sh` | the status table's criteria, states and cited evidence |
-| `scripts/typecheck-app.sh` | the app and the extension compile for iOS — the only gate the UI code has without a build |
+| `scripts/check-ui-wiring.sh` | every public engine symbol is called from a screen or recorded in `docs/ui-wiring.txt` |
+| `scripts/check-doc-links.sh` | every relative link in `docs/` resolves |
+| `scripts/check-repository-clean.sh` | nothing third-party is committed (S6 §5) |
+| `scripts/typecheck-app.sh` | the app, the extension and the iOS test target compile — the only gate the UI code has without a build |
 | `scripts/check-release-bundle.sh` | a built `.app` carries only this repository's own tracer data |
 
 Anything that fails stops the run. The bundle step needs an artifact, so it looks for the last build under
-NaN.build` and says out loud when it skips instead of passing quietly; a path can be passed as the first
-argument. Run on this tree: 221 tests green, `status check ok`, `typecheck ok`, and the Release
-bundle — 16 Rime data files in 2 data directories, no findings.
+`.build` and says out loud when it skips instead of passing quietly; a path can be passed as the first
+argument. Run on this tree: every step green, with the numbers in status.md — and the Release bundle, 16
+Rime data files in 2 data directories, no findings.
 
 ## The notices screen, as data
 

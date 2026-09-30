@@ -180,16 +180,86 @@ final class S6ProjectSettingsTests: XCTestCase {
                    "six build configurations generate their Info.plist: the app, the extension and the "
                      + "test bundle, in Debug and Release")
 
-    // Line-anchored: "GENERATE_INFOPLIST_FILE = YES;" contains "INFOPLIST_FILE = " as a substring, and a split on
-    // the bare prefix collects "YES" as if it were a path — which is what this test did on its first run.
-    let named = text.split(separator: "\n")
-      .map { $0.trimmingCharacters(in: .whitespaces) }
-      .filter { $0.hasPrefix("INFOPLIST_FILE = ") }
-      .map { String($0.dropFirst("INFOPLIST_FILE = ".count).prefix { $0 != ";" }) }
+    let named = namedInfoPlists(in: text)
     XCTAssertFalse(named.isEmpty, "the extension names its own Info.plist")
-    for path in Set(named) {
+    for path in named {
       XCTAssertTrue(FileManager.default.fileExists(atPath: repositoryRoot.appendingPathComponent(path).path),
                     path + " is named by the project but does not exist")
     }
   }
+
+  /// A synchronized folder copies what is in it into its target unless the file is excepted, and a file the
+  /// project names as `INFOPLIST_FILE` is written into the bundle by the Info.plist step as well. With both,
+  /// the build stops at "Multiple commands produce .../arkey.app/Info.plist" — which no type-check, no test on
+  /// the Mac and no reading of the settings can see. The extension's folder was excepted from the start; the
+  /// app's was not, and the first `xcodebuild test` run on a simulator could not build at all until it was
+  /// (round 141). Removing the exception makes this test the thing that fails instead.
+  func testASynchronizedFolderDoesNotAlsoCopyTheInfoPlistItsTargetNames() throws {
+    let text = try project()
+    let folders = synchronizedFolders(in: text)
+    XCTAssertTrue(folders.contains("arkey"), "the app's sources are a synchronized folder")
+
+    for path in namedInfoPlists(in: text) {
+      let folder = (path as NSString).deletingLastPathComponent
+      guard folders.contains(folder) else { continue }
+      let name = (path as NSString).lastPathComponent
+      let exception = exceptionSet(forFolder: folder, in: text)
+      XCTAssertNotNil(exception,
+                      folder + " is a synchronized folder, so it copies " + path + " into the bundle as well "
+                        + "as the Info.plist step does, and the build refuses to run")
+      XCTAssertTrue(exception?.contains(name + ",") == true,
+                    "the exception for " + folder + " does not exclude " + path)
+    }
+  }
+
+  // MARK: - Reading the project file
+
+  /// Line-anchored: "GENERATE_INFOPLIST_FILE = YES;" contains "INFOPLIST_FILE = " as a substring, and a split
+  /// on the bare prefix collects "YES" as if it were a path — which is what the arrangement test did on its
+  /// first run.
+  private func namedInfoPlists(in text: String) -> Set<String> {
+    Set(text.split(separator: "\n")
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { $0.hasPrefix("INFOPLIST_FILE = ") }
+      .map { String($0.dropFirst("INFOPLIST_FILE = ".count).prefix { $0 != ";" }) })
+  }
+
+  private func synchronizedFolders(in text: String) -> Set<String> {
+    Set(text.components(separatedBy: "isa = PBXFileSystemSynchronizedRootGroup;").dropFirst().compactMap { block in
+      guard let range = block.range(of: "path = ") else { return nil }
+      return String(block[range.upperBound...].prefix { $0 != ";" })
+    })
+  }
+
+  /// One synchronized folder's own object, bounded at its closing brace.
+  private func synchronizedFolderBlock(_ folder: String, in text: String) -> String? {
+    for block in text.components(separatedBy: "isa = PBXFileSystemSynchronizedRootGroup;").dropFirst() {
+      guard let bounded = block.range(of: "\n\t\t};").map({ String(block[..<$0.lowerBound]) }) ?? Optional(block),
+            let pathRange = bounded.range(of: "path = ") else { continue }
+      if String(bounded[pathRange.upperBound...].prefix { $0 != ";" }) == folder { return bounded }
+    }
+    return nil
+  }
+
+  /// The body of the exception set the folder's **own object** points at — not just any exception set in the
+  /// file: a set nothing references is an exception that does not apply, which is exactly the state this test
+  /// first missed when it searched the whole file for the marker (round 141).
+  private func exceptionSet(forFolder folder: String, in text: String) -> String? {
+    let marker = "/* Exceptions for " + quote + folder + quote + " folder in "
+    guard let block = synchronizedFolderBlock(folder, in: text), let reference = block.range(of: marker) else {
+      return nil
+    }
+    let id = String(block[..<reference.lowerBound].suffix(24))
+    guard let start = text.range(of: "/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */"),
+          let end = text.range(of: "/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */") else {
+      return nil
+    }
+    let section = text[start.upperBound..<end.lowerBound]
+    guard let object = section.range(of: id) else { return nil }
+    let rest = section[object.upperBound...]
+    guard let close = rest.range(of: "\n\t\t};") else { return nil }
+    return String(rest[..<close.lowerBound])
+  }
+
+  private var quote: String { String(UnicodeScalar(34)) }
 }

@@ -62,20 +62,30 @@
 			);
 			target = 1B0516663062E3D700EDD6AE /* ARKeyboard */;
 		};
+		A5C0DE00000000000000001B /* Exceptions for "arkey" folder in "arkey" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1B05164E3062E34E00EDD6AE /* arkey */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1B0516513062E34E00EDD6AE /* arkey */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = arkey;
-			sourceTree = "<group>";
-		};
 		1B0516683062E3D700EDD6AE /* ARKeyboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				1B05166F3062E3D700EDD6AE /* Exceptions for "ARKeyboard" folder in "ARKeyboard" target */,
 			);
 			path = ARKeyboard;
+			sourceTree = "<group>";
+		};
+		1B0516513062E34E00EDD6AE /* arkey */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A5C0DE00000000000000001B /* Exceptions for "arkey" folder in "arkey" target */,
+			);
+			path = arkey;
 			sourceTree = "<group>";
 		};
 		A5C0DE00000000000000000D /* KeyboardUI */ = {

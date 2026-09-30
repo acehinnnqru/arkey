@@ -11,9 +11,11 @@ Two boundaries explain most of the "partly" rows, and neither is a coding proble
 
 - **No device.** S1-AC8's numbers, S3-AC4's 120 fps judgement, S4's latency, S5-AC1's Squirrel round
   trip and every "on a device" clause need hardware this session does not have.
-- **No xcodebuild.** The app and the extension cannot be linked, signed or run here, so no rendering
-  claim is verified. They *are* type-checked: `scripts/typecheck-app.sh` reports no type errors for either
-  source set. That is a real check and it is not a screenshot.
+- **No screen has been seen.** `xcodebuild` does run here — inside an escalated sandbox, because Xcode's
+  plugin server and SwiftPM's manifest sandbox cannot nest in the workspace one — so the app links, and the
+  iOS test target's view tests run on a simulator (8 tests, round 141). What no run has produced is a look
+  at it: no screenshot, no capture, no device. `scripts/typecheck-app.sh` stays the fast gate over the same
+  sources, and it is a real check, not a screenshot.
 
 Verification is one command: `./scripts/verify-all.sh` — engine tests, this table's own check, the app and
 extension type-check, and the release bundle check when a build is available. **What is left, and the exact
@@ -81,8 +83,8 @@ step that closes each row, is in [device-run.md](device-run.md).**
 
 | # | State | Evidence | Missing |
 | --- | --- | --- | --- |
-| S6-AC1 | partly | the whole chain is one command, `scripts/verify-all.sh`: 289 tests across 40 suites, and the checks themselves are checked — `scripts/check-verification-scripts.sh` plants a fault for each one in a temporary clone and requires it to fail (15 expectations, 0 violated), the status check (which also compares this table's test count, suite count and type-check source count with the tree), the **screen-wiring** check against `docs/ui-wiring.txt`, the **repository** check (nothing third-party is committed, S6 §5), `typecheck ok` over 49 Swift files (app, extension and the iOS test target) — warning-free, and the count is printed rather than suppressed — release bundle check (16 Rime data files, 2 directories, no findings); the probe log's field set, its refusal to carry typed input, and its cross-process append (`O_APPEND`: six concurrent writers, 240 of 240 records kept, where the seek-based writer lost up to half a writer's lines) are pinned by `S6ProbePrivacyTests`, verified by leaking a keystroke into the log and watching it fail; the engine suite also runs clean under **AddressSanitizer** (279 tests, 0 reports — the one report it did produce was a heap-use-after-free inside librime's glog, triggered by the engine being handed a `log_dir` that did not exist, now created before `initialize`); §4's versioning is complete — `meta.json` and `active.json` carry the app version beside the engine's (`RimeHostVersion`), older files still decode, and the diagnostics screen shows both The chain was run from a **fresh clone** of the committed tree — `git clone` into a temporary directory, then `verify-all.sh` there: every step green with 0 failures, and the finding the clone produced (this row's stale count) was fixed and the clone re-run | the release bundle step in a fresh clone needs a build there; a CI run, which the committed `.github/workflows/verify.yml` defines but no push has triggered yet; the iOS test target is S6-AC2 |
-| S6-AC2 | partly | the project has the unit-test target S6 §2.1 asks for: arkeyTests, a com.apple.product-type.bundle.unit-test bundle hosted by the app (TEST_HOST / BUNDLE_LOADER) and depending on it, with one shared scheme that runs it, and its sources are type-checked with XCTest by `scripts/typecheck-app.sh` (49 Swift files over app, extension and tests, KeyboardUI compiled into each of the three). Its structure is pinned by `S6ProjectSettingsTests`; the tests themselves are geometry, row and accessibility invariants measured off the laid-out views | a run: `xcodebuild test -scheme arkey` on a simulator, which this environment cannot do |
+| S6-AC1 | partly | the whole chain is one command, `scripts/verify-all.sh`: 290 tests across 40 suites — and beside it the iOS test target's 8 view tests on a simulator, which `xcodebuild test` runs — and the checks themselves are checked — `scripts/check-verification-scripts.sh` plants a fault for each one in a temporary clone and requires it to fail (16 expectations, 0 violated), the status check (which also compares this table's test count, suite count and type-check source count with the tree), the **screen-wiring** check against `docs/ui-wiring.txt`, the **repository** check (nothing third-party is committed, S6 §5), `typecheck ok` over 49 Swift files (app, extension and the iOS test target) — warning-free, and the count is printed rather than suppressed — release bundle check (16 Rime data files, 2 directories, no findings); the probe log's field set, its refusal to carry typed input, and its cross-process append (`O_APPEND`: six concurrent writers, 240 of 240 records kept, where the seek-based writer lost up to half a writer's lines) are pinned by `S6ProbePrivacyTests`, verified by leaking a keystroke into the log and watching it fail; the engine suite also runs clean under **AddressSanitizer** (279 tests, 0 reports — the one report it did produce was a heap-use-after-free inside librime's glog, triggered by the engine being handed a `log_dir` that did not exist, now created before `initialize`); §4's versioning is complete — `meta.json` and `active.json` carry the app version beside the engine's (`RimeHostVersion`), older files still decode, and the diagnostics screen shows both The chain was run from a **fresh clone** of the committed tree — `git clone` into a temporary directory, then `verify-all.sh` there: every step green with 0 failures, and the finding the clone produced (this row's stale count) was fixed and the clone re-run | the release bundle step in a fresh clone needs a build there; a CI run, which the committed `.github/workflows/verify.yml` defines but no push has triggered yet; the iOS test target is S6-AC2 |
+| S6-AC2 | partly | the target exists, is wired, and **runs**: `xcodebuild test -scheme arkey -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` boots a simulator and executes 8 tests with 0 failures — 5 geometry and row invariants measured off the laid-out views, 3 candidate-bar accessibility ones — and running it found two things nothing else could: the app's synchronized folder copied `Info.plist` while the Info.plist step wrote the same path, so the build stopped outright at "Multiple commands produce", and `KeyboardKeyGrid.layoutSubviews` rebuilt its keys and returned, leaving every key 0 x 0 until a later pass (191 assertions; the keys were put back to 0 x 0 afterwards to prove the tests bite, and the fix is what makes them green). Its sources are type-checked with XCTest by `scripts/typecheck-app.sh` (49 Swift files over app, extension and tests, KeyboardUI compiled into each of the three), and its structure is pinned by `S6ProjectSettingsTests`, including the exception set that keeps the folder copy and the Info.plist step apart | the criterion's second half: the **golden snapshots** in the iOS target. The model fixture is generated and compared on macOS by `S3GoldenTests`; no test that runs on a simulator compares it |
 | S6-AC3 | met | `S6ReleaseCheckTests` places a third-party file in a synthetic bundle and the check fails | — |
 | S6-AC4 | met | the notices list every profile **and** the engine's components, with unverified licences deliberately unstated, and every external link they carry was fetched live: librime, its packaging, lua, octagram, predict, rime-ice and the GPL text all answer 200 (`scripts/check-catalog-pages.sh`); nothing third-party is committed **or** bundled: `check-release-bundle.sh` walks a built Release bundle, and `scripts/check-repository-clean.sh` walks the tracked tree (config data outside `RimeData/`, runtime paths, databases and archives, oversized files — each named; verified in a throwaway clone by planting a fake dictionary and a userdb path); the list cannot drift from what is pinned — the `librime` version is compared with the linked engine and the `librime-xcframework` version with the `Package.swift` pin, parsed rather than assumed (`S6EngineNoticesTests`) | — |
 | S6-AC5 | partly | the manifest and its tests, including a **scan of the sources for required-reason APIs** checked against what it declares in both directions (`S6PrivacyManifestTests`; verified from both sides, like the network check); **no network use of our own, enforced** — `S6NetworkTests` scans every Swift file under the engine, app, extension and keyboard UI for the APIs that would open a connection, and fails with the file and line (verified from both sides: clean now, and a request added to the app on purpose was reported with its file and line); the answers themselves are written out in [app-store.md](app-store.md) — the App Privacy table, the export-compliance answer, the guideline 2.5.2 story and the review notes — so the form has a committed source to copy from | the submission itself, which is account state, not a repository artifact |
@@ -107,22 +109,21 @@ Thirty-eight criteria, and they are not equally proven. Every row is in exactly 
 classified, and a row cannot be in both.
 
 **A — waiting on something outside this repository.** The work is done or specified; the proof needs a device, an
-Xcode build, a published page or a form. Twenty-one rows:
+Xcode build, a published page or a form. Twenty rows:
 
 | Rows | What they wait for |
 | --- | --- |
 | S1-AC1, S1-AC2, S1-AC7, S1-AC8, S2-AC1, S2-AC5, S3-AC1, S3-AC2, S3-AC3, S3-AC4, S3-AC6, S4-AC1, S4-AC3, S4-AC5, S4-AC6, S6-AC6 | one device run: `device-run.md`'s pre-flight and twenty-one steps (the last seven were added as the features they observe landed: the catalogue screen, the user-picked sync folder, the whole-set zip, the emoji key, the lease release, the bar's swipe and the corrupt-database report) |
 | S1-AC6 | a Debug build that runs the phase once — the phase itself is in the project and pinned by `S6ProjectSettingsTests` |
 | S1-AC2 (also), S6-AC1 | publishing: the project's own pages answer 404 today |
-| S6-AC2 | a simulator run of the test target that now exists: `xcodebuild test -scheme arkey` |
 | S6-AC5 | submitting the App Privacy answers and review notes from [app-store.md](app-store.md); the text itself is committed |
 | S5-AC1 | Squirrel on a Mac, both directions |
 
 (The S1 §9 row is not an acceptance criterion and is not counted here; its own waiting item is a device walk.)
 
-**B — proven here.** Seventeen rows whose evidence is in this repository and was run in this session, including the
+**B — proven here.** Eighteen rows whose evidence is in this repository and was run in this session, including the
 eleven that were mutation-checked: S1-AC3, S1-AC4, S1-AC5, S2-AC2, S2-AC3, S2-AC4, S2-AC6, S3-AC5, S4-AC2, S4-AC4,
-S5-AC2, S5-AC3, S5-AC4, S5-AC5, S5-AC6, S6-AC3, S6-AC4.
+S5-AC2, S5-AC3, S5-AC4, S5-AC5, S5-AC6, S6-AC2, S6-AC3, S6-AC4.
 
 S5-AC5 is in this tier deliberately: its remaining gap is not a device but a measured inability — the in-app
 per-word forget was withdrawn because `export_user_dict` fails after `delete_candidate` and nothing releases it — and
@@ -131,12 +132,11 @@ that is a conclusion this machine reached and can re-check.
 ## What "met" means here, and what it does not
 
 A "met" row is one whose acceptance test exists in this repository and passed in this session. It is
-not a claim that the product works: three of the four verification layers S3 §2 describes — the
-overlay harness, the capture comparison and the golden snapshots — need a device and a build, and so
+not a claim that the product works: S3 §2's overlay harness and capture comparison need a device, and so
 does every row marked "open".
 
-The honest summary: **the engine and the models are done and tested; the app is written and
-type-checked but never run; nothing has been seen on a screen.**
+The honest summary: **the engine and the models are done and tested; the app is built, and its view
+tests run on a simulator; nothing has been seen on a screen.**
 
 A *semantic* pass was run by hand over all 38 criteria — reading each spec row against its status row —
 because the script below checks ids and citations, not whether a row's evidence answers its criterion.

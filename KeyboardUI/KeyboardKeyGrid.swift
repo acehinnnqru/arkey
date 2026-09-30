@@ -130,8 +130,11 @@ final class KeyboardKeyGrid: UIView {
       laidOutWidth = bounds.width
       rebuild()
       invalidateIntrinsicContentSize()
-      return
     }
+    // Placing the keys is this pass's job. The first version returned here after a rebuild, so every key
+    // kept its zero frame until some later layout pass — invisible on a device, where UIKit schedules one
+    // anyway, and a blank keyboard wherever it does not. The iOS test target's first run on a simulator
+    // found it: 191 assertions, every key 0 x 0 (round 141).
     placeButtons()
   }
 
