@@ -32,8 +32,8 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 65 cited names, ok |
-| type-check | app, extension and the iOS test target, no type errors — 49 Swift files, and the script compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
+| status evidence | 38 criteria, 38 rows, 67 cited names, ok |
+| type-check | app, extension and the iOS test target, no type errors — 50 Swift files, and the script compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
 The count is the one part of the chain that moves for good reasons, so the script prints the XCTest summary
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `65 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `67 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -268,8 +268,43 @@ pattern matched a *prefix*, so quoting the command line above in a row had it re
 Simulator,name=iPhone is declared nowhere". The lookup is anchored to identifiers now, and the meta-check
 carries that case so the false positive cannot come back.
 
-What the criterion still lacks is its second half: the golden snapshot is generated and compared by
-`S3GoldenTests` on macOS, and no test that runs on a simulator compares the fixture.
+A fourth fault, in the same loop and found one round later: it split backticked spans on whitespace and left
+the shell free to *expand* the pieces, so the `**` in a quoted test summary became this repository's own file
+names — ARKeyboard, Packages, RimeData — and each was reported as a type declared nowhere; the words of a
+quoted output line ("Executed", "tests,") were looked up the same way. Only spans **without** whitespace are
+read as names now, with globbing off, and the test and suite lookups search the iOS test target's sources as
+well as the package's, which is what lets the S6-AC2 row cite `KeyboardGoldenTests` at all.
+
+## The golden snapshot on the simulator (S6-AC2's second half)
+
+The criterion asks the iOS test target for *the geometry check and the golden snapshots*, and the second half
+was missing: the model fixture was generated and compared only by `S3GoldenTests` on macOS. Closing it took
+three pieces, each of which is somewhere a mistake could hide:
+
+- **One generator.** The snapshot text moved out of the macOS test and into the engine as
+  `RimeKeyboardGolden` — internal, so it stays out of the public API the wiring check watches. Both targets
+  call it now: two copies of a generator would be two measurements, and a golden snapshot two tests disagree
+  about is worse than none. Moving it changed no byte: `S3GoldenTests` passed against the checked-in fixture
+  before anything else was touched.
+- **The fixture, in the bundle.** A file reference for
+  `Packages/RimeEngine/Tests/Golden/KeyboardLayout.txt`, a build file, and a Resources phase on the test
+  target — its first. `S6ProjectSettingsTests` walks the chain rather than reading the file names: file
+  reference to build file to the phase the target actually builds. The first version of that test looked for
+  the words "KeyboardLayout.txt in Resources" and passed with the phase emptied — an orphaned build file is
+  not a bundled resource — which is the same hole the Info.plist exception test had, found the same way.
+- **Testability.** `@testable import RimeEngine` needs `-enable-testing` on the importing file as well as on
+  the module. The project sets `ENABLE_TESTABILITY` for Debug and `scripts/typecheck-app.sh` did not, so the
+  check refused a file the build compiles; the script now passes it for the test sources, and
+  `S6ProjectSettingsTests` pins the pair.
+
+Mutations, replayed on the simulator: an extra line in the fixture fails the run at that line (1192 —
+the bundled copy is what is compared, not a stale one); emptying the Resources phase fails it with "the
+golden fixture is not in the test bundle"; the structural test fails on the same tree for the same reason.
+With all of it in place: `Executed 9 tests, with 0 failures`, `** TEST SUCCEEDED **`.
+
+One operational note, learned the hard way: deleting the copied fixture from the built bundle to set up that
+mutation leaves the incremental build believing its output exists, so the next run fails until the source is
+touched. The failure it produces is the right one, which is why the mutation proved what it was meant to.
 
 ## The repository half of "nothing third-party" (S6 §5)
 

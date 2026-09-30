@@ -14,6 +14,7 @@
 		A5C0DE000000000000000008 /* RimeData in Resources */ = {isa = PBXBuildFile; fileRef = A5C0DE000000000000000007 /* RimeData */; };
 		A5C0DE000000000000000009 /* RimeData in Resources */ = {isa = PBXBuildFile; fileRef = A5C0DE000000000000000007 /* RimeData */; };
 		A5C0DE000000000000000018 /* RimeEngine in Frameworks */ = {isa = PBXBuildFile; productRef = A5C0DE000000000000000002 /* RimeEngine */; };
+		A5C0DE00000000000000001D /* KeyboardLayout.txt in Resources */ = {isa = PBXBuildFile; fileRef = A5C0DE00000000000000001C /* KeyboardLayout.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 		1B05164F3062E34E00EDD6AE /* arkey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = arkey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B0516673062E3D700EDD6AE /* ARKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ARKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5C0DE000000000000000007 /* RimeData */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RimeData; sourceTree = "<group>"; };
+		A5C0DE00000000000000001C /* KeyboardLayout.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = KeyboardLayout.txt; path = Packages/RimeEngine/Tests/Golden/KeyboardLayout.txt; sourceTree = SOURCE_ROOT; };
 		A5C0DE000000000000000014 /* arkeyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = arkeyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -188,6 +190,7 @@
 			buildPhases = (
 				A5C0DE000000000000000016 /* Sources */,
 				A5C0DE000000000000000017 /* Frameworks */,
+				A5C0DE00000000000000001E /* Resources */,
 			);
 			buildRules = (
 			);
@@ -291,6 +294,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A5C0DE000000000000000009 /* RimeData in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5C0DE00000000000000001E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5C0DE00000000000000001D /* KeyboardLayout.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

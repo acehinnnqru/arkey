@@ -130,5 +130,9 @@ echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ')
 
 check "app" "$OUT"/app/*.swift
 check "extension" "$OUT"/extension/*.swift
-check "tests" "${XCTEST_FLAGS[@]}" "$OUT"/tests/*.swift
+# `@testable import RimeEngine` needs testability on the importing file as well as on the module, and the
+# project sets ENABLE_TESTABILITY = YES for Debug builds — the configuration the test action uses. The
+# hand-written check has to say the same thing, or it fails on code the build accepts (pinned by
+# S6ProjectSettingsTests).
+check "tests" -enable-testing "${XCTEST_FLAGS[@]}" "$OUT"/tests/*.swift
 echo "typecheck ok"

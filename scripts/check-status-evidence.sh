@@ -17,6 +17,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 status="$root/docs/status.md"
 tests="$root/Packages/RimeEngine/Tests/RimeEngineTests"
+ios_tests="$root/arkeyTests"
 failures=0
 
 fail() {
@@ -157,42 +158,41 @@ done
 [ "$device_missing" -eq 0 ] && echo "  every path and tool it names exists"
 
 echo "== cited evidence =="
-cited="$(grep -oE '`[^`]+`' "$status" | tr -d '`' | sort -u)"
+# A backticked span is one thing: a name, a path, or a command line. The words inside a command line or a
+# quoted line of output are not names — quoting `Executed 9 tests, with 0 failures` had the lookup report
+# "tests," as a missing test and "Executed" as a missing type, and the `**` in another span was expanded by the
+# shell into this repository's own file names (ARKeyboard, Packages, RimeData …), each of which then failed
+# the type lookup (round 142). Only spans without whitespace are looked up, and the loop splits them with
+# globbing off so nothing expands. The test and suite lookups cover both targets: the package's tests and
+# the iOS test target's sources, which is where KeyboardGoldenTests lives.
+cited="$(grep -oE '`[^`]+`' "$status" | tr -d '`' | grep -vE '[[:space:]]' | sort -u)"
 checked=0
+set -f
 for token in $cited; do
   case "$token" in
-    test[A-Za-z0-9_]*)
-      if ! grep -rq "func $token" "$tests"; then
-        fail "test $token is cited but does not exist"
-      fi
-      checked=$((checked + 1))
-      ;;
-    *Tests)
-      if ! grep -rq "class $token" "$tests"; then
-        fail "suite $token is cited but does not exist"
-      fi
-      checked=$((checked + 1))
-      ;;
-    *)
-      case "$token" in
-        */*|*.*) continue ;;
-      esac
-      # A Swift type name is an identifier and nothing else. `case` patterns match a prefix, so the old
-      # `[A-Z][A-Za-z0-9]*` arm also matched the words a backticked command line splits into — quoting
-      # `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` in a status row had the
-      # check report "type Simulator,name=iPhone is declared nowhere" (round 141). Anchored, a token that is
-      # not an identifier is not looked up at all.
-      [[ "$token" =~ ^[A-Z][A-Za-z0-9]*$ ]] || continue
-      # Apple's own types are cited as the things we are talking about, not ours to declare.
-      case " UIInputView " in *" $token "*) continue ;; esac
-      if ! grep -rqE "(struct|enum|final class|class|func|var|let) $token\b" \
-           "$root/Packages/RimeEngine/Sources" "$root/arkey" "$root/ARKeyboard" "$root/KeyboardUI"; then
-        fail "type $token is cited but is declared nowhere"
-      fi
-      checked=$((checked + 1))
-      ;;
+    */*|*.*) continue ;;
   esac
+  if [[ "$token" =~ ^test[A-Za-z0-9_]*$ ]]; then
+    if ! grep -rq "func $token" "$tests" "$ios_tests"; then
+      fail "test $token is cited but does not exist"
+    fi
+    checked=$((checked + 1))
+  elif [[ "$token" =~ ^[A-Za-z0-9_]*Tests$ ]]; then
+    if ! grep -rq "class $token" "$tests" "$ios_tests"; then
+      fail "suite $token is cited but does not exist"
+    fi
+    checked=$((checked + 1))
+  elif [[ "$token" =~ ^[A-Z][A-Za-z0-9]*$ ]]; then
+    # Apple's own types are cited as the things we are talking about, not ours to declare.
+    case " UIInputView " in *" $token "*) continue ;; esac
+    if ! grep -rqE "(struct|enum|final class|class|func|var|let) $token\b" \
+         "$root/Packages/RimeEngine/Sources" "$root/arkey" "$root/ARKeyboard" "$root/KeyboardUI"; then
+      fail "type $token is cited but is declared nowhere"
+    fi
+    checked=$((checked + 1))
+  fi
 done
+set +f
 echo "  $checked cited names checked"
 
 echo "== the numbers the results doc quotes =="

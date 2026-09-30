@@ -212,7 +212,81 @@ final class S6ProjectSettingsTests: XCTestCase {
     }
   }
 
+  /// The golden fixture is the one thing the iOS golden test needs from outside its own sources, and a resource
+  /// that misses the bundle fails at runtime rather than at build time. The test target's Resources phase has to
+  /// carry the path the package's own test reads — `RimeKeyboardGolden.fixtureName`, so the two cannot disagree
+  /// about the name — and the file has to be there.
+  func testTheGoldenFixtureReachesTheTestBundle() throws {
+    let text = try project()
+    let path = "Packages/RimeEngine/Tests/Golden/" + RimeKeyboardGolden.fixtureName
+    XCTAssertTrue(FileManager.default.fileExists(atPath: repositoryRoot.appendingPathComponent(path).path),
+                  path + " does not exist")
+
+    // The chain has to be walked, not glanced at: a build file that no phase lists, or a phase that no target
+    // builds, leaves the fixture out of the bundle while every file name still reads correctly. The first
+    // version of this test looked for the words "KeyboardLayout.txt in Resources" and passed with the phase
+    // emptied (round 142) — the same orphan-shaped hole the exception-set test had.
+    let reference = try objectID(withPath: path, in: text)
+    let buildFile = try objectID(ofBuildFileReferencing: reference, in: text)
+    let phase = try objectID(ofResourcesPhaseIn: testTargetBlock(in: text))
+    XCTAssertTrue(try block(forObjectID: phase, in: text).contains(buildFile),
+                  "the test target's Resources phase does not carry the golden fixture")
+  }
+
+  /// `@testable import` needs testability on the importing file as well as on the module it imports. The project
+  /// enables it for Debug — the configuration the test action builds — and the hand-written type-check has to
+  /// pass the same flag, or the check rejects code the build accepts. The same class of divergence as the Swift
+  /// language mode above, and it was found the same way: by the check refusing a file the build compiles.
+  func testTheTestTargetIsTypeCheckedWithTestability() throws {
+    let script = try String(contentsOf: repositoryRoot.appendingPathComponent("scripts/typecheck-app.sh"),
+                            encoding: .utf8)
+    XCTAssertTrue(script.contains("check \"tests\" -enable-testing"),
+                  "the iOS test sources are type-checked without testability")
+    XCTAssertTrue(try project().contains("ENABLE_TESTABILITY = YES;"),
+                  "the project does not enable testability for Debug builds")
+  }
+
   // MARK: - Reading the project file
+
+  /// The arkeyTests target's own object, bounded at its closing brace.
+  private func testTargetBlock(in text: String) throws -> String {
+    let start = try XCTUnwrap(text.range(of: "A5C0DE000000000000000010 /* arkeyTests */ = {"))
+    let end = try XCTUnwrap(text.range(of: "\n\t\t};", range: start.upperBound..<text.endIndex))
+    return String(text[start.upperBound..<end.lowerBound])
+  }
+
+  private func firstIdentifier(in line: Substring) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    let identifier = String(trimmed.prefix(24))
+    return identifier.count == 24 ? identifier : nil
+  }
+
+  /// The object that names a path — the fixture's file reference.
+  private func objectID(withPath path: String, in text: String) throws -> String {
+    let line = try XCTUnwrap(text.split(separator: "\n").first { $0.contains("path = " + path + ";") },
+                             "no object in the project names " + path)
+    return try XCTUnwrap(firstIdentifier(in: line))
+  }
+
+  private func objectID(ofBuildFileReferencing reference: String, in text: String) throws -> String {
+    let line = try XCTUnwrap(text.split(separator: "\n").first {
+      $0.contains("isa = PBXBuildFile") && $0.contains("fileRef = " + reference + " ")
+    }, "no build file references " + reference)
+    return try XCTUnwrap(firstIdentifier(in: line))
+  }
+
+  private func objectID(ofResourcesPhaseIn targetBlock: String) throws -> String {
+    let line = try XCTUnwrap(targetBlock.split(separator: "\n").first { $0.contains("/* Resources */,") },
+                             "the target builds no Resources phase")
+    return try XCTUnwrap(firstIdentifier(in: line))
+  }
+
+  /// An object's own definition — two tabs of indentation, so a reference to it elsewhere does not match.
+  private func block(forObjectID id: String, in text: String) throws -> String {
+    let start = try XCTUnwrap(text.range(of: "\n\t\t" + id + " "))
+    let end = try XCTUnwrap(text.range(of: "\n\t\t};", range: start.upperBound..<text.endIndex))
+    return String(text[start.upperBound..<end.lowerBound])
+  }
 
   /// Line-anchored: "GENERATE_INFOPLIST_FILE = YES;" contains "INFOPLIST_FILE = " as a substring, and a split
   /// on the bare prefix collects "YES" as if it were a path — which is what the arrangement test did on its

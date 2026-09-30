@@ -67,7 +67,6 @@ person.
 | Row | Blocked on |
 | --- | --- |
 | S1-AC6 | a **Debug build** with the copy phase run once. The phase exists (`PBXShellScriptBuildPhase` on the app target, pinned by `S6ProjectSettingsTests`) and the install is done (`RimeLocalDataInstaller` from `bootstrap()` under `#if DEBUG`) |
-| S6-AC2 | the criterion's **second half**, the golden snapshots in the iOS target: its geometry half runs here now (`xcodebuild test -scheme arkey -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`, 8 tests, 0 failures, round 141), and the model fixture is still generated and compared only on macOS |
 | S6-AC5 | the App Store Connect privacy answers, which are not a repository artifact |
 | S5-AC5 | the in-app per-word forget: measured impossible through librime's API (`export_user_dict` fails after `delete_candidate`, and neither a maintenance nor a deploy releases it), so the app deliberately offers only the whole-dictionary reset |
 
