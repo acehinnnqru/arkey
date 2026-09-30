@@ -119,13 +119,39 @@ public struct RimeKeyboardCapture: Sendable {
     }
     closed.append(contentsOf: open)
 
-    return closed
+    let detected = closed
       .filter { $0.maxY - $0.minY + 1 >= minimumLength }
       .map { blob in
         CGRect(x: CGFloat(blob.minX), y: CGFloat(blob.minY),
                width: CGFloat(blob.maxX - blob.minX + 1), height: CGFloat(blob.maxY - blob.minY + 1))
       }
-      .sorted { $0.minY == $1.minY ? $0.minX < $1.minX : $0.minY < $1.minY }
+
+    // One key is one rectangle. The runs above are merged down the image, but a glyph's **antialiased edge**
+    // can land exactly on the material's luminance: that pixel is background, so its row splits into
+    // cap-left, glyph and cap-right, only one of which extends the blob already open — the others arrive as
+    // rectangles of their own. A light keyboard is the case that does it (a black glyph on a white cap
+    // crosses a ~0.88 material on its way down), and a real capture does it too: rendering the app's own
+    // views produced 103 rectangles for 32 keys (round 143, the test named
+    // testAGlyphsAntialiasedEdgeDoesNotSplitItsKey).
+    //
+    // Two keys never overlap — there is a gap between them — so rectangles that intersect are one key. The
+    // union is repeated until nothing overlaps, because a union can reach a rectangle its parts did not.
+    var merged: [CGRect] = []
+    for rect in detected {
+      var union = rect
+      var index = 0
+      while index < merged.count {
+        if merged[index].intersects(union) {
+          union = merged[index].union(union)
+          merged.remove(at: index)
+          index = 0
+        } else {
+          index += 1
+        }
+      }
+      merged.append(union)
+    }
+    return merged.sorted { $0.minY == $1.minY ? $0.minX < $1.minX : $0.minY < $1.minY }
   }
 
   /// How many capture pixels there are per model point, when that ratio is a whole number.

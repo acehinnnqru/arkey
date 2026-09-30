@@ -175,6 +175,33 @@ final class S3CaptureTests: XCTestCase {
                    "and so is a dark one, where the keys are the brighter side")
   }
 
+  /// A glyph's antialiased edge can land exactly on the material's luminance, and then it **splits** its cap:
+  /// the row has three runs — cap-left, glyph, cap-right — of which one extends the cap the detector already
+  /// has and the others start blobs of their own. A light keyboard is the case that does it, because a black
+  /// glyph on a white cap crosses a ~0.88 material on its way down. Found by rendering the real views and
+  /// reading the picture back (the iOS render test, round 143): 103 rectangles for 32 keys. One key is one
+  /// rectangle, so detections that overlap are merged.
+  func testAGlyphsAntialiasedEdgeDoesNotSplitItsKey() throws {
+    let layout = RimeKeyboardLayoutEngine.layout(width: width)
+    let pixelWidth = Int(layout.size.width)
+    let pixelHeight = Int(layout.size.height)
+    var pixels = [Double](repeating: 0.88, count: pixelWidth * pixelHeight)
+    for key in layout.keys {
+      fill(&pixels, width: pixelWidth, height: pixelHeight, rect: key.frame, value: 1.0)
+      let glyph = CGRect(x: key.frame.midX - 8, y: key.frame.midY - 8, width: 16, height: 16)
+      fill(&pixels, width: pixelWidth, height: pixelHeight, rect: glyph, value: 0.0)
+      for x in [glyph.minX - 1, glyph.maxX] {
+        fill(&pixels, width: pixelWidth, height: pixelHeight,
+             rect: CGRect(x: x, y: glyph.minY, width: 1, height: glyph.height), value: 0.88)
+      }
+    }
+    let capture = RimeKeyboardCapture(width: pixelWidth, height: pixelHeight, luminance: pixels)
+
+    XCTAssertEqual(capture.keyRects().count, layout.keys.count, "one rectangle per key")
+    XCTAssertEqual(capture.differences(from: layout, tolerance: 1.5), [],
+                   "a glyph whose edge matches the material is not a key")
+  }
+
   // MARK: Colour (S3 §4)
 
   func testTheCaptureReportsTheColoursItIsMadeOf() throws {

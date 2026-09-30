@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 67 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 69 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 50 Swift files, and the script compares that count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `67 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `69 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -301,6 +301,14 @@ Mutations, replayed on the simulator: an extra line in the fixture fails the run
 the bundled copy is what is compared, not a stale one); emptying the Resources phase fails it with "the
 golden fixture is not in the test bundle"; the structural test fails on the same tree for the same reason.
 With all of it in place: `Executed 9 tests, with 0 failures`, `** TEST SUCCEEDED **`.
+
+The target has 14 tests now (round 143): the golden snapshot, the geometry and accessibility ones, and five
+**render** tests that lay the views out at 3x, render them into a bitmap, write it as a PNG and read it back
+through the capture reader — the path a device screenshot takes. They measure the picture rather than storing
+it (a stored golden would pin the simulator's font rasterisation), assert that every key's fill follows its
+role, and they found a real defect in the reader: a glyph's antialiased edge can match the material's
+luminance and split its cap into three rectangles, 103 for 32 keys. See
+[s3-results.md](s3-results.md#the-render-measured-like-a-capture-s3-23).
 
 One operational note, learned the hard way: deleting the copied fixture from the built bundle to set up that
 mutation leaves the incremental build believing its output exists, so the next run fails until the source is

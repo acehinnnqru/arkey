@@ -476,6 +476,34 @@ model side, where the view had no test at all. What remains unverified is the **
 cannot tell you the view called it — and steps 5 and 6 of [device-run.md](device-run.md) are the check that would:
 a cap more than 0.02 per channel from the palette in a screenshot is a view painting from somewhere else.
 
+## The render, measured like a capture (S3 §2.3)
+
+The paragraph above names what was unverified: a role table cannot tell you the view called it. The iOS test
+target answers that now without a device. It lays the app's own views out at 3x — the scale a screenshot
+arrives at — renders them into a bitmap, writes the bitmap as a PNG and reads it back through
+`RimeKeyboardCapture.load`: the same decoder, and the same comparison `rime-capture-check` runs on a
+device screenshot. Two questions are asked of the picture. Do the key rectangles sit where
+`RimeKeyboardLayoutEngine` says they are? And does every key's fill follow its role, in both appearances?
+
+The palette's *values* are not this test's subject — they are the measured hexes, and the engine's
+`S3AppearanceTests` compare them there. What the render pins is the mapping from role to fill, and a mutation
+made the difference plain: moving `keyCap` from `0xFEFEFE` changes the paint and the test's expectation
+together, so it proves nothing; remapping the return key to the wide cap fails at once — 换行 painted
+`FEFEFE` where the palette says `3378F4`.
+
+Rendering it found a defect in the reader rather than in the views. A glyph's **antialiased edge** can land
+exactly on the material's luminance, and that pixel is background — so its row splits into cap-left, glyph and
+cap-right. Only one of those three extends the blob the detector already had; the other two arrived as
+rectangles of their own: **103 rectangles for 32 keys**, on a light keyboard, which is the case that does it (a
+black glyph on a white cap crosses a ~0.88 material on its way down). `keyRects` merges overlapping
+rectangles now, because two keys never overlap and one key is one rectangle, and
+`testAGlyphsAntialiasedEdgeDoesNotSplitItsKey` builds that exact pixel row: it fails without the merge.
+
+One thing the render cannot see, and says so out loud: the globe key has **no cap** (`RimeKeyCapRole.plain` is
+transparent), so a detector that finds caps finds nothing there — only its glyph, drawn straight on the
+material. The test asserts that whatever is not a capped key lies inside the globe's own frame, so the globe's
+colour claim rests on the sampled pixel rather than on a detected rectangle.
+
 ## The golden snapshot (§7), at the layer this machine can run
 
 Pixels need a device and a running app. The model every view renders from does not, and it is what a
@@ -506,7 +534,9 @@ someone's screen.
   missing is a capture showing the row on a device, with a real schema's delimiters.
 - The **capture itself**: the reader and the comparison are in place and proven on a synthetic image
   (above), but the sub-pixel numbers still need a device screenshot.
-- Golden **pixel** snapshots (§7) need the iOS test target, which needs the Xcode project and a build; the
-  model-level snapshot that stands in for them here is described below.
+- Golden **pixel** snapshots (§7): the fixture is compared on macOS **and** on a simulator, and a rendered
+  picture is measured for geometry and role fills (above). A stored pixel golden is deliberately not kept —
+  it would pin the simulator's font rasterisation rather than our palette — so what settles the material and
+  the sub-pixel edges is still a device capture.
 - Colours and the material-versus-fixed-palette decision (§4), the feedback table (§5), the callout,
   and the expanded candidate panel.
