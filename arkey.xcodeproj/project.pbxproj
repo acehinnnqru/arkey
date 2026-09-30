@@ -71,6 +71,16 @@
 			);
 			target = 1B05164E3062E34E00EDD6AE /* arkey */;
 		};
+		/* The extension's sources are compiled into the test bundle as well (the controller-level tests run
+		   there), so the same file is excepted for that target: without it the folder copy collides with the
+		   test bundle's own generated Info.plist, which is the defect round 141 fixed for the app. */
+		A5C0DE00000000000000001F /* Exceptions for "ARKeyboard" folder in "arkeyTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A5C0DE000000000000000010 /* arkeyTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -78,6 +88,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				1B05166F3062E3D700EDD6AE /* Exceptions for "ARKeyboard" folder in "ARKeyboard" target */,
+				A5C0DE00000000000000001F /* Exceptions for "ARKeyboard" folder in "arkeyTests" target */,
 			);
 			path = ARKeyboard;
 			sourceTree = "<group>";
@@ -200,6 +211,7 @@
 			fileSystemSynchronizedGroups = (
 				A5C0DE000000000000000015 /* arkeyTests */,
 				A5C0DE00000000000000000D /* KeyboardUI */,
+				1B0516683062E3D700EDD6AE /* ARKeyboard */,
 			);
 			name = arkeyTests;
 			packageProductDependencies = (

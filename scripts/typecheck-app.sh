@@ -81,6 +81,13 @@ for file in arkeyTests/*.swift; do
   strip_previews "$file" > "$OUT/tests/$(basename "$file")"
 done
 cp KeyboardUI/*.swift "$OUT/tests/"
+# The test target compiles the extension's sources as well: the controller tests instantiate the real
+# KeyboardViewController, which the project gives the test bundle through the extension's synchronized folder.
+# Miss them and the check rejects code the build compiles — which is exactly what happened the round this was
+# added (round 144).
+for file in ARKeyboard/*.swift; do
+  strip_previews "$file" > "$OUT/tests/$(basename "$file")"
+done
 
 check() {
   local name="$1"; shift
@@ -119,14 +126,15 @@ check() {
 # app, the extension and the test bundle.
 expected=$(( $(ls arkey/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
             + $(ls ARKeyboard/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
-            + $(ls arkeyTests/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) ))
+            + $(ls arkeyTests/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
+            + $(ls ARKeyboard/*.swift | wc -l) ))
 compiled=$(( $(ls "$OUT"/app/*.swift | wc -l) + $(ls "$OUT"/extension/*.swift | wc -l) \
             + $(ls "$OUT"/tests/*.swift | wc -l) ))
 if [ "$expected" -ne "$compiled" ]; then
   echo "typecheck FAILED: $expected Swift files in the tree, $compiled prepared for checking" >&2
   exit 1
 fi
-echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ') app + $(ls ARKeyboard/*.swift | wc -l | tr -d ' ') extension + $(ls arkeyTests/*.swift | wc -l | tr -d ' ') tests + KeyboardUI three times) =="
+echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ') app + $(ls ARKeyboard/*.swift | wc -l | tr -d ' ') extension + $(ls arkeyTests/*.swift | wc -l | tr -d ' ') tests + KeyboardUI three times, the extension also in the test set) =="
 
 check "app" "$OUT"/app/*.swift
 check "extension" "$OUT"/extension/*.swift
