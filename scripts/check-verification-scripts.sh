@@ -162,6 +162,11 @@ if [ -n "$bundle" ]; then
   cp -R "$bundle" "$work/iconless.app"
   find "$work/iconless.app" -maxdepth 1 -name 'AppIcon*.png' -delete
   expect_fail "release bundle, a build with no icon" ./scripts/check-release-bundle.sh "$work/iconless.app"
+
+  # Each bundle is inspected on its own, and the extension's manifest is the one that went missing.
+  cp -R "$bundle" "$work/manifestless.app"
+  rm -f "$work/manifestless.app/PlugIns/ARKeyboard.appex/PrivacyInfo.xcprivacy"
+  expect_fail "release bundle, an extension with no privacy manifest" ./scripts/check-release-bundle.sh "$work/manifestless.app"
 fi
 
 # The one answer a release check must never give: "0 findings" for a path that is not there.

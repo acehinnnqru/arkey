@@ -1009,3 +1009,19 @@ found three more things a submission would have hit:
 
 All three are asserted against the project and the plist by `testTheBuiltPlistSaysPortraitArkeyAndNoCustomEncryption`,
 so the built plist cannot drift back.
+
+## The extension had no privacy manifest (S6 §5, S6 §6, round 183)
+
+The app shipped a `PrivacyInfo.xcprivacy` and the keyboard extension shipped none: each bundle is inspected on
+its own, and the extension uses the same required-reason APIs (UserDefaults in the app group, file timestamps)
+so review would have asked. It has its own manifest now — written from what the extension actually does, which is
+not quite what the app does: the keyboard never deploys, so it does not declare the free-space reason the app
+carries.
+
+As with the icon, the rule comes with it: `rime-release-check` requires a manifest in the app bundle *and* in
+each `.appex` beside it, its own test removes the extension's and expects the refusal, and the meta-check
+plants the fault in a copy of a real bundle. Adding the rule caught the check's own fixtures again — the synthetic
+bundle had no manifests either, so every cleanliness test there would have been measuring this rule.
+
+[app-store.md](app-store.md) now holds what S6 §6 asks a person to write: the App Privacy answers, the export
+compliance answer, and the review notes that explain the keyboard, Full Access, and the import path.

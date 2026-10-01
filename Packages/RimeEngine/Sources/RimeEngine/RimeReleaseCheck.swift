@@ -96,6 +96,22 @@ public enum RimeReleaseCheck {
                                 + "submitted, and the home screen shows a blank square"))
     }
 
+    // Every bundle is inspected on its own, and an app whose keyboard extension has no manifest next to it is
+    // the kind of thing review notices. Measured in round 183: the extension shipped without one.
+    var bundles = [bundle]
+    let plugins = bundle.appendingPathComponent("PlugIns", isDirectory: true)
+    if let entries = try? fileManager.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) {
+      bundles += entries.filter { $0.pathExtension == "appex" }
+    }
+    for each in bundles where !fileManager.fileExists(
+      atPath: each.appendingPathComponent("PrivacyInfo.xcprivacy").path) {
+      findings.append(Finding(severity: .error,
+                              path: each.lastPathComponent,
+                              reason: "no PrivacyInfo.xcprivacy in this bundle: each one is inspected on "
+                                + "its own, and one that uses a required-reason API without a manifest "
+                                + "is rejected"))
+    }
+
     guard let enumerator = fileManager.enumerator(at: bundle,
                                                   includingPropertiesForKeys: [.isDirectoryKey],
                                                   options: []) else {

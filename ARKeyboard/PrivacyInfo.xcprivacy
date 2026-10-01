@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The keyboard extension's privacy manifest (S6 §5, S6 §6).
+
+  Each bundle is inspected on its own, and the extension is a separate bundle: it shipped with the app's
+  manifest next to it and none of its own until round 183, which is the kind of thing review notices.
+
+  What the extension itself does, checked against its code rather than copied from the app's:
+
+    * UserDefaults, in the app group only, for the keyboard's own settings (click, haptics, callout, repeat
+      timing, palette mode) — the same store the app writes, which is why the reason is the app-group one;
+    * file size and timestamp metadata for the files it reads in its container and in the app group (its
+      workspace, the deployed build, the dictionary snapshots);
+    * no disk-space check: the keyboard never deploys, so the free-space rule the app's manifest declares
+      is not here;
+    * no network, no tracking, no collected data, and no third-party SDK.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>1C8F.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+				<string>3B52.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
