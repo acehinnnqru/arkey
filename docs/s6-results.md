@@ -425,6 +425,63 @@ that were only ever "called" in prose or a local — `data`, `make`, `exists`, `
 The mutation the meta-check plants still fails the check, so it catches a new API no screen reaches without
 catching a sentence.
 
+## Every section of every spec, and where it is verified (round 167)
+
+The acceptance criteria have rows in the status table, but the specs' *sections* — the decisions between the
+criteria — were only cited where someone happened to remember. A scan for `Sx §N` across the docs found 31 of
+the 76 sections cited nowhere at all. Most of those are structural (Goal, Vocabulary, Tests, Acceptance, Open
+decisions), which carry no evidence of their own; the substantive ones are mapped here, so a reader can go from
+a rule to the check that holds it. Nothing below is a newly made claim: every entry names work that already
+exists.
+
+| Section | What it decides | Where it is verified |
+| --- | --- | --- |
+| S1 §3.1 | `active.json` | `S1ProfileSwitchTests`, `RimeAppModelTests` |
+| S1 §3.2 | `profiles/<id>/meta.json` | `S1ImportTests`, `S1DeploymentTests` |
+| S1 §4 | the engine API additions | `S1EngineAPITests` |
+| S1 §5.1 | the import stages | `S1ImportTests` |
+| S1 §5.2 | archive hardening | `S1ArchiveTests` (fifteen tests, one per rule) |
+| S1 §5.3 | tree classification | `S1ImportTests` |
+| S1 §5.4 | validation | `S1ImportTests` |
+| S1 §6 | deployment | `S1DeploymentTests`, `RimeEngineDeployTests` |
+| S1 §7 | the profile library and switching | `S1ProfileSwitchTests`, `RimeAppModelTests`, `AppScreensTests` |
+| S1 §8 | how the extension adopts a change | `S1AdoptionTests`, `KeyboardTypingOnSimulatorTests` |
+| S1 §9 | degraded modes | `S1RecoveryTests`, `S1WorkspaceTests`, `AppScreensTests` |
+| S2 §2, §2.1 | the editing model, lists and maps | `S2PatchTests` |
+| S2 §3 | what is configurable, and where | `S2SettingsModelTests`, `S2PresetTests`, `S2CustomPhraseTests`, `RimeAppModelTests` |
+| S2 §4 | reading the current state | `S2SettingsModelTests` |
+| S2 §5 | the write sequence | `S2PatchTests`, `S2SettingsTests` |
+| S2 §6 | the screens | `AppScreensTests` (eleven screens and the shared footer) |
+| S2 §7 | portability | `S2SettingsTests`, `RimeAppModelTests` |
+| S3 §2 | how parity is measured | `S3CaptureTests`, `rime-capture-check --self-test` |
+| S3 §3, §3.1, §3.2 | the measured reference, layout model, layers and rows | `S3LayoutTests` and the golden fixture |
+| S3 §4 | appearance | `S3AppearanceTests`, `KeyboardRenderTests` (both appearances) |
+| S3 §5 | feedback | `S3PreferencesTests`, `KeyboardCalloutTests` |
+| S3 §6 | behaviour to match | `S3LayoutTests`, `KeyboardLayerTests`, `KeyboardBehaviourOnSimulatorTests` |
+| S3 §7 | the state matrix | `S3GoldenTests` and the render tests for every cell they can render |
+| S3 §8 | accessibility | `CandidateBarAccessibilityTests`, and the UI tests that find keys by their labels |
+| S4 §3 | the input path | `S4InputTests` |
+| S4 §4, §4.1 | composition and the commit table | `S4CompletionTests`, `S4SegmentTests`, `S4SentenceTests` |
+| S4 §5 | incremental candidates | `S4CompletionTests` |
+| S4 §6 | the candidate UI model | `S3CandidatePanelTests`, `KeyboardTypingTests` |
+| S4 §7 | punctuation, shape, the 中/英 state | `S2PresetTests`, `KeyboardLayerTests` |
+| S4 §8 | the user dictionary on the input path | `S5UserDictionaryTests` |
+| S4 §9 | budgets | `S4LatencyTests`, and the device run for the numbers themselves |
+| S4 §10 | failure and edge cases | `S4InputTests` |
+| S5 §2 | established facts | `S6EngineNoticesTests` (the engine's own record of them) |
+| S5 §3 | the lease | `S5UserDictionaryTests`, `S5DictionaryEditTests`, and the keyboard's own `keyboard.lease.json` |
+| S5 §4 | files and layout | `S5UserDictionaryTests`, `S5DictionaryEditTests` |
+| S5 §5 | operations | `S5DictionaryEditTests`, `S5UserDictionaryTests` |
+| S5 §6 | sync | `S5UserDictionaryTests`, `S1WorkspaceTests` |
+| S5 §7 | the Squirrel recipe | the recipe itself in [s5-results.md](s5-results.md); the round trip is external |
+| S5 §8 | privacy and security | `S6ProbePrivacyTests`, `S6NetworkTests`, `S6PrivacyManifestTests` |
+| S5 §9 | failure modes | `S5UserDictionaryTests`, `S1RecoveryTests` |
+| S6 §2, §2.1 | the test layers and the iOS target | `S6ProjectSettingsTests`, `AppScreensTests`, the UI-test target |
+| S6 §3 | evidence discipline | `S6ProbeSummaryTests`, `check-status-evidence.sh` |
+| S6 §4 | what ships, and the check that it is clean | `S6ReleaseCheckTests`, `check-release-bundle.sh` |
+| S6 §5 | licences and notices | `S6NoticesTests`, `S6EngineNoticesTests`, `check-catalog-pages.sh` |
+| S6 §6 | App Store readiness | external: the pre-flight in [device-run.md](device-run.md); nothing has been submitted |
+
 ## Settings that leave the phone (S2 §7, round 163)
 
 The app's 导出设置 / 导入设置 buttons are two methods on the app model, and nothing exercised them: the engine's
