@@ -12,6 +12,8 @@ import RimeEngine
 final class RimeAppModelTests: XCTestCase {
   private var imported: String?
   private var scratch: URL?
+  private var userFiles: [URL] = []
+  private var exports: [URL] = []
 
   override func tearDownWithError() throws {
     let model = RimeAppModel()
@@ -21,8 +23,14 @@ final class RimeAppModelTests: XCTestCase {
       try? FileManager.default.removeItem(at: model.workspace.activeRecord)
     }
     if let scratch { try? FileManager.default.removeItem(at: scratch) }
+    // The settings round trip writes into the keyboard's user directory and into Documents: both are real
+    // places the app uses, so the test puts them back the way it found them.
+    for url in userFiles { try? FileManager.default.removeItem(at: url) }
+    for url in exports { try? FileManager.default.removeItem(at: url) }
     imported = nil
     scratch = nil
+    userFiles = []
+    exports = []
   }
 
   /// What the app does before it is usable: directories, the installation record, the storage policy, an
@@ -81,5 +89,53 @@ final class RimeAppModelTests: XCTestCase {
     }
     scratch = url
     return url
+  }
+
+  /// S2 §7's portability on the app's own path: the 导出设置 and 导入设置 buttons. A patch and a phrase file are
+  /// written where the settings editors write them, exported to one file, deleted, and imported back — the round
+  /// trip a user makes between the phone and a Mac.
+  func testExportingAndImportingSettingsRoundTrips() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+
+    let user = model.workspace.userData
+    try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
+    let patch = user.appendingPathComponent("tracer.custom.yaml")
+    let phrases = user.appendingPathComponent("custom_phrase.txt")
+    try "patch:\n  translator/enable_completion: false\n".write(to: patch, atomically: true, encoding: .utf8)
+    try "你好\tni hao\t1\n".write(to: phrases, atomically: true, encoding: .utf8)
+    userFiles = [patch, phrases]
+
+    let exported = try XCTUnwrap(model.exportSettings(), "exportSettings returned no file")
+    exports = [exported]
+    XCTAssertTrue(FileManager.default.fileExists(atPath: exported.path), "the export wrote no file")
+    let exportWarnings = model.importWarnings.joined(separator: " | ")
+    XCTAssertTrue(exportWarnings.contains("tracer.custom.yaml") && exportWarnings.contains("custom_phrase.txt"),
+                  "the export did not name both files: " + exportWarnings)
+
+    // Take them away so the import has something to restore, and check they are really gone.
+    try FileManager.default.removeItem(at: patch)
+    try FileManager.default.removeItem(at: phrases)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: patch.path))
+
+    await model.importSettingsBundle(from: exported)
+    // The import is what is under test. Its redeploy leg then reports that this container has no deployed
+    // profile to redeploy into — true here, and a different sentence from a failed import
+    // ("导入设置失败：…"), which is the one that would matter.
+    if let message = model.errorMessage {
+      XCTAssertEqual(message, "没有可部署的配置。",
+                     "the import failed rather than finding nothing to redeploy into: " + message)
+    }
+    XCTAssertTrue(FileManager.default.fileExists(atPath: patch.path), "the patch was not restored")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: phrases.path), "the phrase file was not restored")
+    let restored = try String(contentsOf: patch, encoding: .utf8)
+    XCTAssertTrue(restored.contains("enable_completion: false"),
+                  "the restored patch is not the one exported: [" + restored + "]")
+    // The import's summary names the schemas it touched, not the file names.
+    let importWarnings = model.importWarnings.joined(separator: " | ")
+    XCTAssertTrue(importWarnings.contains("2 个文件"),
+                  "the import did not say how much it restored: " + importWarnings)
+    XCTAssertTrue(importWarnings.contains("tracer"),
+                  "the import did not name the schema it restored into: " + importWarnings)
   }
 }

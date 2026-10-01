@@ -373,8 +373,22 @@ RimeEngine removes its sink in deinit now, and only the sink: librime's own stat
 engine may be using it. testAnEngineThatIsReleasedStopsReceivingLogMessages pins it from the inside — one engine
 logs librime's sentence for a deploy that cannot succeed, is released, and a second engine's message must not
 reach the first engine's buffer — and without the deinit the same test fails. The iOS suite went from a crash to
-29 tests green. The finding came from that target for a reason: it is the only place that instantiates the app
+29 tests green, and 30 now (round 163). The finding came from that target for a reason: it is the only place that instantiates the app
 the way the app instantiates itself.
+
+## Settings that leave the phone (S2 §7, round 163)
+
+The app's 导出设置 / 导入设置 buttons are two methods on the app model, and nothing exercised them: the engine's
+`RimeSettingsPortability` has its own tests, the buttons did not. `RimeAppModelTests` now writes what the
+settings editors write — a `tracer.custom.yaml` patch and a `custom_phrase.txt` — into the keyboard's user
+directory, exports them to one file, checks the export names both, deletes them, imports the file back, and finds
+both restored with their contents intact.
+
+Two details of the real path came out of it and are pinned in the test. An import's summary names the *schemas*
+it touched (`导入设置：2 个文件（tracer）`), not the file names. And the import's redeploy leg then reports
+`没有可部署的配置。` in a container with no deployed profile — which is true, and is a different sentence from
+`导入设置失败：…`, the one that would matter. The test asserts the first and rejects the second, so a real
+import failure cannot hide behind "nothing to deploy into".
 
 One operational note, learned the hard way: deleting the copied fixture from the built bundle to set up that
 mutation leaves the incremental build believing its output exists, so the next run fails until the source is
