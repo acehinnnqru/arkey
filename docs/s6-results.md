@@ -990,3 +990,22 @@ appearances the catalog asks for, and the three PNGs are committed, because an a
 And the gap cannot come back: `rime-release-check` now refuses a bundle with no `AppIcon*.png`, its own test
 builds a bundle without one and expects the refusal, and the meta-check plants the fault — deleting the icons from
 a copy of a real bundle — and requires the check to fail.
+
+## What the built plist said (S6 §6, round 182)
+
+Round 181 found the missing icon by reading the built bundle instead of the sources, and reading it further
+found three more things a submission would have hit:
+
+- **Landscape was allowed** on both idioms, while S3 §7 says "portrait only for v1 unless D3 says otherwise" and
+  D3 says v1 is specified as iPhone portrait. The build could therefore reach a layout no capture, no golden
+  snapshot and no test covers. iPhone is portrait only now, and iPad portrait with upside-down; a landscape
+  keyboard is future work with its own captures.
+- **The app had no display name**, so the home screen would have said "arkey" — the target's name — and the
+  extension said "ARKeyboard" in the keyboard list, which is what the simulator screenshot in round 158 showed.
+  Both say Arkey now, in both configurations.
+- **The export-compliance question had no answer**: `ITSAppUsesNonExemptEncryption` was absent, so every upload
+  would have asked. The app uses the system's TLS and nothing of its own, so the plist answers no, and the line
+  says that anyone who adds cryptography has to change it.
+
+All three are asserted against the project and the plist by `testTheBuiltPlistSaysPortraitArkeyAndNoCustomEncryption`,
+so the built plist cannot drift back.

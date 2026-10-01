@@ -23,5 +23,10 @@
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!-- Every App Store upload asks whether the app uses encryption the export rules do not exempt. It uses the
+	     system's TLS and nothing of its own, so the answer is no, and saying so here is one fewer question on
+	     the day of the submission. Anyone who adds cryptography has to change this line. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
