@@ -376,6 +376,15 @@ reach the first engine's buffer — and without the deinit the same test fails. 
 29 tests green, and 30 now (round 163). The finding came from that target for a reason: it is the only place that instantiates the app
 the way the app instantiates itself.
 
+Round 164 added the other two paths the screens drive and nothing exercised. The 配置库 lifecycle — import,
+deploy twice, activate, roll back, delete — is checked with the footer and the active record as the evidence at
+each step: `已切换` after activating, `已回滚到上一代构建` after rolling back, and the profile gone from the
+list after deleting it. And the keyboard's own preferences are checked against S2 §3's rule: writing one leaves
+the footer `.unchanged`, because the 键盘 screen's settings never need a deploy. In this test host there is no
+App Group — `simctl get_app_container … groups` prints nothing for the installed app — so the write reports
+拿不到 App Group，键盘设置无法共享给键盘。 and changes nothing. The branch a host *with* a group takes is asserted
+too, so the test travels; but the sentence matters either way: a settings screen that cannot save has to say so.
+
 ## Settings that leave the phone (S2 §7, round 163)
 
 The app's 导出设置 / 导入设置 buttons are two methods on the app model, and nothing exercised them: the engine's

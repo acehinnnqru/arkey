@@ -138,4 +138,71 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertTrue(importWarnings.contains("tracer"),
                   "the import did not name the schema it restored into: " + importWarnings)
   }
+
+  /// The 配置库 lifecycle the screens drive: import, deploy, activate, roll back, delete — with the footer and
+  /// the active record as the evidence at each step. The engine's coordinator has its own tests; this is the
+  /// app's path through them.
+  func testTheProfileLibraryLifecycleOnTheAppsPath() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+
+    await model.importPayload(at: try makeSourceFolder(), displayName: "Lifecycle test",
+                              adoptUserData: false)
+    let profile = try XCTUnwrap(model.profiles.first { $0.displayName == "Lifecycle test" },
+                                "the import is not listed: "
+                                  + model.profiles.map { $0.displayName }.joined(separator: ", "))
+    imported = profile.id
+
+    // Deploy twice, so there is a previous generation for the rollback to find.
+    await model.deploy(profileID: profile.id)
+    XCTAssertTrue((model.deployMessage ?? "").hasPrefix("部署完成"),
+                  "the first deploy said: " + (model.deployMessage ?? "nothing"))
+    await model.deploy(profileID: profile.id)
+
+    model.activate(profileID: profile.id)
+    XCTAssertNil(model.errorMessage, "activation reported: " + (model.errorMessage ?? ""))
+    XCTAssertEqual(model.settingsFooter, .applied("已切换"),
+                   "the footer after activating: " + String(describing: model.settingsFooter))
+    XCTAssertTrue((model.deployMessage ?? "").contains("已切换"),
+                  "activation said: " + (model.deployMessage ?? "nothing"))
+    let active = try? model.workspace.loadActiveProfile()
+    XCTAssertEqual(active?.profileID, profile.id,
+                   "the active record does not point at the activated profile")
+
+    model.rollback(profileID: profile.id)
+    if model.errorMessage == nil {
+      XCTAssertEqual(model.settingsFooter, .applied("已回滚到上一代构建"),
+                     "the footer after rolling back: " + String(describing: model.settingsFooter))
+    }
+
+    model.delete(profileID: profile.id)
+    XCTAssertNil(model.errorMessage, "deletion reported: " + (model.errorMessage ?? ""))
+    XCTAssertFalse(model.profiles.contains { $0.id == profile.id },
+                   "the profile is still listed after deletion")
+    imported = nil
+  }
+
+  /// S2 §3's rule at the app level: the keyboard's own settings never need a deploy, so writing one leaves the
+  /// footer alone. Without the App Group the store is unavailable — true in this test host, and the sentence the
+  /// user would see — so the write reports that and changes nothing, rather than pretending to have saved.
+  func testKeyboardPreferencesDoNotAskForADeploy() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    let before = model.keyboardPreferences
+
+    model.updatePreferences { $0.paletteMode = .fixed }
+
+    if model.preferencesStore == nil {
+      XCTAssertEqual(model.errorMessage, "拿不到 App Group，键盘设置无法共享给键盘。",
+                     "the write reported: " + (model.errorMessage ?? "nothing"))
+      XCTAssertEqual(model.keyboardPreferences, before, "the settings changed without a store")
+    } else {
+      XCTAssertNil(model.errorMessage, "the write reported: " + (model.errorMessage ?? ""))
+      XCTAssertEqual(model.keyboardPreferences.paletteMode, .fixed,
+                     "the settings were not saved through the app group")
+      model.resetPreferences()
+    }
+    XCTAssertEqual(model.settingsFooter, .unchanged,
+                   "a keyboard setting asked for a deploy: " + String(describing: model.settingsFooter))
+  }
 }
