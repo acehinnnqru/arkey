@@ -37,8 +37,9 @@ the prose somebody has to paste, so the submission is not the first time it is w
 
 ## What is left
 
-- build the archive the store wants: `scripts/device-preflight.sh --release` builds and checks the bundle it
-  should contain (icon, manifests, no third-party data);
+- build the archive the store wants: `scripts/device-preflight.sh` with `--archive` builds the `.xcarchive` and runs
+  the release check on the app inside it (icon, both privacy manifests, no third-party data). Measured in round
+  184: the archive builds unsigned and its app is clean; signing it for upload is the owner's team;
 - the screenshots App Store Connect asks for, taken on the device run;
 - the answers above, pasted;
 - the submission itself, which is the owner's account and nobody else's.

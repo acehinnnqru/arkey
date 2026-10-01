@@ -2,19 +2,24 @@
 # The Mac half of the device run, in one command: everything that can be answered without the phone, then the
 # list of what still needs it. docs/device-run.md holds the steps themselves and what to record for each.
 #
-# Usage: scripts/device-preflight.sh [--ui] [--release]
+# Usage: scripts/device-preflight.sh [--ui] [--release] [--archive]
 #   --ui       also run the UI-test target (the screens and the keyboard, on a simulator); about four minutes
 #   --release  also build the unsigned Release bundle and run the bundle check on it; about five minutes
+#   --archive  also build the .xcarchive the store uploads and check the app inside it; about five minutes.
+#              This is the artifact the submission starts from, so the check runs on what the archive produced
+#              rather than on a build directory that happens to exist.
 set -uo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root" || exit 2
 
 with_ui=0
 with_release=0
+with_archive=0
 for argument in "$@"; do
   case "$argument" in
     --ui) with_ui=1 ;;
     --release) with_release=1 ;;
+    --archive) with_archive=1 ;;
     *) echo "unknown argument: $argument" >&2; exit 2 ;;
   esac
 done
@@ -66,6 +71,20 @@ if [ "$with_release" = 1 ]; then
      && ./scripts/check-release-bundle.sh .build/ci-derived/Build/Products/Release-iphoneos/arkey.app \
        >> /tmp/arkey-preflight.log 2>&1; then
     tail -3 /tmp/arkey-preflight.log
+  else
+    echo "  FAILED — last lines:"; tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'; failed=1
+  fi
+fi
+
+if [ "$with_archive" = 1 ]; then
+  step "the archive the store uploads, and the app inside it"
+  rm -rf .build/arkey.xcarchive
+  if xcodebuild -project arkey.xcodeproj -scheme arkey -configuration Release \
+       -destination 'generic/platform=iOS' -archivePath .build/arkey.xcarchive archive \
+       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > /tmp/arkey-preflight.log 2>&1 \
+     && ./scripts/check-release-bundle.sh .build/arkey.xcarchive/Products/Applications/arkey.app \
+       >> /tmp/arkey-preflight.log 2>&1; then
+    grep -E "Rime data files|no findings" /tmp/arkey-preflight.log | tail -2
   else
     echo "  FAILED — last lines:"; tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'; failed=1
   fi

@@ -1025,3 +1025,15 @@ bundle had no manifests either, so every cleanliness test there would have been 
 
 [app-store.md](app-store.md) now holds what S6 §6 asks a person to write: the App Privacy answers, the export
 compliance answer, and the review notes that explain the keyboard, Full Access, and the import path.
+
+## The archive builds, and its app is clean (S6 §4, round 184)
+
+The pre-flight could build a Release bundle, but a submission starts from an `.xcarchive`, which is a different
+command and a different product: the app is copied into `Products/Applications` with its extension, its dSYMs
+collected, and its icons and manifests laid out the way the store expects. Nothing here had ever run it.
+
+It runs now, unsigned, and the app inside it passes the release check: both privacy manifests, two
+AppIcon PNGs, sixteen Rime data files in two directories, no findings. The check runs on *what the archive
+produced* rather than on a build directory that happens to exist, which is the difference that matters on the day
+of a submission. `scripts/device-preflight.sh` gained `--archive` for it, and app-store.md names it as the step the
+archive comes from.
