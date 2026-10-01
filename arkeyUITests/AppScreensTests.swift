@@ -5,15 +5,37 @@ import XCTest
 /// XCUITest launches the app, taps it and reads what is on the screen — the one thing nothing else in this
 /// repository can do: the SwiftUI screens render nothing in the unit-test host (round 153), so this target is
 /// where the screens other than the home one are exercised at all.
+///
+/// "A screen opened" used to mean "some navigation bar exists", which a blank page would satisfy. Each screen
+/// now has to show its own title and a line of its own content (round 162).
 final class AppScreensTests: XCTestCase {
   override func setUp() {
     continueAfterFailure = false
   }
 
+  /// The menu entry, the title the screen gives itself, and a line only that screen carries.
+  private static let screens: [(menu: String, title: String, content: String)] = [
+    ("配置库", "配置库", "当前生效"),
+    ("下载配置", "下载配置", "可选配置"),
+    ("方案与输入", "方案", "第一个是默认方案"),
+    ("用户词库", "用户词库", "用户词典"),
+    ("键盘", "键盘", "外观"),
+    ("标点", "标点", "符号表"),
+    ("按键", "按键", "按键绑定"),
+    ("自定义短语", "自定义短语", "短语（0）"),
+    ("部署", "部署", "上一次部署"),
+    ("许可证", "许可证", "第三方配置与许可证"),
+    ("诊断", "诊断", "shared"),
+  ]
+
   private func launched() -> XCUIApplication {
     let app = XCUIApplication()
     app.launch()
     return app
+  }
+
+  private func contains(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+    app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
   }
 
   /// The home screen, which is also the app's own diagnostic: it shows what the engine resolved and what the
@@ -23,57 +45,80 @@ final class AppScreensTests: XCTestCase {
     XCTAssertTrue(app.staticTexts["在下面的输入框里切换到 Arkey 键盘试试。"].waitForExistence(timeout: 30),
                   "the home screen never appeared")
     XCTAssertTrue(app.navigationBars["Arkey"].exists, "the home screen has no title")
-    let engine = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'librime'")).firstMatch
+
+    // The engine's line, not just a line with a version in it: the app runs its own typing check at startup,
+    // and the answer is on the screen.
+    let engine = contains(app, "librime")
     XCTAssertTrue(engine.waitForExistence(timeout: 10), "the engine's status line is not on the screen")
+    XCTAssertTrue(engine.label.contains("nihao") && engine.label.contains("你好"),
+                  "the status line does not carry the typing check's answer: [" + engine.label + "]")
+
+    // Nothing is deployed in this container, so the resolved profile is the bundled fallback and the repair is
+    // offered (S1 §9) — the state the rest of these tests depend on.
+    XCTAssertTrue(contains(app, "内置数据").waitForExistence(timeout: 5),
+                  "the home screen does not name the resolved profile")
+    XCTAssertTrue(app.buttons["导入或选择配置"].exists, "the degraded state offers no repair")
   }
 
-  /// Every screen the menu offers opens, draws, and can be left again. A screen that traps, that has no
-  /// navigation bar, or that cannot be dismissed is exactly what "never run" hides.
+  /// Every screen the menu offers opens, draws its own content, and can be left again. A screen that traps,
+  /// that shows nothing, or that cannot be dismissed is exactly what "never run" hides.
   func testEveryScreenInTheMenuOpens() {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
 
-    let screens = ["配置库", "下载配置", "方案与输入", "用户词库", "键盘", "标点", "按键",
-                   "自定义短语", "部署", "许可证", "诊断"]
-    for name in screens {
+    for screen in Self.screens {
       let menu = app.buttons["更多"].firstMatch
       XCTAssertTrue(menu.waitForExistence(timeout: 10), "the more menu is not on the home screen")
       menu.tap()
 
-      let entry = app.buttons[name].firstMatch
-      XCTAssertTrue(entry.waitForExistence(timeout: 10), name + " is not in the menu")
+      let entry = app.buttons[screen.menu].firstMatch
+      XCTAssertTrue(entry.waitForExistence(timeout: 10), screen.menu + " is not in the menu")
       entry.tap()
 
-      let bar = app.navigationBars.firstMatch
-      XCTAssertTrue(bar.waitForExistence(timeout: 10), name + " opened no screen")
-      // The bar exists while the push is still animating, and a screenshot taken then shows a half-slid
-      // screen — which reads as a clipped keyboard (round 154). A beat is enough.
+      let bar = app.navigationBars[screen.title]
+      XCTAssertTrue(bar.waitForExistence(timeout: 10),
+                    screen.menu + " did not open its own screen: the bar says "
+                      + app.navigationBars.firstMatch.identifier)
+      XCTAssertTrue(contains(app, screen.content).waitForExistence(timeout: 5),
+                    screen.title + " shows none of its own content (" + screen.content + "): "
+                      + app.staticTexts.allElementsBoundByIndex.prefix(6).map { $0.label }
+                        .joined(separator: " | "))
+
       Thread.sleep(forTimeInterval: 0.6)
       let shot = XCTAttachment(screenshot: app.screenshot())
-      shot.name = name
+      shot.name = screen.menu
       shot.lifetime = .keepAlways
       add(shot)
 
       bar.buttons.element(boundBy: 0).tap()
       XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 10),
-                    "did not come back from " + name)
+                    "did not come back from " + screen.menu)
     }
   }
 
-  /// The toolbar's 键盘 opens the preview — the keyboard drawn from the engine's own layout, which is the
-  /// closest this target gets to the extension itself.
+  /// The toolbar's 键盘 opens the preview — the keyboard drawn from the shared view code, with the fixture page
+  /// on its bar. That page is what makes this more than "a screen opened": the preview has to have drawn the
+  /// keyboard's own views.
   func testTheKeyboardPreviewOpens() {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
     app.buttons["键盘"].firstMatch.tap()
-    XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10),
-                  "the keyboard preview did not open")
+    XCTAssertTrue(app.navigationBars["键盘预览"].waitForExistence(timeout: 10),
+                  "the keyboard preview did not open: " + app.navigationBars.firstMatch.identifier)
+
+    let candidate = contains(app, "你好")
+    XCTAssertTrue(candidate.waitForExistence(timeout: 5),
+                  "the preview drew no candidate bar: "
+                    + app.staticTexts.allElementsBoundByIndex.prefix(8).map { $0.label }
+                      .joined(separator: " | "))
+    XCTAssertTrue(candidate.label.contains("ni hao"),
+                  "the preview's first cell is not the fixture candidate: [" + candidate.label + "]")
+
     Thread.sleep(forTimeInterval: 0.6)
     let shot = XCTAttachment(screenshot: app.screenshot())
     shot.name = "keyboard-preview"
     shot.lifetime = .keepAlways
     add(shot)
-
   }
 
   /// S1 §9 in the running app: the degraded state names the repair and the button goes where it says. On a
@@ -101,7 +146,7 @@ final class AppScreensTests: XCTestCase {
     let entry = app.buttons["诊断"].firstMatch
     XCTAssertTrue(entry.waitForExistence(timeout: 10), "no diagnostics entry")
     entry.tap()
-    let version = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'librime'")).firstMatch
+    let version = contains(app, "librime")
     XCTAssertTrue(version.waitForExistence(timeout: 10),
                   "the diagnostics screen shows no engine version: "
                     + app.staticTexts.allElementsBoundByIndex.prefix(14).map { $0.label }

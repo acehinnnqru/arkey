@@ -423,6 +423,14 @@ tests:
   app: the candidate bar with `1 你好 ni hao | 2 你 | 3 拟 | 4 尼` and its chevrons, the measured letter
   rows, `123` / emoji / 空格 / 换行, and the globe row.
 
+Round 162 made "a screen opened" mean something. It used to be "some navigation bar exists", which a blank
+page satisfies; each screen now has to show its own title *and* a line of its own content. Two of the mappings
+are worth having in writing, because they are not what the menu says: the menu's 方案与输入 opens a screen
+titled 方案, and the 诊断 screen's container line reads `shared` where the keyboard's status line reads
+共享容器. The preview test got the same treatment — the preview must have drawn the fixture page on its bar
+(`1 你好 ni hao`) — and the home screen's engine line must carry the typing check's answer
+(`nihao → 你好`), not merely a version number.
+
 Two things this target taught, both written down where the next person will hit them. A screenshot taken as
 soon as the navigation bar exists catches the push mid-animation, and a half-slid screen reads as a **clipped
 keyboard** — the element tree settled it: the preview's grid is exactly 370 pt wide, inside the padded
