@@ -47,7 +47,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 86 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 87 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -105,7 +105,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `86 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `87 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -486,7 +486,7 @@ a one-off, and a one-off audit is how a map rots.
 | S3 §8 | accessibility | `CandidateBarAccessibilityTests`, and the UI tests that find keys by their labels |
 | S4 §2 | why one letter shows nothing, and what changes | `S4CompletionTests` |
 | S4 §3 | the input path | `S4InputTests` |
-| S4 §4, §4.1 | composition and the commit table | `S4CompletionTests`, `S4SegmentTests`, `S4SentenceTests` |
+| S4 §4, §4.1 | composition and the commit table | `S4CompletionTests`, `S4SegmentTests`, `S4SentenceTests`, `S4InputTests` (the select key, its declined case, and the deletion measurement), `KeyboardSelectKeyTests` (the extension's own select-key path) |
 | S4 §5 | incremental candidates | `S4CompletionTests` |
 | S4 §6 | the candidate UI model | `S3CandidatePanelTests`, `KeyboardTypingTests` |
 | S4 §7 | punctuation, shape, the 中/英 state | `S2PresetTests`, `KeyboardLayerTests` |
@@ -523,6 +523,13 @@ So the rule lives in one place — `RimePage.selectIndex(matching:)` — and bot
 input path, which the test drives, and the extension's key handler, which does not go through it. The test covers
 the row and its measured caveat: the first label commits 你好 and clears the composition, and a selection librime
 will not commit is accepted, produces nothing, and leaves the composition alone.
+
+Round 176 drove the extension's own half, because the keyboard does not go through the input path: with a profile
+that really has select keys, `KeyboardSelectKeyTests` types nihao on the board, switches to the numbers layer,
+presses 1, and finds the composition gone and the bar empty. Writing it also cost one test-isolation lesson: the
+patch it deploys is a real file in the shared user directory, and leaving it behind made the settings-export test
+count three files where it expects two — so the test removes it, which is what the comment beside the cleanup
+says.
 
 ## Nothing on the input path animates (S3-AC5, round 170)
 
