@@ -84,6 +84,7 @@ fi
 echo "== each check passes on an untouched clone"
 expect_ok "status check" ./scripts/check-status-evidence.sh --tests "$table_tests"
 expect_ok "screen wiring" ./scripts/check-ui-wiring.sh
+expect_ok "section coverage" ./scripts/check-section-coverage.sh
 expect_ok "document links" ./scripts/check-doc-links.sh
 expect_ok "repository check" ./scripts/check-repository-clean.sh
 if [ -n "$bundle" ]; then
@@ -93,6 +94,8 @@ fi
 
 echo "== each check fails when its subject is broken"
 cp docs/status.md "$work/status.bak"
+cp docs/specs/S1-data-profiles-and-deployment.md "$work/s1.bak"
+cp docs/s6-results.md "$work/s6.bak"
 
 grep -v "^| S1-AC3 |" "$work/status.bak" > docs/status.md
 expect_fail "status check, a criterion with no row" ./scripts/check-status-evidence.sh --tests "$table_tests"
@@ -131,6 +134,14 @@ cp "$work/status.bak" docs/status.md
 printf '\npublic func aFunctionNoScreenCalls() {}\n' >> Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift
 expect_fail "screen wiring, a new public symbol nobody calls" ./scripts/check-ui-wiring.sh
 restore Packages/RimeEngine/Sources/RimeEngine/RimeProbe.swift
+
+printf '\n## 12. A Section Nobody Mapped\n' >> docs/specs/S1-data-profiles-and-deployment.md
+expect_fail "section coverage, a section nobody mapped" ./scripts/check-section-coverage.sh
+cp "$work/s1.bak" docs/specs/S1-data-profiles-and-deployment.md
+
+perl -pi -e 's/\| S5 §6 \| sync \| `S5UserDictionaryTests`/| S5 §6 | sync | `S5NoSuchTests`/' docs/s6-results.md
+expect_fail "section coverage, a test the map names that does not exist" ./scripts/check-section-coverage.sh
+cp "$work/s6.bak" docs/s6-results.md
 
 printf '\n[broken](does-not-exist.md)\n' >> docs/status.md
 expect_fail "document links, a link to nothing" ./scripts/check-doc-links.sh

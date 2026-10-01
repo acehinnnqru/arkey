@@ -434,11 +434,20 @@ decisions), which carry no evidence of their own; the substantive ones are mappe
 a rule to the check that holds it. Nothing below is a newly made claim: every entry names work that already
 exists.
 
+The map is checked now, which is the point of writing it down: `check-section-coverage.sh` reads the specs'
+headings and this table, requires every substantive section to appear, and requires every test the table names to
+exist in one of the three bundles. It runs in the chain, and the meta-check plants two faults for it — a section
+nobody mapped, and a test that is not declared anywhere. Writing the check found four sections this table had
+missed (S1 §3 and §5, S4 §2, S6 §7), which is the argument for having it: the audit that produced the table was
+a one-off, and a one-off audit is how a map rots.
+
 | Section | What it decides | Where it is verified |
 | --- | --- | --- |
+| S1 §3 | the on-disk layout | `S1WorkspaceTests`, `S1ProfileSwitchTests` |
 | S1 §3.1 | `active.json` | `S1ProfileSwitchTests`, `RimeAppModelTests` |
 | S1 §3.2 | `profiles/<id>/meta.json` | `S1ImportTests`, `S1DeploymentTests` |
 | S1 §4 | the engine API additions | `S1EngineAPITests` |
+| S1 §5 | the import pipeline as a whole | `S1ImportTests`, `S1ArchiveTests` |
 | S1 §5.1 | the import stages | `S1ImportTests` |
 | S1 §5.2 | archive hardening | `S1ArchiveTests` (fifteen tests, one per rule) |
 | S1 §5.3 | tree classification | `S1ImportTests` |
@@ -460,6 +469,7 @@ exists.
 | S3 §6 | behaviour to match | `S3LayoutTests`, `KeyboardLayerTests`, `KeyboardBehaviourOnSimulatorTests` |
 | S3 §7 | the state matrix | `S3GoldenTests` and the render tests for every cell they can render |
 | S3 §8 | accessibility | `CandidateBarAccessibilityTests`, and the UI tests that find keys by their labels |
+| S4 §2 | why one letter shows nothing, and what changes | `S4CompletionTests` |
 | S4 §3 | the input path | `S4InputTests` |
 | S4 §4, §4.1 | composition and the commit table | `S4CompletionTests`, `S4SegmentTests`, `S4SentenceTests` |
 | S4 §5 | incremental candidates | `S4CompletionTests` |
@@ -481,6 +491,7 @@ exists.
 | S6 §4 | what ships, and the check that it is clean | `S6ReleaseCheckTests`, `check-release-bundle.sh` |
 | S6 §5 | licences and notices | `S6NoticesTests`, `S6EngineNoticesTests`, `check-catalog-pages.sh` |
 | S6 §6 | App Store readiness | external: the pre-flight in [device-run.md](device-run.md); nothing has been submitted |
+| S6 §7 | the automation | `.github/workflows/verify.yml`, `S6PackagingTests` |
 
 ## Settings that leave the phone (S2 §7, round 163)
 

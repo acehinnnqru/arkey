@@ -31,6 +31,9 @@ step "status evidence"
 step "screen wiring"
 ./scripts/check-ui-wiring.sh | tail -2
 
+step "section coverage"
+./scripts/check-section-coverage.sh | tail -2
+
 step "document links"
 ./scripts/check-doc-links.sh | tail -2
 
