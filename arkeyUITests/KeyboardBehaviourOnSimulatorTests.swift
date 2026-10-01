@@ -76,16 +76,20 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
     XCTAssertNotNil(typed, "the typed letter never reached the field: ["
                     + (((field.value as? String) ?? "")) + "]")
 
-    let deleted = onArkey(app) { () -> String? in
-      let key = keyboardControl(app, "删除")
-      guard key.isHittable else { return nil }
-      key.tap()
-      Thread.sleep(forTimeInterval: 0.6)
-      let value = ((field.value as? String) ?? "").filter { !$0.isWhitespace }
-      return value.contains("Q") ? nil : value
-    }
-    XCTAssertNotNil(deleted, "delete never took the letter back: ["
-                    + (((field.value as? String) ?? "")) + "]")
+    // Round 189: this step reported "delete never took the letter back" while the key it tapped was the wrong
+    // element (the app's own 删除 button, not the keyboard's key). The state goes into the message, because a
+    // failing assertion is the only thing from the test process that reaches the build log.
+    let deleteKey = keyboardKey(app, "删除")
+    XCTAssertTrue(deleteKey.exists && deleteKey.isHittable,
+                  "the delete key is not reachable: "
+                    + app.keys.allElementsBoundByIndex.prefix(40).map { $0.label }.joined(separator: " "))
+    let before = ((field.value as? String) ?? "").filter { !$0.isWhitespace }
+    deleteKey.tap()
+    Thread.sleep(forTimeInterval: 0.8)
+    let afterOne = ((field.value as? String) ?? "").filter { !$0.isWhitespace }
+    let bar = app.staticTexts.allElementsBoundByIndex.prefix(6).map { $0.label }.joined(separator: " / ")
+    XCTAssertFalse(afterOne.contains("Q"),
+                   "delete left the letter: before=[\(before)] after=[\(afterOne)] bar=[\(bar)]")
   }
 
   /// S1 §9's diagnostics, in the keyboard the system hosts: the bar says which container the extension got and

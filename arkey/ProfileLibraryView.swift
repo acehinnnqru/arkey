@@ -7,13 +7,20 @@ import UniformTypeIdentifiers
 struct ProfileLibraryView: View {
   @ObservedObject var model: RimeAppModel
 
-  @State private var isImporting = false
+  /// One picker per screen, not two. SwiftUI keeps a single presentation per view: with two fileImporters
+  /// stacked on this List the toolbar's never presented at all — tapping 导入 did nothing, which is what
+  /// round 189's UI test reproduced before this changed.
+  private enum ImportKind: Identifiable {
+    case profile
+    case settings
+    var id: Self { self }
+  }
+  @State private var importing: ImportKind?
   @State private var adoptUserData = false
   @State private var pendingDeletion: RimeAppModel.LibraryEntry?
   @State private var deleteDictionaries = false
   @State private var busyProfileID: String?
   @State private var exported: URL?
-  @State private var isImportingSettings = false
 
   var body: some View {
     List {
@@ -29,7 +36,7 @@ struct ProfileLibraryView: View {
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
         Button {
-          isImporting = true
+          importing = .profile
         } label: {
           Label("导入", systemImage: "square.and.arrow.down")
         }
@@ -39,20 +46,21 @@ struct ProfileLibraryView: View {
         Button("刷新") { model.refresh() }
       }
     }
-    .fileImporter(isPresented: $isImporting,
+    // The union of both kinds' types; the handler refuses what the kind does not accept, which is what a
+    // second importer was standing in for.
+    .fileImporter(isPresented: Binding(get: { importing != nil },
+                                       set: { if !$0 { importing = nil } }),
                   allowedContentTypes: [.zip, .folder],
                   allowsMultipleSelection: false) { result in
-      handleImport(result)
-    }
-    .fileImporter(isPresented: $isImportingSettings,
-                  allowedContentTypes: [.zip],
-                  allowsMultipleSelection: false) { result in
-      switch result {
-      case .failure(let error):
-        model.errorMessage = "选择文件失败：" + String(describing: error)
-      case .success(let urls):
-        guard let url = urls.first else { return }
-        Task { await model.importSettingsBundle(from: url) }
+      let kind = importing
+      importing = nil
+      switch kind {
+      case .profile:
+        handleImport(result)
+      case .settings:
+        handleSettingsImport(result)
+      case nil:
+        break
       }
     }
     .confirmationDialog("删除配置？",
@@ -141,7 +149,7 @@ struct ProfileLibraryView: View {
       } else {
         Button("导出设置（补丁 + 自定义短语）") { exported = model.exportSettings() }
       }
-      Button("导入设置…") { isImportingSettings = true }
+      Button("导入设置…") { importing = .settings }
     } header: {
       Text("设置")
     } footer: {
@@ -197,6 +205,21 @@ struct ProfileLibraryView: View {
     case .success(let urls):
       guard let url = urls.first else { return }
       Task { await model.importPayload(at: url, displayName: nil, adoptUserData: adoptUserData) }
+    }
+  }
+
+  /// The settings import takes a zip and nothing else, which the shared picker has to say for itself.
+  private func handleSettingsImport(_ result: Result<[URL], Error>) {
+    switch result {
+    case .failure(let error):
+      model.errorMessage = "选择文件失败：" + String(describing: error)
+    case .success(let urls):
+      guard let url = urls.first else { return }
+      guard url.pathExtension.lowercased() == "zip" else {
+        model.errorMessage = "导入设置需要导出设置生成的 zip 文件，选中的是 " + url.lastPathComponent + "。"
+        return
+      }
+      Task { await model.importSettingsBundle(from: url) }
     }
   }
 

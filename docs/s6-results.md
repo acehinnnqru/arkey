@@ -1090,3 +1090,26 @@ run rather than anything on a phone.
 All three are named now, and the status check requires it: every row whose state is not met has to appear in
 device-run.md, or the check says the list of what is left is incomplete. The meta-check plants the fault by
 renaming one mention so it no longer matches the row.
+
+## The import buttons did nothing (round 189)
+
+A report from the user: tapping 导入 in the profile library did nothing, and relaunching did not help. It could
+not be the stuck `isDeploying` flag that a relaunch would clear, so a UI test was written that taps the button
+and waits for the system picker — and it reproduced the report at once:
+
+    tapping 导入 opened no picker: Arkey | 导入 | 刷新 | 导出设置（补丁 + 自定义短语） | 导入设置…
+
+The cause was structural. Both 配置库 and 用户词库 stacked **two** `.fileImporter` modifiers on one view (plus a
+confirmation dialog), and SwiftUI keeps one presentation per view: the toolbar's importer never presented, so the
+button set its state and nothing happened. Both screens have **one** picker now, driven by a small kind enum; the
+allowed types are the union and each branch keeps to its own — the settings import refuses a folder with a
+sentence rather than silently accepting one. The UI test covers the three buttons that were broken.
+
+**A second defect fell out of the same build**, and it was mine: round 183 added `ARKeyboard/PrivacyInfo.xcprivacy` to
+a folder that the unit-test target also copies, so the iOS build stopped with "Multiple commands produce
+…/arkeyTests.xctest/PrivacyInfo.xcprivacy". Nothing caught it because that round ran the package suite and the
+chain — neither of which builds the app — and not the iOS suite. The two folders now except the manifest for the
+test target, exactly as they already excepted `Info.plist`, and the lesson is written here: a change to a
+synchronized folder has to be followed by an iOS build, because only that build copies it.
+
+Running the iOS suite the same way found nothing else: 38 unit tests and, on the next run, the UI target.

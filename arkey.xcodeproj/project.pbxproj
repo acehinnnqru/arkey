@@ -86,6 +86,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				PrivacyInfo.xcprivacy,
 			);
 			target = A5C0DE000000000000000010 /* arkeyTests */;
 		};
@@ -96,6 +97,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				PrivacyInfo.xcprivacy,
 			);
 			target = A5C0DE000000000000000010 /* arkeyTests */;
 		};

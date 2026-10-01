@@ -14,10 +14,16 @@ struct UserDictionaryView: View {
   @State private var exportedSet: URL?
   /// S5 §5: the dictionary whose row asked for an import, and the file picker's state.
   @State private var pendingImport: String?
-  @State private var isImporting = false
+  /// One picker per screen: two fileImporters on this List meant neither presented (round 189 — the same
+  /// defect the profile library had).
+  private enum Pick: Identifiable {
+    case dictionary
+    case syncFolder
+    var id: Self { self }
+  }
+  @State private var picking: Pick?
   @State private var importMessage = ""
   @State private var pendingRemoval: String?
-  @State private var isChoosingSyncFolder = false
   @State private var query = ""
 
   var body: some View {
@@ -74,15 +80,25 @@ struct UserDictionaryView: View {
            + "librime 的导入是增量写入，删掉一行再导回去并不会移除词条。")
     }
     .task { model.refreshDictionaries() }
-    // S5 §5: the file the user picks is a snapshot or a levers export, and the engine tells them apart.
-    .fileImporter(isPresented: $isImporting, allowedContentTypes: [.item]) { result in
-      guard let name = pendingImport, case .success(let url) = result else { return }
-      importMessage = model.importDictionary(from: url, into: name)
-    }
-    .fileImporter(isPresented: $isChoosingSyncFolder, allowedContentTypes: [.folder]) { result in
-      switch result {
-      case .success(let url): model.chooseSyncFolder(url)
-      case .failure(let error): model.errorMessage = "选择文件夹失败：" + String(describing: error)
+    // S5 §5: the file the user picks is a snapshot or a levers export, and the engine tells them apart. The
+    // types are the union of both kinds; each branch keeps to its own.
+    .fileImporter(isPresented: Binding(get: { picking != nil },
+                                       set: { if !$0 { picking = nil } }),
+                  allowedContentTypes: [.item, .folder]) { result in
+      let kind = picking
+      picking = nil
+      switch (kind, result) {
+      case (.dictionary, .success(let url)):
+        guard let name = pendingImport else { return }
+        importMessage = model.importDictionary(from: url, into: name)
+      case (.dictionary, .failure(let error)):
+        model.errorMessage = "选择文件失败：" + String(describing: error)
+      case (.syncFolder, .success(let url)):
+        model.chooseSyncFolder(url)
+      case (.syncFolder, .failure(let error)):
+        model.errorMessage = "选择文件夹失败：" + String(describing: error)
+      case (nil, _):
+        break
       }
     }
   }
@@ -116,7 +132,7 @@ struct UserDictionaryView: View {
         }
         Button("导入…") {
           pendingImport = entry.name
-          isImporting = true
+          picking = .dictionary
         }
         Button("备份") { model.backupDictionary(entry.name) }
         if let snapshot = exportedSnapshot {
@@ -229,7 +245,7 @@ struct UserDictionaryView: View {
         Button("恢复默认（iCloud / 文稿）") { model.useDefaultSyncFolder() }
           .font(.caption)
       } else {
-        Button("选择同步文件夹…") { isChoosingSyncFolder = true }
+        Button("选择同步文件夹…") { picking = .syncFolder }
           .font(.caption)
       }
       if let problem = model.syncChoiceProblem {

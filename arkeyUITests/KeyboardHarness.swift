@@ -85,6 +85,22 @@ extension XCTestCase {
     app.descendants(matching: .any).matching(identifier: label).firstMatch
   }
 
+  /// A key by its accessibility *label*, which is what the keyboard sets: letter keys answer to `app.keys["Q"]`
+  /// and the delete key's label is 删除. `keyboardControl` looks identifiers up instead, and the keyboard has
+  /// none — round 189 found the delete step of the shift test failing for that reason alone: it never tapped a
+  /// key, and reported "delete never took the letter back".
+  func keyboardKey(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+    // Scoped to the keyboard first: the app's own screens have buttons labelled 删除, and an unscoped lookup can
+    // find one of those and tap it (which is what the first version did). The keyboard's keys answer to the
+    // label they show — "Q" for a letter, "⌫" for delete — not to their VoiceOver label.
+    // Arkey's keys are not inside the system's `keyboards` container, and `app.keys` is the element type that
+    // excludes the app's own buttons — which is the distinction that matters, since 配置库 has a 删除 button too.
+    let byKey = app.keys[label]
+    if byKey.exists { return byKey }
+    return app.descendants(matching: .key)
+      .matching(NSPredicate(format: "label == %@", label)).firstMatch
+  }
+
   /// Cycles the input mode until Arkey's bar is on screen *and stays there*: a single look is not enough,
   /// because the extension's view is hittable for a moment while it fades out, and a loop that trusts that
   /// first look walks on with the system keyboard in front of it (which is how two of these tests failed
