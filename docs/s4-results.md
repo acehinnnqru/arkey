@@ -275,6 +275,28 @@ Inputs that fail the guard leave the panel without a row rather than showing a w
 hands `output.syllables` to `RimeCandidatePanelModel.page`, and `S4SegmentTests` pins all four rows
 above.
 
+## The bar and the panel, driven end to end (S4-AC5)
+
+Everything above is engine-level. The bar's own labels and chevrons were checked in the accessibility tests, and
+no test had ever put a *candidate* on it, because the keyboard's workspace is undeployed until the app has run
+once. `KeyboardTypingTests` in the iOS test target now does what the app's first launch does — installs the
+bundled profile with the keyboard's own importer and deployer — lets the controller adopt it at appearance, and
+then drives the keyboard: five taps on the grid's keys (n, i, h, a, o) put 你好 on the bar; tapping that cell takes
+it and the composition clears; the expand button opens the panel, which lists the candidates the bar had, with
+the bar and the grid hidden behind it.
+
+It runs after the controller tests (alphabetically) so their premise — nothing deployed — stays true, and its
+tearDown deletes the profile and the active record it installed, so the suite is repeatable: two consecutive runs
+are green, and the second starts from the state the first did.
+
+What it cannot see is the committed text: `textDocumentProxy` belongs to a host application, so "the candidate
+was taken" is asserted from the engine's side — the composition is gone — and the device run is where the
+sentence lands in a real field.
+
+One detail worth keeping: the bar hides its cells by hiding the stack that holds them, so a test that reads
+button titles has to walk the ancestor chain to know what is actually on screen. The first version of the
+take-a-candidate test read a hidden cell's stale title and believed the candidate was still there.
+
 ## The §11 list, item by item
 
 Five engine bullets, four covered: `n` with completion on and off on both fixtures
