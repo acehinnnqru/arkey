@@ -8,6 +8,11 @@ code: the engine half of every row is already tested on the Mac by `scripts/veri
 
 - A Mac with Xcode and the iOS 26 SDK, and an iPhone with the keyboard enabled (完全访问 on).
 - The engine checks run first, on the Mac: `scripts/verify-all.sh` must end in `verify-all ok`.
+- Better, run the whole Mac half in one command: `scripts/device-preflight.sh` with `--ui` and `--release`. It runs the chain,
+  the measuring tool's self-test, the deployer's probe, the UI target (the screens and the keyboard on a
+  simulator), the unsigned Release bundle and its check, and the catalogue pages — then prints the short list of
+  what still needs the phone. It treats the project's own unpublished page as a known blocker and any upstream
+  404 as a failure.
 - Build and install the app: `xcodebuild -project arkey.xcodeproj -scheme arkey -configuration Release -destination 'platform=iOS,name=<device>' build`,
   then run it once and enable the keyboard in 设置 → 通用 → 键盘.
 
