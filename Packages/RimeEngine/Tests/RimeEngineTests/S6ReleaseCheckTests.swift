@@ -34,6 +34,9 @@ final class S6ReleaseCheckTests: XCTestCase {
   /// copy inside the plugin.
   private func copyTracerDataIntoBundle() throws {
     let fileManager = FileManager.default
+    // A real bundle carries its icon; the synthetic one has to as well, or every cleanliness assertion here
+    // would be testing the icon rule instead of the one it names.
+    try Data("icon".utf8).write(to: bundle.appendingPathComponent("AppIcon60x60@2x.png"))
     let appData = bundle.appendingPathComponent("RimeData", isDirectory: true)
     try fileManager.createDirectory(at: appData, withIntermediateDirectories: true)
     for name in ["default.yaml", "tracer.schema.yaml", "tracer.dict.yaml"] {
@@ -83,6 +86,19 @@ final class S6ReleaseCheckTests: XCTestCase {
   }
 
   // MARK: The rules
+
+  /// An app store build needs an icon, and an asset catalog with no images builds without a murmur.
+  func testABundleWithNoIconIsAFinding() throws {
+    // setUp already built a bundle that looks like the real one, icon included.
+    XCTAssertTrue(RimeReleaseCheck.check(bundle: bundle, tracerData: tracerData).isClean,
+                  "the fixture itself is not clean, so this test would be measuring something else")
+
+    try FileManager.default.removeItem(at: bundle.appendingPathComponent("AppIcon60x60@2x.png"))
+    let result = RimeReleaseCheck.check(bundle: bundle, tracerData: tracerData)
+    XCTAssertFalse(result.isClean, "the bundle has no icon and the check did not notice")
+    XCTAssertTrue(result.findings.contains { $0.reason.contains("no AppIcon") },
+                  result.findings.map { $0.reason }.joined(separator: " | "))
+  }
 
   func testABundleCarryingOnlyTheTracerDataIsClean() {
     let result = check()
@@ -157,6 +173,8 @@ final class S6ReleaseCheckTests: XCTestCase {
   func testABundleWithNoDataAtAllIsAWarningRatherThanACleanPass() throws {
     try FileManager.default.removeItem(at: bundle)
     try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+    // The icon is not what this test is about: it is about data, or the lack of it.
+    try Data("icon".utf8).write(to: bundle.appendingPathComponent("AppIcon60x60@2x.png"))
     let result = check()
     XCTAssertTrue(result.errors.isEmpty)
     XCTAssertFalse(result.warnings.isEmpty)

@@ -974,3 +974,19 @@ What the call actually buys is the deferral rule — never switching mid-sentenc
 S1AdoptionTests pins the deferred, unchanged and rebind answers, and S1AppFlowTests walks the rebind on a live
 engine and holds it to S1 §10's clause that the pointer file is not touched. The controller's part is the call
 itself, and the honest statement of its coverage is this paragraph rather than a test that cannot fail.
+
+## The app had no icon (S6 §4, round 181)
+
+`arkey/Assets.xcassets/AppIcon.appiconset` held a `Contents.json` and no images, the project declares
+`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`, and the build succeeded: an asset catalog whose image set is empty
+builds without a murmur, the bundle carried no `AppIcon*.png`, and nothing in the chain noticed. An archive like
+that cannot be submitted, and on a home screen the app is a blank square.
+
+Two things came out of finding it. The icon itself is generated — `scripts/make-app-icon.py` draws 中 in the
+keyboard's own measured colours (the dark backing `0x161616` and the action blue `0x3378F4`) into the three
+appearances the catalog asks for, and the three PNGs are committed, because an asset catalog is source. It is a
+**placeholder**: replace it with real artwork when there is any, and nothing in the build depends on how it looks.
+
+And the gap cannot come back: `rime-release-check` now refuses a bundle with no `AppIcon*.png`, its own test
+builds a bundle without one and expects the refusal, and the meta-check plants the fault — deleting the icons from
+a copy of a real bundle — and requires the check to fail.

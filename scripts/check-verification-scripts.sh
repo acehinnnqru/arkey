@@ -157,6 +157,11 @@ if [ -n "$bundle" ]; then
   mkdir -p "$work/planted.app/RimeData.local"
   printf 'name: something\n' > "$work/planted.app/RimeData.local/third-party.yaml"
   expect_fail "release bundle, a local config left in the build" ./scripts/check-release-bundle.sh "$work/planted.app"
+
+  # An asset catalog with no images builds happily, so nothing but this rule would notice a missing icon.
+  cp -R "$bundle" "$work/iconless.app"
+  find "$work/iconless.app" -maxdepth 1 -name 'AppIcon*.png' -delete
+  expect_fail "release bundle, a build with no icon" ./scripts/check-release-bundle.sh "$work/iconless.app"
 fi
 
 # The one answer a release check must never give: "0 findings" for a path that is not there.

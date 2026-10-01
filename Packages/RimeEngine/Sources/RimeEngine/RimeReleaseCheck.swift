@@ -86,6 +86,16 @@ public enum RimeReleaseCheck {
                                          + "produced nothing look the same from here")])
     }
 
+    // An app store build needs an icon, and nothing else in this repository would notice its absence: an asset
+    // catalog whose image set has no images builds happily, and did — the app shipped with a blank icon until
+    // round 181 put one there and this rule after it.
+    let bundleContents = (try? fileManager.contentsOfDirectory(atPath: bundle.path)) ?? []
+    if !bundleContents.contains(where: { $0.hasPrefix("AppIcon") && $0.hasSuffix(".png") }) {
+      findings.append(Finding(severity: .error, path: bundle.path,
+                              reason: "the bundle carries no AppIcon: an archive without one cannot be "
+                                + "submitted, and the home screen shows a blank square"))
+    }
+
     guard let enumerator = fileManager.enumerator(at: bundle,
                                                   includingPropertiesForKeys: [.isDirectoryKey],
                                                   options: []) else {
