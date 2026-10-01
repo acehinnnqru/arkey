@@ -4,6 +4,21 @@ S6 is the spec that turns the others into evidence. This file records what exist
 produces; the per-spec files ([s1](s1-results.md), [s2](s2-results.md), [s4](s4-results.md),
 [s5](s5-results.md)) hold the measurements themselves.
 
+## The environment every number here came from (S6-AC6)
+
+S6-AC6 asks for the numbers *and* the device and OS they came from, and the provenance was missing: the
+documents said "engine tests on macOS" and named the simulator destination, but nothing said which machine, which
+toolchain, or which runtime, so none of it could be reproduced on purpose rather than by luck.
+
+| What | Where the numbers come from |
+| --- | --- |
+| engine tests, the checks, the type-check | macOS 26.6.2 (build 25G83), arm64, Swift 6.3.2, Xcode 26.5 (build 17F42) |
+| the iOS unit tests, the UI tests, the keyboard tests | iPhone 17 Pro simulator, iOS 26.5 (23F77) |
+| the device-run numbers | still outstanding: they are the ones that need a real device, and the pre-flight in [device-run.md](device-run.md) asks the runner to record the model and OS with them |
+
+The two device passes that *have* happened were recorded where they happened, in
+[s3-results.md](s3-results.md) and [s4-results.md](s4-results.md).
+
 ## Engine tests on macOS
 
 `swift test --disable-sandbox` from `Packages/RimeEngine` runs **226 tests across 32 suites**, which is the
@@ -32,7 +47,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 83 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 85 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +105,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `83 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `85 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
