@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 70 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 71 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `70 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `71 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -320,7 +320,24 @@ the status line. The tests then assert what a person would see: 就绪 rather th
 engine's own keys laid out and placed, and a tap that reaches the engine. What it does **not** produce is a
 candidate: this machine's workspace has never been deployed, which is the app's first-launch job, so the
 engine answers an empty page. That is the state of a fresh install, and it is pinned as such rather than
-skipped — the deployed case is the device run's step 3.
+skipped — and the deployed case is now a test of its own.
+
+## The shipped engine runs the first-run flow (S1-AC2, S4-AC1)
+
+The keyboard tests boot the engine but their workspace is undeployed, so nothing on iOS had ever asked the
+**framework the app ships** to load our config. `RimeEngineDeployTests` does: it bootstraps a workspace of its
+own under the temporary directory, imports a clean copy of the bundled profile's three files, deploys it —
+which is the iOS build of librime compiling our schema and dictionary, a different binary from the one the
+package's tests link — activates it, lets the resolver see the deployed generation, rebinds, opens a session
+and types. `nihao` comes back with 你好 as the first candidate, which is S1-AC2's flow and S4-AC1's
+completion on the engine that actually ships.
+
+The mutation says what the test is worth: drop `tracer.dict.yaml` from the import and the deploy stops with
+librime's own sentence — "the schema's translator names the dictionary 'tracer', which is not in the config" —
+so the candidate is coming from our dictionary compiled by that binary, not from anything cached. It also
+found a real boundary while being written: with the app group unreachable the resolver **deliberately**
+ignores a deployed profile and falls back to the bundled one, which is the keyboard's degraded mode, and
+passing that flag wrongly was what made the first version see nothing.
 
 One operational note, learned the hard way: deleting the copied fixture from the built bundle to set up that
 mutation leaves the incremental build believing its output exists, so the next run fails until the source is
