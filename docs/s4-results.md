@@ -339,3 +339,18 @@ the no-session case still throws. Verified from both sides: disabling the branch
 | `S4SegmentTests` | 4 | a multi-syllable input comes back divided from librime's preedit, and a single syllable, an unfinished one or a hand-typed delimiter leaves the row empty rather than faked |
 | `S4SentenceTests` | 3 | sentence composition ranks first with no switch set, the raw input versus the spaced preedit, and a one-commit sentence through both the engine and the driver |
 | `S4InputTests` | 14 | marked text is the raw input with no spaces, the first letter composes, space/return/tap/escape/backspace/paging/option rows, both halves of the punctuation row, a tap that librime declines, and the literal fallback's refusal to invent text for control codes |
+
+## The half of the deletion intent that cannot be covered (S4 §11, round 174)
+
+Section 11 asks for two deletion tests: a candidate that came from the user dictionary disappears, and one that
+did not is declined. The second is covered — S1EngineAPITests deletes on a schema that keeps no user dictionary,
+asserts librime accepts it, and asserts the table entry survives.
+
+The first is not, and the reason is now measured rather than assumed. With translator/enable_user_dict turned on,
+one word committed so the dictionary exists, and RimeDictionaryEditor.add("tracer", text: "zzzzz", …), the entry
+really is in the user's dictionary: exporting it and parsing the export back shows it. librime still does not
+offer it as a candidate for the tracer fixture — typing zzzzz yields an empty page, before and after a deploy —
+so there is no candidate to aim the delete at.
+
+testAUserDictionaryEntryIsNotOfferedForTheTracerFixture records both halves of that measurement and fails if
+librime ever starts offering the entry, which is the signal that the deletion test can be written.

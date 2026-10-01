@@ -371,4 +371,51 @@ final class S4InputTests: XCTestCase {
     // The page after a declined selection is librime's business and the measured note in s4-results records
     // what it does; what matters here is that the key was accepted and nothing was committed.
   }
+
+  /// S4 §11's candidate-deletion intent has two halves. The declared test covers one of them — librime accepts a
+  /// delete on a schema that keeps no user dictionary, and the table entry survives it. This one records what
+  /// stops the other half ("a candidate that came from the user dictionary disappears") from being covered:
+  /// an entry the dictionary editor adds really is in the user's dictionary — the export shows it — and librime
+  /// still does not offer it as a candidate for the tracer fixture, even after a deploy. There is no candidate
+  /// to aim the delete at, so the half stays uncovered and the measurement is the finding.
+  func testAUserDictionaryEntryIsNotOfferedForTheTracerFixture() throws {
+    // The tracer keeps no user dictionary of its own; what the user learned is the point here.
+    let patch = RimePatch(engine: engine, configID: "tracer")
+    try patch.set(.bool(true), at: "translator/enable_user_dict")
+    _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).deploySync(profileID: profileID)
+    engine.closeSession()
+
+    // A dictionary nothing has been committed to has no database, so commit one word first, as the keyboard does.
+    try engine.openSession()
+    _ = try engine.processKeys("nihao")
+    _ = try engine.selectCandidate(at: 0)
+    engine.closeSession()
+
+    let added = try RimeDictionaryEditor(workspace: workspace, engine: engine)
+      .add("tracer", text: "zzzzz", code: "zzzzz")
+    XCTAssertGreaterThan(added, 0, "the editor added nothing")
+    _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).deploySync(profileID: profileID)
+    engine.closeSession()
+
+    // In the dictionary: exported and parsed back, the way the dictionary screen reads it.
+    let url = scratch.appendingPathComponent("export.txt")
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    _ = try access.perform { try engine.exportUserDictionary("tracer", to: url) }
+    let entries = try XCTUnwrap(RimeUserDictionaryExport.parse(text: try String(contentsOf: url, encoding: .utf8)))
+      .entries
+    XCTAssertTrue(entries.contains { $0.text == "zzzzz" },
+                  "the editor's entry is not in the dictionary: " + entries.map { $0.text }.joined(separator: ", "))
+
+    // And not offered: this is the measurement. If librime ever starts offering it, this test fails and the
+    // deletion half can be written.
+    let driver = try makeDriver()
+    _ = try type("zzzzz", into: driver)
+    let page = try XCTUnwrap(try driver.refresh().page, "no page")
+    XCTAssertFalse(page.candidates.contains { $0.text == "zzzzz" },
+                   "librime now offers the added entry: the deletion half can be covered: "
+                     + page.candidates.map { $0.text }.joined(separator: ", "))
+    XCTAssertTrue(page.candidates.isEmpty,
+                  "and the fixture offers nothing else for zzzzz: "
+                    + page.candidates.map { $0.text }.joined(separator: ", "))
+  }
 }
