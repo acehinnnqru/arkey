@@ -64,13 +64,19 @@ extension XCTestCase {
   /// True when the keyboard on screen is Arkey's. 删除 is not enough to go on: the system's Chinese keyboard
   /// has a 删除 key too, so the first version of this walked straight past Arkey and typed on the system one.
   /// What only this keyboard has is its own bar, which shows the engine's status line when it is idle.
-  /// Hittable, not merely present: the extension's view can stay in the hierarchy after the input mode moves
-  /// on, and "exists" was true of a keyboard that was no longer on screen — which is how the first version of
-  /// this typed on the system keyboard while believing it was on Arkey's. The bar's expand chevron is a button
-  /// only this keyboard has, and it is always enabled.
+  /// True when the keyboard on screen is Arkey's — and only Arkey's.
+  ///
+  /// Two earlier versions of this were wrong in ways worth remembering. 删除 is not enough: the system's
+  /// Chinese keyboard has one too. Neither is "the bar's view exists": the extension's view stays in the
+  /// hierarchy after the input mode moves on, so exists was true of a keyboard no longer on screen. Even the
+  /// keys and candidates are not enough — the system Pinyin keyboard has the same letters and offers the same
+  /// 你好 for nihao, so a test can be green while typing on the system keyboard.
+  ///
+  /// What is enough is a *hittable* line of text no other keyboard shows: this bar's status line, which names
+  /// the container and the full-access state.
   func arkeyKeyboardIsUp(_ app: XCUIApplication) -> Bool {
-    if keyboardControl(app, "展开候选面板").isHittable { return true }
-    return app.buttons["表情符号"].firstMatch.isHittable && app.keys["删除"].firstMatch.isHittable
+    let status = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Arkey 就绪'")).firstMatch
+    return status.exists && status.isHittable
   }
 
   /// A control inside the keyboard, whatever element type the system decides it is: the bar's chevrons come
@@ -79,13 +85,20 @@ extension XCTestCase {
     app.descendants(matching: .any).matching(identifier: label).firstMatch
   }
 
+  /// Cycles the input mode until Arkey's bar is on screen *and stays there*: a single look is not enough,
+  /// because the extension's view is hittable for a moment while it fades out, and a loop that trusts that
+  /// first look walks on with the system keyboard in front of it (which is how two of these tests failed
+  /// while reporting the wrong thing).
   func switchToArkey(_ app: XCUIApplication) {
-    for _ in 1...5 {
-      if arkeyKeyboardIsUp(app) { return }
+    for _ in 1...6 {
+      if arkeyKeyboardIsUp(app) {
+        Thread.sleep(forTimeInterval: 1.2)
+        if arkeyKeyboardIsUp(app) { return }
+      }
       let globe = app.buttons["Next keyboard"].firstMatch
       guard globe.exists else { break }
       globe.tap()
-      Thread.sleep(forTimeInterval: 1.8)
+      Thread.sleep(forTimeInterval: 2.0)
     }
   }
 }

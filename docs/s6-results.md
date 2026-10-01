@@ -457,11 +457,22 @@ they drive the extension's views directly rather than the keyboard the system ho
 `删除` takes it back; and that the emoji key hands the input mode over to the system emoji keyboard — D5's
 decision, now checked rather than argued.
 
-The detector took three tries and the failures are worth keeping. "Is Arkey up" cannot be `删除`: the
-system's Chinese keyboard has a 删除 key too, and the first version of this typed on that keyboard while
-believing it was on ours. It cannot be the bar's status line either, because the extension's view stays in the
-hierarchy after the input mode moves on — `exists` was true of a keyboard that was no longer on screen. What
-works is a *hittable* element only this keyboard has: the bar's expand chevron.
+The detector took three tries, and this is the part of the round worth reading. "Is Arkey up" cannot be `删除`:
+the system's Chinese keyboard has a 删除 key too, and the first version of this typed on that keyboard while
+believing it was on ours. It cannot be "the bar's view exists" either, because the extension's view stays in
+the hierarchy after the input mode moves on — `exists` was true of a keyboard that was no longer on screen.
+Even the keys and the candidates are not enough: the system Pinyin keyboard has the same letters and offers the
+same 你好 for nihao, so the typing test could have been green while typing on the *system* keyboard. What works,
+and what the tests use now, is a **hittable** line of text no other keyboard shows — the bar's status line,
+`Arkey 就绪 · 共享容器/扩展容器 · 完全访问开/关 · <profile>`. That line has a test of its own: it is the
+keyboard's answer to "which container did the extension get", the thing the device run reads out; and the app's
+诊断 screen is checked for librime's real version line rather than a placeholder.
+
+Every interaction in the behaviour tests is retried with the input mode re-established first, because the
+system can move the mode under the test: the first version measured that race as often as it measured the
+keyboard. One check did not survive at all: the emoji key's hand-over to the system emoji keyboard could not be
+pinned from XCUITest here, so it is gone rather than flaky, and D5's decision stays where it was — in the
+extension test that drives the key's action, plus the globe switching every keyboard test performs.
 
 One thing the panel does not get is the same treatment: the bar's expand chevron is **not exposed to the UI
 test at all** — not as a button, not as a key, and not as an untyped descendant, however it is queried — so the

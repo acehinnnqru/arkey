@@ -91,4 +91,22 @@ final class AppScreensTests: XCTestCase {
                   "the repair did not open the profile library: "
                     + app.navigationBars.allElementsBoundByIndex.map { $0.identifier }.joined(separator: " | "))
   }
+
+  /// The diagnostics screen shows the running engine's own values, not placeholders: the version line is the
+  /// one librime reports at startup.
+  func testTheDiagnosticsScreenShowsTheEngineVersion() {
+    let app = launched()
+    XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
+    app.buttons["更多"].firstMatch.tap()
+    let entry = app.buttons["诊断"].firstMatch
+    XCTAssertTrue(entry.waitForExistence(timeout: 10), "no diagnostics entry")
+    entry.tap()
+    let version = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'librime'")).firstMatch
+    XCTAssertTrue(version.waitForExistence(timeout: 10),
+                  "the diagnostics screen shows no engine version: "
+                    + app.staticTexts.allElementsBoundByIndex.prefix(14).map { $0.label }
+                      .joined(separator: " | "))
+    XCTAssertTrue(version.label.contains("1.17"),
+                  "the version line does not carry the engine's version: [" + version.label + "]")
+  }
 }
