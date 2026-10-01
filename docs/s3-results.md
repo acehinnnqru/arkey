@@ -504,6 +504,20 @@ transparent), so a detector that finds caps finds nothing there — only its gly
 material. The test asserts that whatever is not a capped key lies inside the globe's own frame, so the globe's
 colour claim rests on the sampled pixel rather than on a detected rectangle.
 
+## The callout, wired (S3-AC4)
+
+The callout's *policy* was engine-tested from the start — which keys raise one, that the first row's is clipped
+to the candidate slot, that it is clamped at the horizontal edges. What no test touched was the wiring, and
+the extension's controller is now instantiable in a test, so `KeyboardCalloutTests` drives a real key's own
+touch closure and follows the callout through the controller: it appears over the key, shows that key's label,
+moves with the finger, hides when the finger lifts, and stays inside the keyboard's bounds even when the finger
+is dragged far past either edge.
+
+Its first run found a defect a device would have shown as a callout appearing a whole key to the left of the
+thumb: the grid documents its touch points as being in **grid** coordinates and the controller converts them
+from there, but the button passed its own local centre. Measured: the callout's midX was 20.4 for a key at
+215.0. `KeyboardKeyGrid` converts now (`button.convert(point, to: self)`), and the test fails without it.
+
 ## The golden snapshot (§7), at the layer this machine can run
 
 Pixels need a device and a running app. The model every view renders from does not, and it is what a

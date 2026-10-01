@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 71 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 72 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `71 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `72 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -191,7 +191,7 @@ serial-queue discipline actually holds under interleaving rather than in a tidy 
 ## The suite under the sanitizers
 
 Both sanitizers run the whole engine suite instrumented, and both are clean:
-**AddressSanitizer 287 tests / 0 reports**, **ThreadSanitizer 287 tests / 0 reports** (re-run in round 133
+**AddressSanitizer 293 tests / 0 reports**, **ThreadSanitizer 293 tests / 0 reports** (re-run in round 147, after the capture reader, the lease, the probe log and the golden generator had all changed; the numbers below are from round 133
 after `RimeEngine`, `RimeLeaseStore` and `RimeDeploymentCoordinator` were marked
 `@unchecked Sendable` — the attribute is a claim about the queue discipline, and TSan is the evidence
 that the claim holds under the suite's interleavings rather than only in the tidy sequential run). ThreadSanitizer

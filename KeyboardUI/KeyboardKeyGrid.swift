@@ -178,11 +178,17 @@ final class KeyboardKeyGrid: UIView {
         buttons.append((mapped, button))
       }
       // The model's key carries the frame the callout is positioned from; the app's key does not.
-      button.onTouchDown = { [weak self] point in
-        self?.onKeyTouchDown?(key, point)
+      // The point arrives in the button's own coordinates and is documented to leave in the grid's: the
+      // caller positions the callout against the whole keyboard, so a button-local point puts it a key to
+      // the left. The button is a direct subview, so this is the whole conversion. (Found by
+      // KeyboardCalloutTests: the callout sat at x=20 for a key at x=215.)
+      button.onTouchDown = { [weak self, weak button] point in
+        guard let self, let button else { return }
+        self.onKeyTouchDown?(key, button.convert(point, to: self))
       }
-      button.onTouchMove = { [weak self] point in
-        self?.onKeyTouchMove?(key, point)
+      button.onTouchMove = { [weak self, weak button] point in
+        guard let self, let button else { return }
+        self.onKeyTouchMove?(key, button.convert(point, to: self))
       }
       button.onTouchEnded = { [weak self] in
         self?.onKeyTouchEnded?()
