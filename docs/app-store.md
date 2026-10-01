@@ -7,9 +7,11 @@ the prose somebody has to paste, so the submission is not the first time it is w
 
 ## App Privacy (the nutrition label)
 
-- **Data Not Collected.** Nothing is sent anywhere: no analytics, no accounts, no server. The only network
-  request is the user-initiated config download from the project's own redirect URLs, and `S6NetworkTests` pins
-  the set of URLs the app may fetch.
+- **Data Not Collected.** The app makes **no network requests at all**: no analytics, no accounts, no server, no
+  fetching. The 下载配置 screen is a static list whose links open the project's page, its upstream repository and
+  its licence in the **system browser**; the user imports the downloaded zip through the document picker or Files.
+  `S6NetworkTests` scans every source and fails if one opens a connection, so this is enforced rather than
+  promised.
 - **Tracking: No.**
 - The keyboard extension declares no collection of its own, and its manifest ships inside its own bundle
   (round 183: it did not, which is what review would have noticed).
@@ -21,19 +23,20 @@ the prose somebody has to paste, so the submission is not the first time it is w
 
 ## Review notes (paste into App Store Connect)
 
-> Arkey is a Rime-based Chinese input keyboard. It ships no dictionary content of its own: the user imports a
-> Rime configuration they obtained themselves (a zip downloaded from the project's page, from Files, or handed
-> over by another app), and the app deploys it locally. The bundled tracer configuration is the app's own, small,
-> and exists so the keyboard is usable before any import.
+> Arkey is a Rime-based Chinese input keyboard. It ships one small configuration of its own — the words are this
+> project's, a handful of entries — so the keyboard is usable before anything is imported. Everything else comes
+> from the user: they obtain a Rime configuration themselves (a zip from the project's page opened in Safari, from
+> Files, or handed over by another app) and import it, and the app deploys it locally.
 >
 > The keyboard asks for Full Access for one reason: the shared container, so the app can deploy a configuration
-> and the keyboard can read it. The keyboard makes no network requests. The config download happens in the app,
-> only when the user taps it, and the app says so on the same screen.
+> and the keyboard can read it. Neither the app nor the keyboard makes a network request: the download list is
+> static links that open the project's page in Safari, and the user imports what they downloaded. The screen says
+> so in as many words.
 >
-> Guideline 2.5.2: nothing is downloaded and executed without the user importing it. The in-app catalogue is a
-> short static list of the project's own URLs, with licence, size and requirements shown before any transfer. If
-> review prefers that the app never fetches, the same list can open the upstream release page in Safari and the
-> user imports what they downloaded — one switch, same outcome.
+> Guideline 2.5.2: the app itself downloads and executes nothing. Configurations arrive only because the user
+> imported a file they obtained outside the app, and importing is the primary path, not a convenience. The
+> catalogue screen is a short static list of the project's own URLs with licence, size and requirements shown,
+> and it opens them in Safari — the app never fetches.
 
 ## What is left
 

@@ -1063,3 +1063,18 @@ together against the project, the app plist and the extension plist.
 The same pass read the extension's other declared attributes and found nothing to change: `IsASCIICapable` is
 true (it types Latin letters), `PrefersRightToLeft` false, and `RequestsOpenAccess` true, which is the one the
 review notes in [app-store.md](app-store.md) explain.
+
+## The submission notes described a different app (round 187)
+
+[app-store.md](app-store.md) was written in round 183 from the design as it was described rather than from what the
+app does, and two of its sentences were wrong in ways a reviewer would have caught:
+
+- it said the app downloads the configuration itself, with `S6NetworkTests` pinning "the set of URLs the app may
+  fetch". The app fetches nothing: the 下载配置 screen is static links that open the project's page in Safari, the
+  user imports the zip, and `S6NetworkTests` enforces the absence of any connection by scanning every source.
+  The corrected note is stronger for review, not weaker: guideline 2.5.2 has nothing to object to when the app
+  downloads and executes nothing at all;
+- it said the app "ships no dictionary content of its own" and then, in the next sentence, that it ships the
+  tracer configuration. It ships a small configuration whose words are the project's, and the note says that.
+
+Both are fixed in the file, and the review notes now read as the same story the screen tells the user.
