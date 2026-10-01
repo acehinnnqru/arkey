@@ -167,6 +167,11 @@ if [ -n "$bundle" ]; then
   cp -R "$bundle" "$work/manifestless.app"
   rm -f "$work/manifestless.app/PlugIns/ARKeyboard.appex/PrivacyInfo.xcprivacy"
   expect_fail "release bundle, an extension with no privacy manifest" ./scripts/check-release-bundle.sh "$work/manifestless.app"
+
+  # A version bumped on one target alone is an upload that fails after the archive is built.
+  cp -R "$bundle" "$work/mismatched.app"
+  plutil -replace CFBundleVersion -string 9 "$work/mismatched.app/PlugIns/ARKeyboard.appex/Info.plist"
+  expect_fail "release bundle, an extension whose version differs" ./scripts/check-release-bundle.sh "$work/mismatched.app"
 fi
 
 # The one answer a release check must never give: "0 findings" for a path that is not there.

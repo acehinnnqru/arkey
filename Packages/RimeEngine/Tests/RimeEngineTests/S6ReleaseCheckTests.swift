@@ -42,6 +42,14 @@ final class S6ReleaseCheckTests: XCTestCase {
     let plugin = bundle.appendingPathComponent("PlugIns/ARKeyboard.appex", isDirectory: true)
     try fileManager.createDirectory(at: plugin, withIntermediateDirectories: true)
     try Data("manifest".utf8).write(to: plugin.appendingPathComponent("PrivacyInfo.xcprivacy"))
+    // Both bundles carry an Info.plist, because a store upload validates the extension's identity against the
+    // app's — and because a fixture without them would skip that rule instead of testing the one it names.
+    let appIdentifier = "com.example.arkey"
+    try infoPlist(identifier: appIdentifier, shortVersion: "1.0", build: "1")
+      .write(to: bundle.appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
+    try infoPlist(identifier: appIdentifier + ".keyboard", shortVersion: "1.0", build: "1")
+      .write(to: plugin.appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
+
     let appData = bundle.appendingPathComponent("RimeData", isDirectory: true)
     try fileManager.createDirectory(at: appData, withIntermediateDirectories: true)
     for name in ["default.yaml", "tracer.schema.yaml", "tracer.dict.yaml"] {
@@ -188,6 +196,22 @@ final class S6ReleaseCheckTests: XCTestCase {
     XCTAssertTrue(result.warnings.isEmpty, "it is not a warning: " + result.report)
   }
 
+  /// A store upload rejects an extension whose versions differ from the app's.
+  func testAnExtensionWhoseVersionDiffersIsAFinding() throws {
+    XCTAssertTrue(RimeReleaseCheck.check(bundle: bundle, tracerData: tracerData).isClean,
+                  "the fixture itself is not clean, so this test would be measuring something else")
+
+    let pluginPlist = bundle.appendingPathComponent("PlugIns/ARKeyboard.appex/Info.plist")
+    let text = try String(contentsOf: pluginPlist, encoding: .utf8)
+    try text.replacingOccurrences(of: "<string>1</string>", with: "<string>2</string>")
+      .write(to: pluginPlist, atomically: true, encoding: .utf8)
+
+    let result = RimeReleaseCheck.check(bundle: bundle, tracerData: tracerData)
+    XCTAssertFalse(result.isClean, "the extension's build number differs and the check did not notice")
+    XCTAssertTrue(result.findings.contains { $0.reason.contains("CFBundleVersion differs") },
+                  result.findings.map { $0.reason }.joined(separator: " | "))
+  }
+
   func testABundleWithNoDataAtAllIsAWarningRatherThanACleanPass() throws {
     try FileManager.default.removeItem(at: bundle)
     try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
@@ -201,5 +225,19 @@ final class S6ReleaseCheckTests: XCTestCase {
     XCTAssertTrue(result.errors.isEmpty)
     XCTAssertFalse(result.warnings.isEmpty)
     XCTAssertEqual(result.dataDirectories, [])
+  }
+
+  private func infoPlist(identifier: String, shortVersion: String, build: String) -> String {
+    """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>CFBundleIdentifier</key><string>\(identifier)</string>
+        <key>CFBundleShortVersionString</key><string>\(shortVersion)</string>
+        <key>CFBundleVersion</key><string>\(build)</string>
+    </dict>
+    </plist>
+    """
   }
 }

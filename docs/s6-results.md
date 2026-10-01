@@ -1037,3 +1037,15 @@ AppIcon PNGs, sixteen Rime data files in two directories, no findings. The check
 produced* rather than on a build directory that happens to exist, which is the difference that matters on the day
 of a submission. `scripts/device-preflight.sh` gained `--archive` for it, and app-store.md names it as the step the
 archive comes from.
+
+## The extension's identity is checked against the app's (S6 §4, round 185)
+
+A store upload validates an extension against its app: the identifier has to be the app's with a suffix, and
+CFBundleShortVersionString and CFBundleVersion have to match exactly. Both were right, and nothing held them — a
+version bumped on one target alone fails the upload *after* the archive is built, which is the most expensive
+moment to find out.
+
+rime-release-check reads both Info.plists now and refuses a bundle whose extension differs, or whose plist cannot
+be read at all. Its fixture gained Info.plists for the same reason it gained an icon and manifests: without them
+the rule is skipped rather than tested, and every cleanliness assertion in that file would be measuring something
+else. The meta-check plants the fault by bumping the extension's build number in a copy of a real bundle.

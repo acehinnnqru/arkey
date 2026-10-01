@@ -63,6 +63,14 @@ public enum RimeReleaseCheck {
   /// copy, an imported profile, or a learned dictionary.
   public static let forbiddenNames: [String] = ["RimeData.local", "profiles", "staging", "user"]
 
+  /// The bundle's own Info.plist, for the identity rules below.
+  static func infoPlist(of bundle: URL, fileManager: FileManager) -> [String: Any]? {
+    guard let data = fileManager.contents(atPath: bundle.appendingPathComponent("Info.plist").path) else {
+      return nil
+    }
+    return (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
+  }
+
   public static func check(bundle: URL, tracerData: URL, fileManager: FileManager = .default) -> Result {
     var findings: [Finding] = []
     var dataDirectories: [String] = []
@@ -103,6 +111,36 @@ public enum RimeReleaseCheck {
     if let entries = try? fileManager.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) {
       bundles += entries.filter { $0.pathExtension == "appex" }
     }
+    // A store upload validates an extension's identity against its app's: the identifier has to be the app's with
+    // a suffix, and the two version keys have to match exactly. Both were right in round 185 and nothing held
+    // them — a version bumped on one target alone is an upload that fails after the archive is built.
+    if let app = infoPlist(of: bundle, fileManager: fileManager),
+       let appIdentifier = app["CFBundleIdentifier"] as? String {
+      for plugin in bundles.dropFirst() {
+        guard let extensionPlist = infoPlist(of: plugin, fileManager: fileManager),
+              let identifier = extensionPlist["CFBundleIdentifier"] as? String else {
+          findings.append(Finding(severity: .error, path: plugin.lastPathComponent,
+                                  reason: "no readable Info.plist in this bundle: its identity cannot be "
+                                    + "validated against the app's"))
+          continue
+        }
+        if !identifier.hasPrefix(appIdentifier + ".") {
+          findings.append(Finding(severity: .error, path: identifier,
+                                  reason: "the extension's bundle identifier is not the app's with a suffix"))
+        }
+        for key in ["CFBundleShortVersionString", "CFBundleVersion"] {
+          let appValue = app[key] as? String
+          let extensionValue = extensionPlist[key] as? String
+          if appValue != extensionValue {
+            findings.append(Finding(severity: .error, path: plugin.lastPathComponent,
+                                    reason: key + " differs from the app's ("
+                                      + (extensionValue ?? "missing") + " against "
+                                      + (appValue ?? "missing") + "): an upload rejects that"))
+          }
+        }
+      }
+    }
+
     for each in bundles where !fileManager.fileExists(
       atPath: each.appendingPathComponent("PrivacyInfo.xcprivacy").path) {
       findings.append(Finding(severity: .error,
