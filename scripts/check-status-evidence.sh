@@ -159,6 +159,29 @@ for tool in rime-capture-check rime-deploy rime-release-check; do
 done
 [ "$device_missing" -eq 0 ] && echo "  every path and tool it names exists"
 
+
+echo "== what is left, and whether the device run names it =="
+# Every row that is not met has to be named by the device run, or "what is left" is not the list of what is left.
+unmet_missing=""
+# The same rows block the counts above use, so later tables in the file are not mistaken for criteria.
+while IFS= read -r row; do
+  case "$row" in "| "*) ;; *) continue ;; esac
+  id="$(printf '%s' "$row" | awk -F'|' '{ id=$2; gsub(/^ +| +$/, "", id); print id }')"
+  state="$(printf '%s' "$row" | awk -F'|' '{ state=$3; gsub(/^ +| +$/, "", state); print state }')"
+  # The header row has a cell named "State"; only rows whose state is a real one are criteria.
+  case "$state" in met) continue ;; partly|open) ;; *) continue ;; esac
+  [ -n "$id" ] || continue
+  grep -qF -- "$id" "$root/docs/device-run.md" || unmet_missing="$unmet_missing
+  $id"
+done <<< "$rows_block"
+if [ -n "$unmet_missing" ]; then
+  echo "  ✗ these rows are not met and no step in docs/device-run.md names them:"
+  printf '%s\n' "$unmet_missing" | sed 's/^/    /'
+  fail "the list of what is left is incomplete"
+else
+  echo "  every row that is not met is named by the device run"
+fi
+
 echo "== cited evidence =="
 # A backticked span is one thing: a name, a path, or a command line. The words inside a command line or a
 # quoted line of output are not names — quoting `Executed 9 tests, with 0 failures` had the lookup report

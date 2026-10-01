@@ -1078,3 +1078,15 @@ app does, and two of its sentences were wrong in ways a reviewer would have caug
   tracer configuration. It ships a small configuration whose words are the project's, and the note says that.
 
 Both are fixed in the file, and the review notes now read as the same story the screen tells the user.
+
+## "What is left" has to be the list of what is left (round 188)
+
+The status table says which rows are still open, and device-run.md says what to do about each of them. Those two
+are the artifacts somebody works from to finish the project, and nothing held them together: three rows that are
+not met were named nowhere in the device run — the S1 §9 walk, S4-AC3 (it says "S3 §9" where the row says "S1 §9
+build missing", and it never mentioned the key feel S4-AC3 waits for), and S6-AC1, whose remaining half is a CI
+run rather than anything on a phone.
+
+All three are named now, and the status check requires it: every row whose state is not met has to appear in
+device-run.md, or the check says the list of what is left is incomplete. The meta-check plants the fault by
+renaming one mention so it no longer matches the row.

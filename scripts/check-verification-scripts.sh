@@ -96,6 +96,7 @@ echo "== each check fails when its subject is broken"
 cp docs/status.md "$work/status.bak"
 cp docs/specs/S1-data-profiles-and-deployment.md "$work/s1.bak"
 cp docs/s6-results.md "$work/s6.bak"
+cp docs/device-run.md "$work/device-run.bak"
 
 grep -v "^| S1-AC3 |" "$work/status.bak" > docs/status.md
 expect_fail "status check, a criterion with no row" ./scripts/check-status-evidence.sh --tests "$table_tests"
@@ -119,6 +120,11 @@ cp "$work/status.bak" docs/status.md
 cp docs/s6-results.md "$work/results.bak"
 sed -E "s/[0-9]+ cited names/1 cited names/" "$work/results.bak" > docs/s6-results.md
 expect_fail "status check, a results doc quoting a stale count" ./scripts/check-status-evidence.sh --tests "$table_tests"
+
+# A row that is not met and that the device checklist stops naming is a row nobody can finish.
+perl -pi -e 's/S3-AC4/S3 AC4/' docs/device-run.md
+expect_fail "status check, a row the device run no longer names" ./scripts/check-status-evidence.sh --tests "$table_tests"
+cp "$work/device-run.bak" docs/device-run.md
 cp "$work/results.bak" docs/s6-results.md
 
 # The other direction: a check that fails on prose is a check people learn to ignore. Quoting a command line
