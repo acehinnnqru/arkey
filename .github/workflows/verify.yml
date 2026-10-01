@@ -27,7 +27,10 @@ jobs:
 
       - name: Release bundle check on an unsigned build
         run: |
-          xcodebuild -project arkey.xcodeproj -target arkey -configuration Release \
+          # -scheme, not -target: Xcode refuses -derivedDataPath without one ("The flag -scheme,
+          # -testProductsPath, or -xctestrun is required"), so the first version of this step could never
+          # have run. The scheme's build action is the app alone, which is what this needs (round 157).
+          xcodebuild -project arkey.xcodeproj -scheme arkey -configuration Release \
             -sdk iphoneos -derivedDataPath .build/ci-derived \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           ./scripts/check-release-bundle.sh \

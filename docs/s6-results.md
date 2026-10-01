@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 78 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 79 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `78 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `79 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -228,7 +228,15 @@ the Squirrel round trip, anything needing a real keyboard session). The definiti
 above), one builds Release for `iphoneos` with `CODE_SIGNING_ALLOWED=NO` and feeds the result to
 `check-release-bundle.sh`, and one runs `check-catalog-pages.sh`, which needs the network.
 
-**It has not run yet**: this repository has no push behind it. That is why S6-AC1 stays "partly" — the
+**It has not run yet**: this repository has no push behind it. Its steps were run by hand in round 157, and
+that is how the build step turned out to be impossible as written: `-target arkey` together with
+`-derivedDataPath` is refused by Xcode — "The flag -scheme, -testProductsPath, or -xctestrun is required
+when specifying -derivedDataPath" — so the step would have failed on the first runner, and the two steps after it
+with it. It is `-scheme arkey` now, and the same command run here builds the unsigned bundle and hands the
+release check a clean one (16 Rime data files in 2 directories, no findings); `S6PackagingTests` fails if a
+target and a derived data path are ever written together again. The catalogue check, the other step that needs
+nothing but a network, answers 200 for every upstream credit this app shows and 404 for the project's own page,
+which is the state the status table records. That is why S6-AC1 stays "partly" — the
 workflow is a definition whose commands are separately exercised by `verify-all.sh` on this machine, and
 `S6PackagingTests` pins that it names the chain, builds unsigned, and does **not** claim to run
 `xcodebuild test` or a device job: the simulator run S6-AC2 needs is a step someone runs, not a job the

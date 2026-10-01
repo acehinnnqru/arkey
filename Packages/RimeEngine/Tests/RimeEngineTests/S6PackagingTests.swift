@@ -33,6 +33,16 @@ final class S6PackagingTests: XCTestCase {
                   "the bundle half needs a build of its own")
     XCTAssertTrue(text.contains("CODE_SIGNING_ALLOWED=NO"),
                   "the bundle check is about an unsigned build")
+    // Xcode refuses -derivedDataPath without a scheme ("The flag -scheme, -testProductsPath, or -xctestrun
+    // is required when specifying -derivedDataPath"), so the first version of this step — a target plus a
+    // derived data path — could never have run, and nothing noticed until the command was run by hand
+    // (round 157).
+    if text.contains("-derivedDataPath") {
+      XCTAssertTrue(text.contains("-scheme arkey"),
+                    "the build step passes -derivedDataPath, which Xcode only accepts with a scheme")
+      XCTAssertFalse(text.contains("-target arkey"),
+                     "a target cannot be combined with -derivedDataPath")
+    }
     XCTAssertTrue(text.contains("check-catalog-pages.sh"),
                   "the page check needs the network, so it is its own step")
     XCTAssertTrue(text.contains("check-verification-scripts.sh"),
