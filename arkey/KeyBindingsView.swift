@@ -34,7 +34,7 @@ struct KeyBindingsView: View {
              + "改动写入 key_binder/bindings 并重新部署。")
       }
       SettingsDeployFooter(model: model)
-      if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
+      if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .navigationTitle("按键")
     .task { model.refreshKeyBindings() }

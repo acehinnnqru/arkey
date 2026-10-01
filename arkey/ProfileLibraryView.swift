@@ -159,7 +159,7 @@ struct ProfileLibraryView: View {
 
   private func errorSection(_ message: String) -> some View {
     Section("错误") {
-      Text(message).font(.caption).foregroundStyle(.red)
+      Text(UserFacing.text(message)).font(.caption).foregroundStyle(.red)
       Button("清除") { model.errorMessage = nil }.font(.caption)
     }
   }

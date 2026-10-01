@@ -74,11 +74,11 @@ struct CustomPhraseView: View {
         Text("导入导出")
       } footer: {
         Text("文件是 Rime 自己的纯文本格式，所以手机和电脑可以直接交换；导入按上面的方式合并，绝不静默覆盖。\n"
-             + model.customPhraseURL.path)
+             + UserFacing.text(model.customPhraseURL.path))
       }
 
       if let error = model.errorMessage {
-        Section("错误") { Text(error).font(.caption).foregroundStyle(.red) }
+        UserFacing.errorRow(error)
       }
     }
     .navigationTitle("自定义短语")

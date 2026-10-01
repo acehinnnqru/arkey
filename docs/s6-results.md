@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 80 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 81 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `80 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `81 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -396,6 +396,25 @@ the new one, which is the mutation evidence.
 The phrase test also pins the interchange format, because the desktop reads this file with another editor: one
 phrase per line, tab-separated fields, weight optional and last, trailing newline. The list round-trips through
 `RimeCustomPhraseFile` and the file is byte-checked for the separators.
+
+## One formatter for what the user reads (round 166)
+
+Round 165's defect was a symptom, not an accident: the app interpolates the engine's error text into 36
+user-facing messages, and the engine's text is English and sometimes carries a path. The screens now share one
+formatter, `UserFacing`, and the running app asserts the rule screen by screen.
+
+The check found three leaks in a row, which is the argument for having it:
+
+- 用户词库 printed the sync folder's full container path — `Text(UserFacing.text(directory))` now shows
+  `…/ArkeySync`, which says which folder it is without the container's name;
+- 自定义短语 printed the phrase file's path the same way, and now shows `…/custom_phrase.txt`;
+- 部署 legitimately prints librime's log, and 诊断 the workspace's paths — so those two screens are where the check
+  *requires* a real path rather than forbidding one, which keeps the rule honest instead of absolute.
+
+Nine error rows that each wrote `Section("错误") { Text(error) … }` for themselves now call one
+`UserFacing.errorRow`, so the folding cannot be forgotten on the tenth. The folding is pinned by three unit
+tests: a path is folded, a config key with one slash (`translator/enable_user_dict`) is not, and a plain
+sentence is untouched.
 
 ## Settings that leave the phone (S2 §7, round 163)
 

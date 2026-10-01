@@ -51,7 +51,7 @@ struct UserDictionaryView: View {
         Section { Text("读取中…").font(.footnote) }
       }
       if let message = model.syncMessage { Section("同步") { Text(message).font(.caption) } }
-      if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
+      if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .navigationTitle("用户词库")
     .searchable(text: $query, prompt: "按词库名搜索")
@@ -218,7 +218,7 @@ struct UserDictionaryView: View {
           .font(.caption)
       }
       if let directory = report.syncDirectory {
-        Text(directory).font(.caption2).foregroundStyle(.secondary)
+        Text(UserFacing.text(directory)).font(.caption2).foregroundStyle(.secondary)
       } else {
         Text("尚未播种同步目录").font(.caption2).foregroundStyle(.secondary)
       }

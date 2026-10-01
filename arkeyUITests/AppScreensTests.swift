@@ -84,6 +84,20 @@ final class AppScreensTests: XCTestCase {
                       + app.staticTexts.allElementsBoundByIndex.prefix(6).map { $0.label }
                         .joined(separator: " | "))
 
+      // A container path belongs on the diagnostics screen and nowhere else: everywhere else it is a sentence
+      // about the user's phone that the user cannot act on (S1 §9, and round 165 had one reach the UI next to a
+      // real failure).
+      let pathLeak = app.staticTexts.allElementsBoundByIndex
+        .first { $0.label.contains("/Users/") || $0.label.contains("/var/mobile") }
+      // 诊断 and 部署 are where internals are the subject — the workspace's own paths and librime's log, which
+      // is the text a bug report needs. Everywhere else a path is a sentence about the user's phone that the
+      // user cannot act on.
+      if ["诊断", "部署"].contains(screen.menu) {
+        XCTAssertNotNil(pathLeak, screen.menu + " shows no real internals at all")
+      } else {
+        XCTAssertNil(pathLeak, screen.menu + " shows a filesystem path: [" + (pathLeak?.label ?? "") + "]")
+      }
+
       Thread.sleep(forTimeInterval: 0.6)
       let shot = XCTAttachment(screenshot: app.screenshot())
       shot.name = screen.menu

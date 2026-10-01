@@ -19,7 +19,7 @@ struct KeyboardSettingsView: View {
         Label("无需部署：键盘下次出现时读取。", systemImage: "checkmark.circle")
           .font(.caption).foregroundStyle(.secondary)
       }
-      if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
+      if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .navigationTitle("键盘")
     .task { model.refreshPreferences() }

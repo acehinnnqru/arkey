@@ -11,7 +11,7 @@ struct DeployView: View {
       resultSection
       if !model.deployLog.isEmpty { logSection }
       actionsSection
-      if let error = model.errorMessage { Section("错误") { Text(error).font(.caption).foregroundStyle(.red) } }
+      if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .navigationTitle("部署")
     .toolbar {
@@ -50,7 +50,9 @@ struct DeployView: View {
   private var resultSection: some View {
     Section("上一次部署") {
       if let message = model.deployMessage {
-        Text(message).font(.caption)
+        // The sync-folder messages carry the folder's own path, and a container path is not a sentence about
+        // anything the user can act on.
+        Text(UserFacing.text(message)).font(.caption)
       } else {
         Text("还没有部署过。").font(.caption).foregroundStyle(.secondary)
       }
