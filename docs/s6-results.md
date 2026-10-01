@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 74 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 77 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `74 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `77 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -191,7 +191,7 @@ serial-queue discipline actually holds under interleaving rather than in a tidy 
 ## The suite under the sanitizers
 
 Both sanitizers run the whole engine suite instrumented, and both are clean:
-**AddressSanitizer 293 tests / 0 reports**, **ThreadSanitizer 293 tests / 0 reports** (re-run in round 147, after the capture reader, the lease, the probe log and the golden generator had all changed; the numbers below are from round 133
+**AddressSanitizer 294 tests / 0 reports**, **ThreadSanitizer 294 tests / 0 reports** (re-run in rounds 147 and 150, after the capture reader, the lease, the probe log, the golden generator and the log sink had all changed; the numbers below are from round 133
 after `RimeEngine`, `RimeLeaseStore` and `RimeDeploymentCoordinator` were marked
 `@unchecked Sendable` — the attribute is a claim about the queue discipline, and TSan is the evidence
 that the claim holds under the suite's interleavings rather than only in the tidy sequential run). ThreadSanitizer
@@ -344,6 +344,29 @@ the board, shift upper-cases it and a pause past the 0.3 s double-tap window bri
 flips the state word it names. They found two defects a thumb would have met — a language label that could not
 change on its own, and a shift-off that restyled the keys instead of rebuilding them, leaving the board in
 capitals and ready to type them — both fixed, and both tests fail without the fix.
+
+## The app model, and the crash it found (S1-AC2, S6-AC2)
+
+RimeAppModel is what the SwiftUI screens drive, and nothing had instantiated it. The app's sources are compiled
+into the test bundle now — with the same Info.plist membership exception the extension needed — so two tests
+drive it: bootstrap (directories, the installation record, the storage policy, the engine bound to what
+resolves, the tracer's typing check) and the 配置库 path (import a folder, deploy it, assert the deploy message
+and the footer state).
+
+The bootstrap test **crashed the test host**, and the crash was ours rather than the test's. The stack:
+RimeEngine.startLocked → rime::SetupLogging → glog's flush → our sink → RimeLogBuffer.append → SIGSEGV, inside
+swift_isUniquelyReferenced on a freed buffer. A log sink outlives the engine that installs it: librime keeps
+the context pointer and calls it for every later message, from any engine. The context is the engine's own log
+buffer, so an engine released without shutdown() left librime holding freed memory. The app's model passes
+minLogLevel 0 — it wants librime's own words for the diagnostics screen — which is exactly the setting that
+makes the next message arrive.
+
+RimeEngine removes its sink in deinit now, and only the sink: librime's own state is process-global and another
+engine may be using it. testAnEngineThatIsReleasedStopsReceivingLogMessages pins it from the inside — one engine
+logs librime's sentence for a deploy that cannot succeed, is released, and a second engine's message must not
+reach the first engine's buffer — and without the deinit the same test fails. The iOS suite went from a crash to
+29 tests green. The finding came from that target for a reason: it is the only place that instantiates the app
+the way the app instantiates itself.
 
 One operational note, learned the hard way: deleting the copied fixture from the built bundle to set up that
 mutation leaves the incremental build believing its output exists, so the next run fails until the source is

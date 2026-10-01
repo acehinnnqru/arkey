@@ -109,6 +109,19 @@ public final class RimeEngine: @unchecked Sendable {
     perform { shutdownLocked() }
   }
 
+  /// A log sink **outlives the engine that installed it**: librime keeps the context pointer and calls it for
+  /// every later message, from any engine in the process. The context is this engine's own log buffer, so an
+  /// engine released without shutdown() leaves librime holding freed memory, and the next log line — any
+  /// engine's, any level — is a SIGSEGV inside librime's logging. Found by the app-model test on iOS
+  /// (round 150), where the crash sat in glog's flush calling back into a buffer that was already gone.
+  ///
+  /// Only the sink is removed here; librime's own state is process-global and another engine may be using it.
+  deinit {
+    queue.sync {
+      removeLogSinkLocked()
+    }
+  }
+
   // MARK: - Input
 
   @discardableResult

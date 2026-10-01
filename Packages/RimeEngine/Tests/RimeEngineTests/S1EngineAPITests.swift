@@ -105,6 +105,66 @@ final class S1EngineAPITests: XCTestCase {
   }
 
   /// The modules the deploy path leans on, checked rather than assumed.
+  /// An engine released without shutdown() must stop receiving librime's log messages. The sink is registered
+  /// with librime, not with the engine: a context left behind is freed memory, and the next message — any
+  /// engine's — is a segfault inside glog's flush (round 150). The first engine's buffer is kept alive here on
+  /// purpose, so the assertion can see whether it was still called after its engine died.
+  func testAnEngineThatIsReleasedStopsReceivingLogMessages() throws {
+    let scratch = try Scratch()
+    let source = try schemaOnlySource(in: scratch)
+
+    let firstBuffer: RimeLogBuffer
+    do {
+      let engine = RimeEngine(configuration: RimeConfiguration(
+        directories: try scratch.directories(shared: tracerData), minLogLevel: 0))
+      _ = try engine.start()
+      firstBuffer = engine.logBuffer
+      try triggerLibrimeLog(engine: engine, source: source,
+                            root: scratch.root.appendingPathComponent("first", isDirectory: true))
+      XCTAssertFalse(firstBuffer.snapshot().isEmpty,
+                     "librime logged nothing, so this test proves nothing")
+    }
+    let before = firstBuffer.snapshot().count
+
+    let second = RimeEngine(configuration: RimeConfiguration(
+      directories: try scratch.directories(shared: tracerData), minLogLevel: 0))
+    _ = try second.start()
+    try triggerLibrimeLog(engine: second, source: source,
+                          root: scratch.root.appendingPathComponent("second", isDirectory: true))
+
+    XCTAssertEqual(firstBuffer.snapshot().count, before,
+                   "the released engine is still receiving log messages: "
+                     + firstBuffer.snapshot().dropFirst(before).map { $0.message }
+                       .joined(separator: " | "))
+
+    // The first engine cannot clean up after itself any more — that is the point of the test — so the second
+    // one leaves librime finalised for whoever runs next. Without this the next test's deploy writes into the
+    // directories this test's engines were bound to, which are gone by then.
+    second.shutdown()
+  }
+
+  /// A profile with a schema and no dictionary: importing it makes the deployer fail, and librime explains
+  /// that in its own words — the text the sink exists to carry, and the sentence a failed deploy shows a user.
+  private func schemaOnlySource(in scratch: Scratch) throws -> URL {
+    let source = scratch.root.appendingPathComponent("schema-only", isDirectory: true)
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    for file in ["default.yaml", "tracer.schema.yaml"] {
+      try FileManager.default.copyItem(at: tracerData.appendingPathComponent(file),
+                                       to: source.appendingPathComponent(file))
+    }
+    return source
+  }
+
+  private func triggerLibrimeLog(engine: RimeEngine, source: URL, root: URL) throws {
+    let workspace = try RimeWorkspace(root: root).createDirectories()
+    // The import validates by deploying, so it throws with librime's message. The throw is expected; the log
+    // line it produced is the point.
+    _ = try? RimeImporter(workspace: workspace, engine: engine)
+      .import(payload: source,
+              options: RimeImportOptions(displayName: "Sink test",
+                                         origin: RimeProfileSource(kind: .files)))
+  }
+
   func testModulesTheDeployPathNeedsArePresent() {
     XCTAssertEqual(RimeEngine.librimeVersion, "1.17.0")
     XCTAssertTrue(RimeEngine.isLogSinkAvailable, "the logsink module is how a deploy failure carries librime's own text")

@@ -81,6 +81,16 @@
 			);
 			target = A5C0DE000000000000000010 /* arkeyTests */;
 		};
+		/* The app's sources are compiled into the test bundle as well (the app model's first-run path is
+		   tested there), so its Info.plist is excepted for that target for the same reason as the
+		   extension's: the folder copy would collide with the test bundle's own generated file. */
+		A5C0DE000000000000000020 /* Exceptions for "arkey" folder in "arkeyTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A5C0DE000000000000000010 /* arkeyTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -97,6 +107,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				A5C0DE00000000000000001B /* Exceptions for "arkey" folder in "arkey" target */,
+				A5C0DE000000000000000020 /* Exceptions for "arkey" folder in "arkeyTests" target */,
 			);
 			path = arkey;
 			sourceTree = "<group>";
@@ -212,6 +223,7 @@
 				A5C0DE000000000000000015 /* arkeyTests */,
 				A5C0DE00000000000000000D /* KeyboardUI */,
 				1B0516683062E3D700EDD6AE /* ARKeyboard */,
+				1B0516513062E34E00EDD6AE /* arkey */,
 			);
 			name = arkeyTests;
 			packageProductDependencies = (
