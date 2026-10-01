@@ -372,6 +372,34 @@ One operational note, learned the hard way: deleting the copied fixture from the
 mutation leaves the incremental build believing its output exists, so the next run fails until the source is
 touched. The failure it produces is the right one, which is why the mutation proved what it was meant to.
 
+## The app runs, and its first screen (S6-AC1)
+
+Nothing had ever launched the app. On a simulator it takes two commands and a screenshot:
+
+    xcrun simctl install booted .build/DerivedData-test/Build/Products/Debug-iphonesimulator/arkey.app
+    xcrun simctl launch booted com.acehinnnqru.arkey
+    sleep 4 && xcrun simctl io booted screenshot /tmp/arkey-home.png
+
+It came up — the pid was alive five seconds later — and its home screen was seen: the Arkey title, the 键盘
+tab, an input box with its hint, the status line for a container with nothing deployed, the engine's own
+diagnostic — "librime 1.17.0 · 启动 4ms · nihao → 你好 → 你好" — and the degraded-mode banner with its
+导入或选择配置 button. That diagnostic is the app's typing check: it fell back to the bundled profile, typed
+nihao, answered 你好 and committed it, on the simulator.
+
+The container says the rest: a `rime/` workspace with `keyboard.lease.json`, `profiles/`,
+`staging/`, `user/` and `log/`; `user/installation.yaml` with the distribution name and
+`rime_version: 1.17.0`; `user/user.yaml`; a probe log carrying the app's own `app.launch` records
+(bootstrap in 194 ms); and librime's INFO/ERROR files, the ERROR one holding
+`ascii_composer.cc:210 Missing ascii bindings.` — the line the log sink exists to carry, and the app kept
+running through it.
+
+What this does **not** do is drive the app: nothing taps a tab or a button, so the other screens — 部署,
+用户词库, 诊断, 配置库 and the rest — have still not been seen. The obvious harness for that is a UI-test
+target. The cheaper one was tried first and does not work: hosting the screens in the unit-test target with a
+`UIHostingController` renders nothing — not the screens, not a bare `Text("hello")`, with or without a
+window and a run-loop pass, and the accessibility tree comes back empty too — so SwiftUI screen checks need a
+UI-test target, this simulator recipe, or a device.
+
 ## The repository half of "nothing third-party" (S6 §5)
 
 S6 §5 says "the check in §4 enforces the bundle half; a repository check (a pre-commit hook or CI step)
