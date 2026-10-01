@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 79 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 80 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `79 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `80 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -432,6 +432,26 @@ whose tests all passed.
 
 What it does not do is type with the real keyboard: enabling the extension in Settings and typing into the
 field is the device run's job, and this target asserts the screens, not the keyboard.
+
+## The real keyboard, typing into a real field (S4-AC1, S4-AC3, round 158)
+
+Everything above drives the extension's views directly or the engine beneath them. This drives the **installed
+keyboard**: `KeyboardTypingOnSimulatorTests` adds the extension in Settings through XCUITest (idempotent — a
+simulator keeps it), launches the app, focuses the field, switches the input mode to Arkey with the globe key,
+and types. Five taps on the keyboard's own keys — `n i h a o` — leave the field holding the composition
+`ni hao` and the bar offering 你好 / 👋 / 不好; tapping 你好 commits it, and the field then holds 你好.
+
+Three things had to be learned to get there, and all three are in the test:
+
+- The keyboard's keys **are** visible to the host app's UI test (they carry the keyboard-key trait), which is
+  what makes this possible at all; the globe is labelled `Next keyboard`, and the detector for "Arkey is up"
+  is a key only this keyboard has — `删除` or `换行`, the engine's own labels.
+- The candidates are exposed as **text**, not as buttons: the cell wraps a label, so `app.buttons` finds
+  nothing and `app.staticTexts["你好"]` is what gets tapped.
+- The preedit's separators are not the ASCII space, so the composition is compared with whitespace stripped.
+
+What it does not cover is the device: latency, key feel, the material and a real finger stay in
+[device-run.md](device-run.md), where this test is now the pre-flight step for the keyboard itself.
 
 ## The repository half of "nothing third-party" (S6 §5)
 
