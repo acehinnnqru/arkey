@@ -45,7 +45,9 @@ final class RimeEngineDeployTests: XCTestCase {
                                                  appGroupAvailable: true)
     XCTAssertNil(resolved.profileID, "nothing should be deployed yet")
     let engine = RimeEngine(configuration: RimeConfiguration(directories: resolved.directories))
-    addTeardownBlock { engine.shutdown() }
+    // No shutdown: librime's state is process-global, so finalising this engine would take the keyboard
+    // tests' engine down with it — the language key stops resolving, which is how this was found (round 148).
+    // Process exit is the boundary; the workspace is still removed by tearDown.
     _ = try engine.start()
 
     // 2. Import the profile from a folder — a clean copy of the three files the bundled tree ships, the same

@@ -60,7 +60,7 @@ final class KeyboardKeyGrid: UIView {
   /// SF Symbol lookups, colours) was a measurable part of the input latency.
   private var applied: (keyLayer: KeyLayer, shift: RimeShiftState, asciiMode: Bool,
                         returnKeyLabel: String, showsGlobeRow: Bool,
-                        appearance: UIKeyboardAppearance)?
+                        appearance: UIKeyboardAppearance, language: RimeLanguageKey?)?
   private var laidOutWidth: CGFloat = 0
 
   /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
@@ -85,16 +85,22 @@ final class KeyboardKeyGrid: UIView {
                  shift: RimeShiftState = .off,
                  language: RimeLanguageKey? = nil,
                  feedback: RimeKeyFeedback = .standard) {
+    // The 中/英 label is part of the *key*, not a style applied to it, so a label that changes on its own
+    // needs new keys rather than a restyle — and it is the one applied field the comparison below did not
+    // look at, which kept the old word on the cap (found by KeyboardLayerTests, round 148).
+    let previousLanguage = applied?.language
+    let previousShift = applied?.shift
     if let applied,
        applied.keyLayer == layer,
        applied.shift == shift,
        applied.asciiMode == asciiMode,
        applied.returnKeyLabel == returnKeyLabel,
        applied.showsGlobeRow == showsGlobeRow,
-       applied.appearance == theme.appearance {
+       applied.appearance == theme.appearance,
+       applied.language == language {
       return
     }
-    applied = (layer, shift, asciiMode, returnKeyLabel, showsGlobeRow, theme.appearance)
+    applied = (layer, shift, asciiMode, returnKeyLabel, showsGlobeRow, theme.appearance, language)
 
     self.theme = theme
     self.currentLayer = layer
@@ -106,8 +112,14 @@ final class KeyboardKeyGrid: UIView {
     self.feedback = feedback
 
     // A different key set has to be rebuilt; a different colour does not.
+    // A shift change rebuilds rather than restyles: the label a character key reports is the layout's, and
+    // the layout's is cased. Restyling could only paint the old case over the new state — and the key would
+    // still *type* the old one — which is how shift-off left the board in capitals (found by
+    // KeyboardLayerTests, round 148).
     let needsRebuild = buttons.isEmpty
       || buttons.count != currentLayout(width: max(laidOutWidth, 1)).keys.count
+      || previousLanguage != language
+      || previousShift != shift
     if needsRebuild {
       rebuild()
     } else {

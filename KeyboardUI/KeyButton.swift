@@ -94,6 +94,10 @@ final class KeyButton: UIControl {
     layer.shadowOpacity = style == .plain ? 0 : theme.keyShadowOpacity
   }
 
+  /// What the cap draws. The label is private like the rest of the view's insides; this is the part a test
+  /// (and anything else that needs to read a key back) can see.
+  var title: String? { titleLabel.text }
+
   func setTitle(_ title: String, pointSize: CGFloat = 22) {
     titleLabel.text = title
     titleLabel.font = .systemFont(ofSize: pointSize, weight: .regular)

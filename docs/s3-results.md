@@ -518,6 +518,31 @@ thumb: the grid documents its touch points as being in **grid** coordinates and 
 from there, but the button passed its own local centre. Measured: the callout's midX was 20.4 for a key at
 215.0. `KeyboardKeyGrid` converts now (`button.convert(point, to: self)`), and the test fails without it.
 
+## The layers, shift and the 中/英 key, wired (S3-AC3)
+
+The layouts are engine-tested — 123 / #+= / ABC, the three shift states, the action-key states — but a layout
+test says what the engine *would* draw, not that a tap makes the view draw it. `KeyboardLayerTests` now drives
+real taps through the extension's controller and reads the caps back: the layer keys change the board, shift
+upper-cases it and, a pause past the 0.3 s double-tap window, brings it back lower-case, and the 中/英 key
+flips the state word it names.
+
+Two defects came out of it, both of which a thumb would have met:
+
+- **The 中/英 label could not change on its own.** `KeyboardKeyGrid.configure` compares what it applied so a
+  stylable change does not rebuild the keys, and it compared every field *except* the language label. The label
+  is the schema's word for the state, so a change to it alone kept the old word on the cap. The comparison and
+  the rebuild decision both look at it now, pinned by a test that reconfigures a grid with only the label
+  changed.
+- **Shift came back as a restyle, not a rebuild.** A character key's label — and the character it *types* —
+  comes from the layout the engine produces for that shift state, and that label is baked into the key when the
+  grid builds it. Restyling could only paint case over the old key, so switching shift off left the board in
+  capitals and would have typed capitals too. A shift change rebuilds now.
+
+Two harness notes that are worth more than they look: the grid is configured by the controller's *appearance*
+(`viewWillAppear` asks the schema for the language key), so a test that only loads the view sees the default
+configuration — which is why the first version of the language test found no such key; and one tap must fire the
+controller exactly once, which the shift test asserts by wrapping `onKey`.
+
 ## The golden snapshot (§7), at the layer this machine can run
 
 Pixels need a device and a running app. The model every view renders from does not, and it is what a
