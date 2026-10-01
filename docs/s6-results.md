@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 82 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 83 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `82 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `83 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -492,6 +492,15 @@ a one-off, and a one-off audit is how a map rots.
 | S6 §5 | licences and notices | `S6NoticesTests`, `S6EngineNoticesTests`, `check-catalog-pages.sh` |
 | S6 §6 | App Store readiness | external: the pre-flight in [device-run.md](device-run.md); nothing has been submitted |
 | S6 §7 | the automation | `.github/workflows/verify.yml`, `S6PackagingTests` |
+
+## Nothing on the input path animates (S3-AC5, round 170)
+
+The row said "met" with nothing cited, and the claim has two halves. The awaiting half is synchronous by
+construction: the typing and layer tests drive keys from methods that never await, which a key that had to be
+awaited could not do. The animating half is the one that could quietly come back, so it is checked now —
+`testTheInputPathNeitherAwaitsNorAnimates` taps a key and requires every layer of the grid and of the candidate
+bar to have no animations at all. Adding one inside the key handler fails it with the layer named and the
+animation named ("the key grid animates on the input path: opacity"), which is the mutation this row was missing.
 
 ## The lease, driven at the view controller (S5-AC2, round 169)
 

@@ -128,4 +128,34 @@ final class KeyboardLayerTests: XCTestCase {
     XCTAssertTrue(titles(grid).contains("英"),
                   "the grid kept the old language label: " + titles(grid).joined(separator: " "))
   }
+
+  /// S3-AC5: nothing on the input path animates or awaits.
+  ///
+  /// The awaiting half is synchronous by construction here — a key that had to be awaited could not be driven
+  /// from a test method that does not await — and the animating half is what could quietly come back, so it is
+  /// checked on every layer of both views the input path touches.
+  func testTheInputPathNeitherAwaitsNorAnimates() throws {
+    let controller = booted()
+    let grid = try grid(controller)
+    let bar = try XCTUnwrap(descendants(CandidateBar.self, in: controller.view).first, "no candidate bar")
+
+    try tap(.character("n"), in: grid)
+    grid.layoutIfNeeded()
+
+    for (name, view) in [("the key grid", grid as UIView), ("the candidate bar", bar)] {
+      let animated = layers(of: view.layer).filter { !($0.animationKeys() ?? []).isEmpty }
+      let names = animated.flatMap { $0.animationKeys() ?? [] }
+      XCTAssertTrue(animated.isEmpty,
+                    name + " animates on the input path: " + names.joined(separator: ", "))
+    }
+  }
+
+  private func descendants<T: UIView>(_ type: T.Type, in view: UIView) -> [T] {
+    view.subviews.flatMap { subview -> [T] in
+      (subview as? T).map { [$0] } ?? [] } + view.subviews.flatMap { descendants(type, in: $0) }
+  }
+
+  private func layers(of layer: CALayer) -> [CALayer] {
+    [layer] + (layer.sublayers ?? []).flatMap { layers(of: $0) }
+  }
 }
