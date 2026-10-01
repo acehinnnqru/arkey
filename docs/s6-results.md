@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 80 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 79 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `80 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `79 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -450,8 +450,21 @@ Three things had to be learned to get there, and all three are in the test:
   nothing and `app.staticTexts["你好"]` is what gets tapped.
 - The preedit's separators are not the ASCII space, so the composition is compared with whitespace stripped.
 
-What it does not cover is the device: latency, key feel, the material and a real finger stay in
-[device-run.md](device-run.md), where this test is now the pre-flight step for the keyboard itself.
+Three more tests drive that installed keyboard's own controls — the seams the unit tests cannot reach, because
+they drive the extension's views directly rather than the keyboard the system hosts:
+`KeyboardBehaviourOnSimulatorTests` checks that `数字` brings up the digits and `字母` (which draws
+"ABC") brings the letters back; that `shift` upper-cases the board, a typed `Q` reaches the field and
+`删除` takes it back; and that the emoji key hands the input mode over to the system emoji keyboard — D5's
+decision, now checked rather than argued.
+
+The detector took three tries and the failures are worth keeping. "Is Arkey up" cannot be `删除`: the
+system's Chinese keyboard has a 删除 key too, and the first version of this typed on that keyboard while
+believing it was on ours. It cannot be the bar's status line either, because the extension's view stays in the
+hierarchy after the input mode moves on — `exists` was true of a keyboard that was no longer on screen. What
+works is a *hittable* element only this keyboard has: the bar's expand chevron.
+
+What none of it covers is the device: latency, key feel, the material and a real finger stay in
+[device-run.md](device-run.md), where these tests are now the pre-flight step for the keyboard itself.
 
 ## The repository half of "nothing third-party" (S6 §5)
 
