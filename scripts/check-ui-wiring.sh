@@ -38,7 +38,11 @@ unused="$(
   grep -rhoE "public (static )?(func|var|let) [a-zA-Z_][a-zA-Z0-9_]*" Packages/RimeEngine/Sources/RimeEngine \
     | awk '{print $NF}' | sort -u \
     | while IFS= read -r name; do
-        if ! grep -rqE "\b$name\b" arkey ARKeyboard KeyboardUI 2>/dev/null; then echo "$name"; fi
+        # A *use*, not a mention: a member access, a call, or an argument label. Matching the bare word made
+        # the check fire on English prose — `matches`, `paths` and `components` are engine symbols and also
+        # ordinary words, so a comment saying "paths are folded" read as a screen calling `paths` (round 166).
+        if ! grep -rqE "(\.$name\b|\b$name[[:space:]]*\(|\b$name[[:space:]]*:)" \
+             arkey ARKeyboard KeyboardUI 2>/dev/null; then echo "$name"; fi
       done | sort
 )"
 total="$(grep -rhoE "public (static )?(func|var|let) [a-zA-Z_][a-zA-Z0-9_]*" Packages/RimeEngine/Sources/RimeEngine | sort -u | wc -l | tr -d " ")"
