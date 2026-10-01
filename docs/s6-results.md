@@ -416,6 +416,15 @@ Nine error rows that each wrote `Section("错误") { Text(error) … }` for them
 tests: a path is folded, a config key with one slash (`translator/enable_user_dict`) is not, and a plain
 sentence is untouched.
 
+The wiring check had to be fixed to get there, and that is a finding of its own: it grepped the app for each of
+the engine's public names as a *bare word*, so a comment saying "paths are folded" read as a screen calling the
+engine's `paths` — which is exactly how this round's first attempt failed it. It now needs a use: a member
+access, a call, or an argument label. The baseline was reviewed and rewritten, and the difference is 34 names
+that were only ever "called" in prose or a local — `data`, `make`, `exists`, `written`,
+`percentile` and the like; all of them are engine members no screen calls, which is what the baseline is for.
+The mutation the meta-check plants still fails the check, so it catches a new API no screen reaches without
+catching a sentence.
+
 ## Settings that leave the phone (S2 §7, round 163)
 
 The app's 导出设置 / 导入设置 buttons are two methods on the app model, and nothing exercised them: the engine's
