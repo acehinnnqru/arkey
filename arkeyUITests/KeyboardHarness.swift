@@ -69,8 +69,14 @@ extension XCTestCase {
   /// this typed on the system keyboard while believing it was on Arkey's. The bar's expand chevron is a button
   /// only this keyboard has, and it is always enabled.
   func arkeyKeyboardIsUp(_ app: XCUIApplication) -> Bool {
-    if app.buttons["展开候选面板"].firstMatch.isHittable { return true }
+    if keyboardControl(app, "展开候选面板").isHittable { return true }
     return app.buttons["表情符号"].firstMatch.isHittable && app.keys["删除"].firstMatch.isHittable
+  }
+
+  /// A control inside the keyboard, whatever element type the system decides it is: the bar's chevrons come
+  /// back as neither a plain Button nor a Key consistently, so they are matched by identifier alone.
+  func keyboardControl(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+    app.descendants(matching: .any).matching(identifier: label).firstMatch
   }
 
   func switchToArkey(_ app: XCUIApplication) {

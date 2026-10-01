@@ -75,4 +75,20 @@ final class AppScreensTests: XCTestCase {
     add(shot)
 
   }
+
+  /// S1 §9 in the running app: the degraded state names the repair and the button goes where it says. On a
+  /// container with nothing deployed the home screen offers 导入或选择配置, and that button opens the profile
+  /// library — the screen whose job is choosing one.
+  func testTheRecoveryBannerOpensTheProfileLibrary() {
+    let app = launched()
+    XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
+    let repair = app.buttons["导入或选择配置"].firstMatch
+    XCTAssertTrue(repair.waitForExistence(timeout: 10),
+                  "the home screen offers no repair: "
+                    + app.buttons.allElementsBoundByIndex.prefix(12).map { $0.label }.joined(separator: " | "))
+    repair.tap()
+    XCTAssertTrue(app.navigationBars["配置库"].waitForExistence(timeout: 10),
+                  "the repair did not open the profile library: "
+                    + app.navigationBars.allElementsBoundByIndex.map { $0.identifier }.joined(separator: " | "))
+  }
 }
