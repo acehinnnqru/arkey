@@ -1113,3 +1113,23 @@ test target, exactly as they already excepted `Info.plist`, and the lesson is wr
 synchronized folder has to be followed by an iOS build, because only that build copies it.
 
 Running the iOS suite the same way found nothing else: 38 unit tests and, on the next run, the UI target.
+
+## The band under the keyboard (round 189, reported from a device)
+
+The user sent a device screenshot with a band of empty backing under the last key row and the explanation: iOS
+computes the height of its own bottom row. It was right, and the measurement says exactly how much:
+
+| what | before | after |
+| --- | --- | --- |
+| space under the last row (iPhone 17 Pro) | 144.3 pt | **64.0 pt** |
+
+The layout adds the *system* keyboard's measured `bottomInset` (80.3 pt, S3 §3) to the frame the extension asks
+for, and pins the key grid 80.3 pt above the frame's bottom. But the strip below a custom keyboard — the system's
+bottom row with the globe key, and the home-indicator area — belongs to the system and is drawn outside the
+extension's frame, so that space was counted twice. The extension now lays out with `KeyboardMetrics.extensionStyle`,
+the measured style with `bottomInset = 0`, and the grid ends where its frame does; the candidate panel's own
+height uses the same zero. The S3 reference keeps the measured 80.3 — it describes the *system* keyboard, which
+is what the capture shows.
+
+The regression test is geometric rather than visual: it measures the distance from the 换行 key to the window's
+bottom and requires it to be less than the system's strip, so the band cannot come back unnoticed.

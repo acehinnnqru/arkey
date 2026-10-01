@@ -64,7 +64,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor, constant: KeyboardMetrics.rowGap),
       keyGrid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       keyGrid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      keyGrid.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -KeyboardMetrics.bottomInset),
+      // The system's own strip is below this frame, so the grid ends where the frame does (round 189: adding
+      // the measured system inset here put a band of empty backing under the last row).
+      keyGrid.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
 
     candidatePanel.translatesAutoresizingMaskIntoConstraints = false
@@ -554,7 +556,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     // The panel reaches above the keyboard's own top, so the extension has to ask for a taller frame
     // while it is open — that overhang is the 63.3 pt the capture measures.
     let height = isPanelExpanded
-      ? candidatePanel.height(bottomInset: KeyboardMetrics.bottomInset)
+      ? candidatePanel.height(bottomInset: 0)
       : KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
     if let heightConstraint {
       if heightConstraint.constant != height {

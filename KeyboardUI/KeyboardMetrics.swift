@@ -23,15 +23,25 @@ enum KeyboardMetrics {
   /// The height the extension asks the system for. It is the layout engine's answer, so the frame the
   /// system animates and the frames the keys are drawn in cannot disagree — the class of bug that
   /// killed the tracer's extension.
+  /// The style the *extension* lays out with. The system draws its own strip below the keyboard — its bottom
+  /// row with the globe key, and the home-indicator area — so the measured system-keyboard bottom inset must
+  /// not be counted a second time inside the extension's frame. Measured in round 189 on an iPhone 17 Pro: the
+  /// band under the last row was 144.3 pt, of which 80.3 was this inset and the rest the system's own strip.
+  static var extensionStyle: RimeKeyboardStyle {
+    var style = self.style
+    style.bottomInset = 0
+    return style
+  }
+
   static func totalHeight(needsGlobeRow: Bool) -> CGFloat {
     RimeKeyboardLayoutEngine.layout(width: 430, layer: .letters, needsGlobeRow: needsGlobeRow,
-                                    style: style).height
+                                    style: extensionStyle).height
   }
 
   /// The same, for the width the keyboard actually has.
   static func totalHeight(width: CGFloat, needsGlobeRow: Bool) -> CGFloat {
     RimeKeyboardLayoutEngine.layout(width: max(width, 1), layer: .letters,
-                                    needsGlobeRow: needsGlobeRow, style: style).height
+                                    needsGlobeRow: needsGlobeRow, style: extensionStyle).height
   }
 }
 

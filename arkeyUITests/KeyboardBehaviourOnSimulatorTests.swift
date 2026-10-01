@@ -110,4 +110,25 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
                   "nothing is deployed in this container, so the line should name the bundled fallback: ["
                     + line + "]")
   }
+
+  /// A custom keyboard fills the frame the system hands it, minus the strip the system owns. The device
+  /// screenshot in round 189 showed a band of empty backing under the last row, and the user said why: iOS
+  /// already reserves the height of its own bottom row (the globe key) and the home-indicator area, and the
+  /// layout was adding the system keyboard's measured 80.3 pt bottom inset on top of that. Measured on an
+  /// iPhone 17 Pro: 144.3 pt of space under the last row before, 64.0 pt after — the system's strip itself.
+  func testTheKeysReachTheBottomOfTheSystemStrip() throws {
+    enableThirdPartyKeyboard()
+    let (app, _) = launchAppWithArkeyKeyboard()
+    guard onArkey(app, { arkeyKeyboardIsUp(app) ? true : nil }) != nil else {
+      XCTFail("the keyboard never came up")
+      return
+    }
+    let enter = keyboardKey(app, "换行")
+    let window = app.windows.firstMatch
+    let gap = window.frame.maxY - enter.frame.maxY
+    XCTAssertLessThan(gap, 90,
+                      "the last key row stops " + String(format: "%.0f", gap) + " pt above the window, more than "
+                        + "the system's own strip (key ends at " + String(format: "%.0f", enter.frame.maxY)
+                        + ", window at " + String(format: "%.0f", window.frame.maxY) + ")")
+  }
 }
