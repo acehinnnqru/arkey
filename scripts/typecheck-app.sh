@@ -93,6 +93,11 @@ done
 for file in arkey/*.swift; do
   strip_previews "$file" > "$OUT/tests/$(basename "$file")"
 done
+# The UI-test target's sources as well: they are part of what the project builds, and a type error there is
+# a test that never runs (round 154).
+for file in arkeyUITests/*.swift; do
+  strip_previews "$file" > "$OUT/tests/$(basename "$file")"
+done
 
 check() {
   local name="$1"; shift
@@ -133,14 +138,15 @@ expected=$(( $(ls arkey/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
             + $(ls ARKeyboard/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
             + $(ls arkeyTests/*.swift | wc -l) + $(ls KeyboardUI/*.swift | wc -l) \
             + $(ls ARKeyboard/*.swift | wc -l) \
-            + $(ls arkey/*.swift | wc -l) ))
+            + $(ls arkey/*.swift | wc -l) \
+            + $(ls arkeyUITests/*.swift | wc -l) ))
 compiled=$(( $(ls "$OUT"/app/*.swift | wc -l) + $(ls "$OUT"/extension/*.swift | wc -l) \
             + $(ls "$OUT"/tests/*.swift | wc -l) ))
 if [ "$expected" -ne "$compiled" ]; then
   echo "typecheck FAILED: $expected Swift files in the tree, $compiled prepared for checking" >&2
   exit 1
 fi
-echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ') app + $(ls ARKeyboard/*.swift | wc -l | tr -d ' ') extension + $(ls arkeyTests/*.swift | wc -l | tr -d ' ') tests + KeyboardUI three times, the extension and the app also in the test set) =="
+echo "== $expected Swift files prepared ($(ls arkey/*.swift | wc -l | tr -d ' ') app + $(ls ARKeyboard/*.swift | wc -l | tr -d ' ') extension + $(ls arkeyTests/*.swift | wc -l | tr -d ' ') tests + KeyboardUI three times, the extension, the app and the UI tests also in the test set) =="
 
 check "app" "$OUT"/app/*.swift
 check "extension" "$OUT"/extension/*.swift

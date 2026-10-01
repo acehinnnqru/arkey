@@ -18,6 +18,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 status="$root/docs/status.md"
 tests="$root/Packages/RimeEngine/Tests/RimeEngineTests"
 ios_tests="$root/arkeyTests"
+ui_tests="$root/arkeyUITests"
 failures=0
 
 fail() {
@@ -125,6 +126,7 @@ echo "== the Swift-file count in the table =="
 swift_count=$(( $(ls "$root"/arkey/*.swift | wc -l) \
               + $(ls "$root"/ARKeyboard/*.swift | wc -l) \
               + $(ls "$root"/arkeyTests/*.swift | wc -l) \
+              + $(ls "$root"/arkeyUITests/*.swift | wc -l) \
               + $(ls "$root"/KeyboardUI/*.swift | wc -l) * 3 ))
 row_swift_a="$(grep -oE "over [0-9]+ Swift files" <<<"$(grep -E "^\| S6-AC1 \|" "$status")" | grep -oE "[0-9]+" || true)"
 row_swift_b="$(grep -oE "\([0-9]+ Swift files over" <<<"$(grep -E "^\| S6-AC2 \|" "$status")" | grep -oE "[0-9]+" || true)"
@@ -134,7 +136,7 @@ else
   [ "$row_swift_a" = "$row_swift_b" ] \
     || fail "S6-AC1 says $row_swift_a Swift files and S6-AC2 says $row_swift_b; they quote the same type-check"
   [ "$row_swift_a" = "$swift_count" ] \
-    || fail "the rows say $row_swift_a Swift files and the four source directories hold $swift_count"
+    || fail "the rows say $row_swift_a Swift files and the source directories hold $swift_count"
   echo "  the table says $row_swift_a Swift files (the tree prepares $swift_count)"
 fi
 
@@ -163,8 +165,8 @@ echo "== cited evidence =="
 # "tests," as a missing test and "Executed" as a missing type, and the `**` in another span was expanded by the
 # shell into this repository's own file names (ARKeyboard, Packages, RimeData …), each of which then failed
 # the type lookup (round 142). Only spans without whitespace are looked up, and the loop splits them with
-# globbing off so nothing expands. The test and suite lookups cover both targets: the package's tests and
-# the iOS test target's sources, which is where KeyboardGoldenTests lives.
+# globbing off so nothing expands. The test and suite lookups cover every test bundle: the package's, the
+# iOS unit-test target's and the UI-test target's.
 cited="$(grep -oE '`[^`]+`' "$status" | tr -d '`' | grep -vE '[[:space:]]' | sort -u)"
 checked=0
 set -f
@@ -173,12 +175,12 @@ for token in $cited; do
     */*|*.*) continue ;;
   esac
   if [[ "$token" =~ ^test[A-Za-z0-9_]*$ ]]; then
-    if ! grep -rq "func $token" "$tests" "$ios_tests"; then
+    if ! grep -rq "func $token" "$tests" "$ios_tests" "$ui_tests"; then
       fail "test $token is cited but does not exist"
     fi
     checked=$((checked + 1))
   elif [[ "$token" =~ ^[A-Za-z0-9_]*Tests$ ]]; then
-    if ! grep -rq "class $token" "$tests" "$ios_tests"; then
+    if ! grep -rq "class $token" "$tests" "$ios_tests" "$ui_tests"; then
       fail "suite $token is cited but does not exist"
     fi
     checked=$((checked + 1))

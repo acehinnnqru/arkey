@@ -176,9 +176,9 @@ final class S6ProjectSettingsTests: XCTestCase {
   func testTheInfoPlistArrangementIsCoherent() throws {
     let text = try project()
     let generated = text.components(separatedBy: "GENERATE_INFOPLIST_FILE = ").dropFirst().filter { $0.hasPrefix("YES") }
-    XCTAssertEqual(generated.count, 6,
-                   "six build configurations generate their Info.plist: the app, the extension and the "
-                     + "test bundle, in Debug and Release")
+    XCTAssertEqual(generated.count, 8,
+                   "eight build configurations generate their Info.plist: the app, the extension, the unit-test "
+                     + "bundle and the UI-test bundle, in Debug and Release")
 
     let named = namedInfoPlists(in: text)
     XCTAssertFalse(named.isEmpty, "the extension names its own Info.plist")

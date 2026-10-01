@@ -38,6 +38,16 @@
                ReferencedContainer = "container:arkey.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A5C0DE000000000000000022"
+               BuildableName = "arkeyUITests.xctest"
+               BlueprintName = "arkeyUITests"
+               ReferencedContainer = "container:arkey.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

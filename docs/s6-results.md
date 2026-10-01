@@ -32,7 +32,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 77 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 78 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -90,7 +90,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `77 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `78 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -399,6 +399,31 @@ target. The cheaper one was tried first and does not work: hosting the screens i
 `UIHostingController` renders nothing — not the screens, not a bare `Text("hello")`, with or without a
 window and a run-loop pass, and the accessibility tree comes back empty too — so SwiftUI screen checks need a
 UI-test target, this simulator recipe, or a device.
+
+## The screens, driven for real (S6 §2.1's UI target, round 154)
+
+The home screen was seen by launching the app by hand; the other eleven were not, and hosting them in the
+unit-test bundle renders nothing at all (previous section). So the project has a **UI-test target** now:
+`arkeyUITests`, product type `com.apple.product-type.bundle.ui-testing`, with `TEST_TARGET_NAME = arkey`,
+its own shared-scheme entry, and the same Info.plist membership exception the other test bundle needed. Three
+tests:
+
+- the home screen shows the hint and the engine's status line, which is the app's own typing check;
+- **every screen the menu offers** opens: 配置库, 下载配置, 方案与输入, 用户词库, 键盘, 标点, 按键, 自定义短语,
+  部署, 许可证, 诊断 — each one drawn, screenshotted into the result bundle, and left again;
+- the keyboard preview opens, and that screenshot is the first picture of this keyboard taken from a running
+  app: the candidate bar with `1 你好 ni hao | 2 你 | 3 拟 | 4 尼` and its chevrons, the measured letter
+  rows, `123` / emoji / 空格 / 换行, and the globe row.
+
+Two things this target taught, both written down where the next person will hit them. A screenshot taken as
+soon as the navigation bar exists catches the push mid-animation, and a half-slid screen reads as a **clipped
+keyboard** — the element tree settled it: the preview's grid is exactly 370 pt wide, inside the padded
+container, so nothing is clipped and the picture was simply early. And two `xcodebuild test` runs sharing one
+`-derivedDataPath` corrupt each other's result bundle ("mkstemp: No such file or directory"), which fails a run
+whose tests all passed.
+
+What it does not do is type with the real keyboard: enabling the extension in Settings and typing into the
+field is the device run's job, and this target asserts the screens, not the keyboard.
 
 ## The repository half of "nothing third-party" (S6 §5)
 
