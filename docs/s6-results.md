@@ -1049,3 +1049,17 @@ rime-release-check reads both Info.plists now and refuses a bundle whose extensi
 be read at all. Its fixture gained Info.plists for the same reason it gained an icon and manifests: without them
 the rule is skipped rather than tested, and every cleanliness assertion in that file would be measuring something
 else. The meta-check plants the fault by bumping the extension's build number in a copy of a real bundle.
+
+## The app said it was English (S6 §6, round 186)
+
+The interface is Chinese, the keyboard declares `PrimaryLanguage = zh-Hans`, and the project said
+`developmentRegion = en` with `knownRegions = (en, Base)` — which is what the store listing and the app's
+language in Settings would have shown: an English app whose every sentence is Chinese.
+
+The project is `zh-Hans` now and the app declares `CFBundleLocalizations = ["zh-Hans"]`, so the built plist
+agrees with both the UI and the keyboard. `testTheAppAndItsKeyboardAgreeThatTheyAreChinese` holds the three
+together against the project, the app plist and the extension plist.
+
+The same pass read the extension's other declared attributes and found nothing to change: `IsASCIICapable` is
+true (it types Latin letters), `PrefersRightToLeft` false, and `RequestsOpenAccess` true, which is the one the
+review notes in [app-store.md](app-store.md) explain.

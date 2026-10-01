@@ -28,5 +28,11 @@
 	     the day of the submission. Anyone who adds cryptography has to change this line. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- The app's interface is Chinese and its keyboard declares zh-Hans; the project said English, which is what
+	     the store listing and the app's language in Settings would have shown. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+	</array>
 </dict>
 </plist>

@@ -324,10 +324,10 @@
 				};
 			};
 			buildConfigurationList = 1B05164A3062E34E00EDD6AE /* Build configuration list for PBXProject "arkey" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 1B0516463062E34E00EDD6AE;

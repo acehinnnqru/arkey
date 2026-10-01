@@ -359,4 +359,30 @@ final class S6ProjectSettingsTests: XCTestCase {
     XCTAssertEqual(plist["ITSAppUsesNonExemptEncryption"] as? Bool, false,
                    "the export-compliance answer is missing or says the app uses non-exempt encryption")
   }
+
+  /// The app's interface is Chinese, its keyboard declares zh-Hans, and the project said English — which is what
+  /// the store listing and the app's language in Settings would have shown.
+  func testTheAppAndItsKeyboardAgreeThatTheyAreChinese() throws {
+    let text = try project()
+    XCTAssertTrue(text.contains("developmentRegion = \"zh-Hans\";"),
+                  "the project's development region is not the language its interface is written in")
+    XCTAssertTrue(text.contains("\"zh-Hans\",") || text.contains("zh-Hans,"),
+                  "zh-Hans is not among the project's known regions")
+
+    let appPlist = try XCTUnwrap(try PropertyListSerialization.propertyList(
+      from: Data(contentsOf: repositoryRoot.appendingPathComponent("arkey/Info.plist")), format: nil)
+      as? [String: Any], "arkey/Info.plist is not a plist dictionary")
+    XCTAssertEqual(appPlist["CFBundleLocalizations"] as? [String], ["zh-Hans"],
+                   "the app does not declare the language it is written in")
+
+    let extensionPlist = try XCTUnwrap(try PropertyListSerialization.propertyList(
+      from: Data(contentsOf: repositoryRoot.appendingPathComponent("ARKeyboard/Info.plist")), format: nil)
+      as? [String: Any], "ARKeyboard/Info.plist is not a plist dictionary")
+    let extensionAttributes = (extensionPlist["NSExtension"] as? [String: Any])?["NSExtensionAttributes"]
+      as? [String: Any]
+    XCTAssertEqual(extensionAttributes?["PrimaryLanguage"] as? String, "zh-Hans",
+                   "the keyboard's declared language is not the app's")
+    XCTAssertEqual(extensionAttributes?["IsASCIICapable"] as? Bool, true,
+                   "the keyboard types Latin letters, so it is ASCII-capable")
+  }
 }
