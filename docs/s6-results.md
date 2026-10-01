@@ -943,3 +943,22 @@ demand a declaration for an API nobody calls. And the failure is verified from b
 - **The device numbers** are still the device's: the probe summary now presents them, but S1-AC8's
   extension boot, footprint after 200 keys and deploy duration on a phone, and S4-AC6's per-key cost,
   cannot be produced on this machine. Run the keyboard once and the diagnostics screen shows them.
+
+## Why the keyboard's adoption call has no test of its own (round 177)
+
+S1 §8 says the keyboard adopts an activated profile at its next appearance, and the controller does call
+KeyboardEngine.adoptProfileIfNeeded from viewWillAppear. A test was written for it, and it was dropped, on
+purpose, because two versions of it passed with the adoption disabled:
+
+- the first watched a deploy change the page size, and the second watched the app activate a profile that knows a
+  word the first one does not. Both pass with the call removed, because the deploy replaces the workspace's
+  single build directory in place: the engine the keyboard already holds reads the new build without any rebind,
+  so "which profile" is not observable through behaviour in this layout;
+- writing the first version is what made the observable look convincing: it asserted a page size the deploy
+  changed anyway. A test that passes with the feature removed is worse than no test, which is why this note
+  exists instead.
+
+What the call actually buys is the deferral rule — never switching mid-sentence — and that is engine-tested:
+S1AdoptionTests pins the deferred, unchanged and rebind answers, and S1AppFlowTests walks the rebind on a live
+engine and holds it to S1 §10's clause that the pointer file is not touched. The controller's part is the call
+itself, and the honest statement of its coverage is this paragraph rather than a test that cannot fail.
