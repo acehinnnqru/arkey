@@ -559,6 +559,11 @@ the dictionary until the staleness window passes.
 fresh, and `RimeDictionaryAccess.blocker()` — the app's gate — is raised. It then drives
 `viewWillDisappear(false)` and the blocker is gone, which is the release S5 §3.2 asks for.
 
+Round 179 checked that it bites, because two tests written in this stretch did not: with the release commented out
+in `viewWillDisappear`, the test fails twice — "the lease is still live after dismissal" with the record
+printed, and the app's own sentence, 键盘正在使用用户词库（pid …）。关闭键盘后再试，或稍候片刻。 — which is exactly
+the sentence a user would have read for as long as the staleness window lasts.
+
 ## Settings that leave the phone (S2 §7, round 163)
 
 The app's 导出设置 / 导入设置 buttons are two methods on the app model, and nothing exercised them: the engine's
