@@ -469,7 +469,7 @@ a one-off, and a one-off audit is how a map rots.
 | S1 §5.4 | validation | `S1ImportTests` |
 | S1 §6 | deployment | `S1DeploymentTests`, `RimeEngineDeployTests` |
 | S1 §7 | the profile library and switching | `S1ProfileSwitchTests`, `RimeAppModelTests`, `AppScreensTests` |
-| S1 §8 | how the extension adopts a change | `S1AdoptionTests`, `KeyboardTypingOnSimulatorTests` |
+| S1 §8 | how the extension adopts a change | `S1AdoptionTests`, `S1AppFlowTests` (which also holds §10's clause that `active.json` is not involved: the rebind leaves the pointer's bytes alone), `KeyboardTypingOnSimulatorTests` |
 | S1 §9 | degraded modes | `S1RecoveryTests`, `S1WorkspaceTests`, `AppScreensTests` |
 | S2 §2, §2.1 | the editing model, lists and maps | `S2PatchTests` |
 | S2 §3 | what is configurable, and where | `S2SettingsModelTests`, `S2PresetTests`, `S2CustomPhraseTests`, `RimeAppModelTests` |

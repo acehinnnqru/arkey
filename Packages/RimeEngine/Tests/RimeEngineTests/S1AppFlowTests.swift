@@ -63,7 +63,13 @@ final class S1AppFlowTests: XCTestCase {
     let next = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: tracerData)
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: next, current: resolved, isComposing: false),
                    .rebind(next))
+    // S1 §10's clause for this step: the rebind happens "and active.json is not involved". The pointer is the
+    // app's record of what is deployed; a keyboard adopting a change must not rewrite it, and the bytes are the
+    // evidence — the resolver read it, the rebind did not touch it.
+    let pointerBefore = try Data(contentsOf: workspace.activeRecord)
     _ = try engine.rebind(to: next.directories)
+    XCTAssertEqual(try Data(contentsOf: workspace.activeRecord), pointerBefore,
+                   "the rebind rewrote active.json, which only the app's own activation may do")
 
     // 5. Type. The tracer's 你好 is the first candidate for nihao and commits as one word.
     try engine.openSession()

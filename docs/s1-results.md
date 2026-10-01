@@ -403,3 +403,11 @@ files.
 | `S1SlimmingTests` | 5 | the lite transformation: the import line goes and its comment stays, every accepted spelling of a table name matches, a missing table is reported, a rewrite librime would reject leaves the file untouched, and a slimmed profile still deploys and types |
 | `S1ProfileSwitchTests` | 2 | a learned word surviving a profile switch and a return, and the two bindings sharing the user directory while their sources differ |
 | `S1CatalogTests` | 9 | the catalog's completeness, the page-not-asset rule, lookup and its refusal, the receipt's size/digest/redirect, the size caps, and the lite entry's honesty about what it leaves out |
+
+## The rebind leaves the pointer alone (S1 §10, round 175)
+
+Section 10's clause for the rebind step is "bind profile A, type, rebind to profile B, type, assert both produced
+the right candidates **and that active.json was not involved**". The first half has been covered by the app-flow
+test since it was written; the second half was an assumption until now: the test captures the pointer's bytes
+before the rebind and asserts they are identical after it. The resolver reads that file, the keyboard's adoption
+does not write it — only the app's own activation may.
