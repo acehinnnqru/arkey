@@ -385,6 +385,18 @@ App Group — `simctl get_app_container … groups` prints nothing for the insta
 拿不到 App Group，键盘设置无法共享给键盘。 and changes nothing. The branch a host *with* a group takes is asserted
 too, so the test travels; but the sentence matters either way: a settings screen that cannot save has to say so.
 
+Round 165 finished the app's write paths with the 自定义短语 list, and that test found a defect. Adding a phrase
+writes `<user>/custom_phrase.txt` and then deploys it; on a container with no profile the deploy was called with the
+empty id its callers pass, the coordinator built the path `profiles//source` and failed, and the user's screen
+said `部署失败：the profile has no sources at /Users/…/profiles//source` — English, internal, and carrying a
+filesystem path. `deploy(profileID:)` guards the empty id now and says 没有可部署的配置。, the sentence
+`redeployActiveProfile()` already used for the same situation; the test fails on the old behaviour and passes on
+the new one, which is the mutation evidence.
+
+The phrase test also pins the interchange format, because the desktop reads this file with another editor: one
+phrase per line, tab-separated fields, weight optional and last, trailing newline. The list round-trips through
+`RimeCustomPhraseFile` and the file is byte-checked for the separators.
+
 ## Settings that leave the phone (S2 §7, round 163)
 
 The app's 导出设置 / 导入设置 buttons are two methods on the app model, and nothing exercised them: the engine's

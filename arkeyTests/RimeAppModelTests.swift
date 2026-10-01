@@ -205,4 +205,48 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertEqual(model.settingsFooter, .unchanged,
                    "a keyboard setting asked for a deploy: " + String(describing: model.settingsFooter))
   }
+
+  /// S2 §3's 自定义短语 row on the app's own path: the list is the user's file, in Rime's own format, because
+  /// the desktop and the phone exchange it as plain text and a user who prefers an editor keeps working.
+  func testTheCustomPhraseListRoundTripsThroughRimesFile() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    userFiles = [model.customPhraseURL]
+
+    // Start from an empty list, whatever an earlier run left behind.
+    await model.saveCustomPhrases([])
+    await model.addCustomPhrase(text: "你好", code: "nihao", weight: 1)
+
+    XCTAssertTrue(model.customPhrases.contains { $0.text == "你好" && $0.code == "nihao" },
+                  "the list does not hold what was added: "
+                    + model.customPhrases.map { $0.text + "/" + $0.code }.joined(separator: ", "))
+
+    // Rime's interchange format: one phrase per line, tab-separated fields, weight optional and last. The
+    // desktop reads this file with another editor, so the separators are not an implementation detail.
+    let written = try String(contentsOf: model.customPhraseURL, encoding: .utf8)
+    XCTAssertTrue(written.hasSuffix("\n"), "the file does not end with a newline: [" + written + "]")
+    let fields = written.trimmingCharacters(in: .newlines)
+      .split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+    XCTAssertEqual(fields.count, 3, "the line is not text<TAB>code<TAB>weight: [" + written + "]")
+    XCTAssertEqual(fields.first, "你好")
+    XCTAssertEqual(fields.dropFirst().first, "nihao")
+    XCTAssertEqual(fields.count > 2 ? Double(fields[2]) : nil, 1,
+                   "the weight is not on the line: [" + written + "]")
+
+    let index = try XCTUnwrap(model.customPhrases.firstIndex { $0.text == "你好" && $0.code == "nihao" },
+                              "the phrase is not in the list")
+    await model.removeCustomPhrase(at: IndexSet(integer: index))
+    XCTAssertFalse(model.customPhrases.contains { $0.text == "你好" },
+                   "the phrase is still listed: "
+                     + model.customPhrases.map { $0.text }.joined(separator: ", "))
+    let emptied = try String(contentsOf: model.customPhraseURL, encoding: .utf8)
+    XCTAssertFalse(emptied.contains("你好"), "the phrase is still in the file: [" + emptied + "]")
+
+    // Writing a phrase deploys it, and this container has no profile to deploy into — the same sentence the
+    // settings import reports, and not a failure to write the file.
+    if let message = model.errorMessage {
+      XCTAssertEqual(message, "没有可部署的配置。",
+                     "writing the phrase reported: " + message)
+    }
+  }
 }

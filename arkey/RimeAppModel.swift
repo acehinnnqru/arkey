@@ -239,6 +239,17 @@ final class RimeAppModel: ObservableObject {
 
   func deploy(profileID: String) async {
     guard !isDeploying else { return }
+    // An empty id is what "there is nothing to deploy into" looks like to the callers that write a file and
+    // then deploy it — the phrase list and the settings import both do. Without this the coordinator builds the
+    // path `profiles//source` and fails with an English, path-bearing sentence, which is what a user with no
+    // profile reads after adding a phrase. Say what redeployActiveProfile() says instead.
+    guard !profileID.isEmpty else {
+      let text = "没有可部署的配置。"
+      deployMessage = text
+      errorMessage = text
+      settingsFooter = .failed(text)
+      return
+    }
     isDeploying = true
     settingsFooter = .pending
     deployMessage = "正在部署…"
