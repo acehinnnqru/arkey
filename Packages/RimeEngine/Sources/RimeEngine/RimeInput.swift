@@ -171,6 +171,22 @@ public final class RimeInputDriver {
   }
 
   private func handleCharacter(_ code: UInt16) throws -> RimeInputOutcome {
+    // S4 §4.1's select-key row: while composing, a key whose label a candidate carries selects that candidate.
+    // Measured in round 172: librime's own selector does not do it for us — with menu/select_keys and
+    // menu/alternative_select_labels both set, a label press still arrives here unhandled — so the label is
+    // matched against the page the bar is showing and routed to the API that selects on the page.
+    if isComposing, let index = selectIndex(for: code) {
+      // Measured (round 172): librime's page-scoped select returned no commit here at all — the outcome stayed
+      // composing and the preedit stayed on screen — while the API the bar's taps use commits the same
+      // candidate. The behaviour the row asks for is the selection, so the taps' API is what this uses.
+      let output = try engine.selectCandidate(at: index)
+      lastOutput = output
+      if let commit = output.commit, !commit.isEmpty {
+        return makeOutcome(from: output, effect: .committed(commit))
+      }
+      return makeOutcome(from: output, effect: .composing)
+    }
+
     let output = try engine.processKey(Int32(code))
     lastOutput = output
     if let commit = output.commit, !commit.isEmpty {
@@ -190,8 +206,23 @@ public final class RimeInputDriver {
                             markedText: rawInput, page: output.page, status: output.status)
   }
 
+  /// Which candidate the key selects, if it is a select key: the labels on the page are what the bar draws, so
+  /// a key that matches one of them is the key for that candidate.
+  private func selectIndex(for code: UInt16) -> Int? {
+    guard let literal = Self.literal(for: code) else { return nil }
+    // The page the bar is showing: the last one any call reported, because a key press that only composes does
+    // not have to carry one for the labels to be current.
+    guard let page = lastPage ?? lastOutput?.page else { return nil }
+    return page.selectIndex(matching: literal)
+  }
+
+  /// The most recent page seen, kept beside the last output so a select key can be matched even when the
+  /// keystroke before it reported no page of its own.
+  private var lastPage: RimePage?
+
   private func makeOutcome(from output: RimeOutput, effect: RimeInputEffect) -> RimeInputOutcome {
-    RimeInputOutcome(effect: effect,
+    if let page = output.page { lastPage = page }
+    return RimeInputOutcome(effect: effect,
                      insertText: output.commit,
                      markedText: rawInput,
                      page: output.page,

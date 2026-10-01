@@ -325,4 +325,50 @@ final class S4InputTests: XCTestCase {
     XCTAssertFalse(output(handled: false, commit: nil, preedit: "n").needsLiteralFallback,
                    "a composition is in progress — the text is not the client's yet")
   }
+
+  /// S4 §4.1's select-key row: while composing, the key whose label a candidate carries selects that candidate
+  /// on the current page. Driven through the input path a key press takes, not through the bar's tap — that is
+  /// the row's own claim, and nothing exercised it.
+  func testASelectKeySelectsTheCandidateItLabels() throws {
+    // The fixture defines no select labels, so there are no select keys to press: give it the labels a schema
+    // that wants them would have. Writing this test is also what showed librime's own selector does not do the
+    // job for us — with menu/select_keys and menu/alternative_select_labels both set, a label press still
+    // arrived unhandled — so the input path matches the label against the page and selects the candidate.
+    let labels = ["1", "2", "3", "4", "5"]
+    let patch = RimePatch(engine: engine, configID: "default")
+    try patch.set(.list(labels.map { .string($0) }), at: "menu/alternative_select_labels")
+    try patch.set(.string(labels.joined()), at: "menu/select_keys")
+    _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).deploySync(profileID: profileID)
+    engine.closeSession()
+
+    let driver = try makeDriver()
+    _ = try type("nihao", into: driver)
+    let page = try XCTUnwrap(try driver.refresh().page, "no page while composing")
+    XCTAssertEqual(page.selectLabels, Array(labels.prefix(page.candidates.count)),
+                   "the labels the schema declares are not on the page")
+
+    // The whole sentence is the first candidate, and its label is the key that selects it.
+    let first = page.candidates[0]
+    let firstKey = try XCTUnwrap(page.selectLabels.first?.first?.asciiValue, "no label for the first candidate")
+    let committed = try driver.handle(.character(UInt16(firstKey)))
+    XCTAssertEqual(committed.effect, RimeInputEffect.committed(first.text),
+                   "pressing the first label did not select " + first.text)
+    XCTAssertNil(committed.markedText, "the composition should be gone once the key selected")
+
+    // And the row's measured caveat: a selection librime will not commit is accepted, produces no commit, and
+    // leaves the composition and the bar untouched.
+    _ = try type("nihao", into: driver)
+    let again = try XCTUnwrap(try driver.refresh().page, "no page after retyping")
+    XCTAssertGreaterThan(again.candidates.count, 1, "one candidate, so there is nothing to decline")
+    let declinedCandidate = again.candidates[1]
+    let secondKey = try XCTUnwrap(again.selectLabels.dropFirst().first?.first?.asciiValue,
+                                  "no label for the second candidate")
+
+    let declined = try driver.handle(.character(UInt16(secondKey)))
+    XCTAssertEqual(declined.effect, .composing,
+                   "librime committed a candidate the tracer cannot: " + String(describing: declined.effect))
+    XCTAssertEqual(declined.markedText, "nihao", "the composition should be untouched by a declined selection")
+    // The page after a declined selection is librime's business and the measured note in s4-results records
+    // what it does; what matters here is that the key was accepted and nothing was committed.
+  }
 }

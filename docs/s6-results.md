@@ -47,7 +47,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 85 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 86 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -105,7 +105,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `85 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `86 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -507,6 +507,22 @@ a one-off, and a one-off audit is how a map rots.
 | S6 §5 | licences and notices | `S6NoticesTests`, `S6EngineNoticesTests`, `check-catalog-pages.sh` |
 | S6 §6 | App Store readiness | external: the pre-flight in [device-run.md](device-run.md); nothing has been submitted |
 | S6 §7 | the automation | `.github/workflows/verify.yml`, `S6PackagingTests` |
+
+## The select keys did not select (S4 §4.1, round 172)
+
+The commit table's select-key row said a digit or letter key selects the candidate whose label it carries, and
+nothing exercised it: the fixture defines no select keys at all, so there were none to press. Writing the test
+meant giving the fixture labels — and then the row turned out to be **unimplemented**. With
+`menu/select_keys` and `menu/alternative_select_labels` both set, the labels reached the page (the bar
+would draw them) and a label press arrived at the input path unhandled: librime's own selector does not do this
+for us. The engine's page-scoped API (`selectCandidateOnCurrentPage`) was the obvious candidate and it is
+referenced nowhere; measured, it returned no commit at all on this fixture, while the API the bar's taps use
+commits the same candidate.
+
+So the rule lives in one place — `RimePage.selectIndex(matching:)` — and both callers use it: the engine's
+input path, which the test drives, and the extension's key handler, which does not go through it. The test covers
+the row and its measured caveat: the first label commits 你好 and clears the composition, and a selection librime
+will not commit is accepted, produces nothing, and leaves the composition alone.
 
 ## Nothing on the input path animates (S3-AC5, round 170)
 

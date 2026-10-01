@@ -14,6 +14,15 @@ public struct RimeCandidateItem: Sendable, Hashable {
 }
 
 public struct RimePage: Sendable, Hashable {
+  /// Which candidate a select key picks, if the key is one: the labels on the page are what the bar draws, so a
+  /// key that matches one of them is the key for that candidate (S4 §4.1).
+  ///
+  /// One rule in one place, because two callers need it — the engine's own input path and the extension's key
+  /// handler, which does not go through it.
+  public func selectIndex(matching key: String) -> Int? {
+    selectLabels.firstIndex(of: key)
+  }
+
   public let candidates: [RimeCandidateItem]
   public let highlightedIndex: Int
   public let pageNumber: Int

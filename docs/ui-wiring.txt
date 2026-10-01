@@ -125,7 +125,6 @@ isUTF8
 joinMaintenance
 keyCap
 keyRects
-labels
 lastMilliseconds
 lastTimestamp
 layerKeyWidth

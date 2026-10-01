@@ -35,6 +35,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var shiftController = RimeShiftController()
   private var asciiMode = false
   private var markedText: String?
+  /// The page the bar is showing, whose labels decide which keys select (S4 §4.1).
+  private var currentPage: RimePage?
 
   // Input latency evidence, flushed to the probe log every 25 keys.
   /// The per-key samples of the current batch. The input path cannot write a record per key (S3-AC5), so the
@@ -248,6 +250,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     asciiMode = output.status?.isAsciiMode ?? asciiMode
+    // The page the bar is showing, kept so a select key can be matched against its labels: a commit clears it,
+    // and then no key is a select key any more.
+    currentPage = output.page
     candidateBar.setPage(output.page)
     refreshLayout()
   }
@@ -318,6 +323,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// "." and "," outright, and without this the key did nothing at all — which users read as
   /// the keyboard dropping input.
   private func typeLiteralKey(_ value: String) {
+    // S4 §4.1's select-key row: while composing, a key whose label a candidate carries selects that candidate.
+    // Measured in round 172: librime's own selector does not do this for us — with menu/select_keys and
+    // menu/alternative_select_labels both set, the label press arrived unhandled — so the page's own labels are
+    // matched here and the selection goes through the same call the bar's taps use.
+    if let index = currentPage?.selectIndex(matching: value) {
+      selectCandidate(index)
+      return
+    }
     guard let engine, let keysym = RimeKey.ascii(Character(value)) else {
       textDocumentProxy.insertText(value)
       return
