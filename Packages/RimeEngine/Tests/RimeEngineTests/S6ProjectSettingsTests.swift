@@ -128,6 +128,20 @@ final class S6ProjectSettingsTests: XCTestCase {
     XCTAssertEqual(archive["CFBundleTypeRole"] as? String, "Viewer")
   }
 
+  /// Round 190: the importer's picker could not see a single file this app had written, and the simulator
+  /// says why in one line — "On My iPhone is Empty". Files lists an app's own folder only when the app asks
+  /// for it, so without this key 配置库's export, and the sync folder beside it, are unreachable from the
+  /// importer that is supposed to take them back (S2 §7's round trip through Files, S5's transport).
+  func testTheAppsOwnDocumentsFolderIsBrowsable() throws {
+    let data = try Data(contentsOf: repositoryRoot.appendingPathComponent("arkey/Info.plist"))
+    let plist = try XCTUnwrap(try PropertyListSerialization.propertyList(from: data, format: nil)
+      as? [String: Any], "arkey/Info.plist is not a plist dictionary")
+    XCTAssertEqual(plist["UIFileSharingEnabled"] as? Bool, true,
+                   "without file sharing the picker cannot browse the folder the app exports into")
+    XCTAssertEqual(plist["LSSupportsOpeningDocumentsInPlace"] as? Bool, true,
+                   "and without this one a chosen document is copied instead of opened where it lies")
+  }
+
   /// S6 §2.1: the Xcode project gains one test target for the app — the layer that runs on the
   /// simulator, where UIKit is real and the views lay out for a screen. Nothing here can run it (no
   /// xcodebuild in this sandbox), so what this test can do is check that the target is wired the way a

@@ -47,7 +47,7 @@ it again on demand:
 | Step | Result |
 | --- | --- |
 | engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 86 cited names, ok |
+| status evidence | 38 criteria, 38 rows, 88 cited names, ok |
 | type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
@@ -105,7 +105,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `86 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `88 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -1133,3 +1133,83 @@ is what the capture shows.
 
 The regression test is geometric rather than visual: it measures the distance from the 换行 key to the window's
 bottom and requires it to be less than the system's strip, so the band cannot come back unnoticed.
+
+## The file the user chose went nowhere (round 190, reported from a device)
+
+A report: importing a rime-ice zip did nothing at all. Two device screenshots came with it, both showing the
+home screen in the degraded state — "内置数据（no active.json）", the repair banner, and no profile — so the
+import had not run and no message had been shown either. Asked how the zip was handed over, the answer was the
+app's own 配置库 → 导入, and the screen had not changed in any way: no error, no result, no entry.
+
+Round 189 had made the picker *present* and stopped there. The half behind it was dead, and the reason is one
+line of state:
+
+    @State private var importing: ImportKind?          // the kind, and the presentation, in one value
+    .fileImporter(isPresented: Binding(get: { importing != nil }, set: { if !$0 { importing = nil } })) { result in
+      let kind = importing                             // nil: SwiftUI cleared the binding first
+      switch kind { … case nil: break }                // every branch skipped, in silence
+
+SwiftUI sets the `isPresented` binding to false **before** the completion handler runs, so the handler read the
+one value the dismissal had just cleared and fell into its `nil` branch. The file was chosen, the URL was
+dropped, and the app had nothing to say — which is what "一点反应都没有" looks like from the outside.
+
+The kind is now a plain state the dismissal cannot touch (`isPicking` for the presentation, `pickKind` for what
+the picker was asked for), set by the button that opens it, in 配置库 and in 用户词库 alike.
+
+**The test that would have caught it** is `ImportPickerTests`, and it goes where round 189's stopped: it exports
+a real archive with the app's own 导出设置 button, walks the system picker to that file, chooses it, and requires
+each importer to answer — the profile importer by refusing it ("导入失败…": the archive holds no config), the
+settings importer by reporting what it applied ("导入设置：…"). One fixture, two different answers, silence fails
+both. Against the unfixed app both tests fail with "the profile importer said nothing about the file this app
+exported and the user chose"; against the fixed app both pass. The first fixed run failed for a third reason
+worth writing down: the answer was rendered, one screen below the fold, and SwiftUI keeps only the rows on screen
+in the element tree — the test scrolls to its answer now.
+
+**A second defect came out of building that test**: the picker could not see a single file this app had written.
+The exported archive and the default sync folder both live in the app's Documents directory, and Files lists an
+app's folder only when the app declares `UIFileSharingEnabled` — the picker answered "On My iPhone is Empty"
+(photographed from the simulator, before the key existed). That key is set now, and
+`S6ProjectSettingsTests.testTheAppsOwnDocumentsFolderIsBrowsable` refuses the bundle without it.
+
+**The user's archive could not have imported either**, and the refusal was wrong about why. `zip -r backup.zip
+/Users/me/Library/Rime` stores the path, so the config arrives at `Users/me/Library/Rime/…` — four folders down,
+while S1 §5.1 stage 3 caps the config-root search at two so a nested archive cannot be mistaken for the config.
+The cap stays; the sentence no longer lies about it. `RimeImportError.configRootTooDeep` names the folder it
+found and the depth, and says what to do (pack the Rime folder itself), and
+`S1ImportTests.testAnArchiveThatStoresThePathToTheConfigSaysWhereItIs` builds exactly that archive and pins the
+message — the ambiguous and refused-root cases keep their old errors.
+
+Verified: 304 engine tests (40 suites), `typecheck ok` over 65 Swift files, and the two new UI tests run both ways
+on a simulator — they fail against the unfixed app and pass against the fixed one.
+
+One more thing the same run found, in a test rather than in the app: round 189's picker check asserted on the
+picker's **Cancel** button, and Cancel is the picker's *root* chrome. An app that declares file sharing gets a
+picker that opens inside a location, where the chrome is a back chevron and there is no Cancel — so that test
+went red the moment the key was added, for a reason that had nothing to do with the buttons it checks. It asks
+the picker itself now (the browser it presents and the search field it always carries) and relaunches between the
+three buttons, because the sheet belongs to the system and the test cannot dismiss it from inside a location.
+That rewrite is type-checked; its next simulator run is the UI target.
+
+Still open, and found while reading this path: `arkey/Info.plist` declares `public.zip-archive` as a document
+type so a Safari download can be handed to the app (S6 §4), the rank Alternate, and **nothing in the app
+receives an opened document** — no `onOpenURL`, no app delegate. Handing a zip to Arkey from Files or Safari
+launches the app and does nothing, which is the same symptom this round fixed on the picker's side. It is not
+fixed here.
+
+## The same five errors, forty-five times (round 190, from the same device)
+
+With the picker fixed the import finally reported why it refused, and the screenshot that came back was a wall
+of red: the same five sentences, nine times over. The five are real and correct — `rime_ice.dict.yaml` imports
+`cn_dicts/8105`, `base`, `ext`, `tencent` and `others`, and the archive the user had did not contain them — but
+the repetition was ours: `RimeConfigValidation` ran its dictionary check inside the per-schema loop, and
+rime-ice's `schema_list` names nine schemas that all resolve `translator/dictionary` to that one file. Five
+missing tables × nine schemas = forty-five identical lines.
+
+The dictionary is the thing that is broken, so it is now checked once, whatever number of schemas point at it;
+each schema keeps its own checks (its file, its engine, its references).
+`S1ImportTests.testASharedDictionaryIsCheckedOnceNotOncePerSchema` builds nine schemas over one dictionary that
+imports an absent table and fails with "one missing table, reported 9 times" without the fix.
+
+What the user is left with is the truth: their archive is missing the five dictionaries rime-ice's own
+dictionary imports, so the import refuses — a rime-ice archive that includes `cn_dicts/` (the project's
+`full.zip`) is what the importer accepts.

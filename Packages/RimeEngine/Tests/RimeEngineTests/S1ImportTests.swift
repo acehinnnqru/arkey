@@ -152,6 +152,34 @@ final class S1ImportTests: XCTestCase {
     XCTAssertEqual(stagingEntryCount(), 0, "a failed import leaves staging empty")
   }
 
+  /// Round 190's archive: `zip -r backup.zip /Users/me/Library/Rime` stores the path, so a perfectly good
+  /// config arrives four folders down. §5.1 stage 3's cap still refuses it — a nested archive must not be
+  /// mistaken for the config — but the refusal has to say *where* the config is, because "no folder in the
+  /// import holds default.yaml and a schema" is untrue of this archive and leaves the user nothing to do.
+  func testAnArchiveThatStoresThePathToTheConfigSaysWhereItIs() throws {
+    let rime = try makeConfigTree(name: "Rime",
+                                  directory: scratch.appendingPathComponent("Users/me/Library",
+                                                                            isDirectory: true))
+    var writer = RimeZipWriter()
+    for file in ["default.yaml", "tracer.schema.yaml", "tracer.dict.yaml"] {
+      try writer.addFile(path: "Users/me/Library/Rime/" + file,
+                         contents: try Data(contentsOf: rime.appendingPathComponent(file)))
+    }
+    let zip = scratch.appendingPathComponent("backup.zip")
+    try writer.write(to: zip)
+
+    XCTAssertThrowsError(try importer().import(payload: zip, options: options())) { error in
+      guard case RimeImportError.configRootTooDeep(let path, let depth) = error else {
+        return XCTFail("expected configRootTooDeep, got \(error)")
+      }
+      XCTAssertEqual(path, "Users/me/Library/Rime")
+      XCTAssertEqual(depth, 4)
+      XCTAssertTrue(String(describing: error).contains("Pack the Rime folder itself"),
+                    "the refusal has to say what to do about it: \(error)")
+    }
+    XCTAssertEqual(stagingEntryCount(), 0, "a refused import leaves staging empty")
+  }
+
   func testSchemasWithoutDefaultYAMLGetAGeneratedOne() throws {
     let tree = try makeConfigTree(withDefaultYAML: false)
     let outcome = try importer().import(payload: tree, options: options())
@@ -260,6 +288,34 @@ final class S1ImportTests: XCTestCase {
     try Data([0xFF, 0xFE, 0x00, 0x01]).write(to: tree.appendingPathComponent("tracer.dict.yaml"))
     result = RimeConfigValidation.validate(source: tree, engine: engine)
     XCTAssertTrue(result.errors.contains { $0.path == "tracer.dict.yaml" }, result.summary)
+  }
+
+  /// A device screenshot from round 190: rime-ice's `schema_list` names nine schemas (rime_ice, t9 and seven
+  /// double-pinyin variants) and they **share one dictionary**, so the five tables that dictionary imports
+  /// were reported once per schema — forty-five identical lines on the screen where five files are missing.
+  /// The dictionary is the thing that is broken, so it is checked once; each schema keeps its own checks.
+  func testASharedDictionaryIsCheckedOnceNotOncePerSchema() throws {
+    let tree = try makeConfigTree()
+    let schema = try String(contentsOf: tree.appendingPathComponent("tracer.schema.yaml"), encoding: .utf8)
+    var defaultYAML = ["config_version: \"1\"", "schema_list:"]
+    for index in 0..<9 {
+      try schema.write(to: tree.appendingPathComponent("variant" + String(index) + ".schema.yaml"),
+                       atomically: true, encoding: .utf8)
+      defaultYAML.append("  - schema: variant" + String(index))
+    }
+    try (defaultYAML.joined(separator: "\n") + "\n")
+      .write(to: tree.appendingPathComponent("default.yaml"), atomically: true, encoding: .utf8)
+
+    // Every variant resolves `translator/dictionary` to this one file, and it imports a table that is absent.
+    let dictionary = try String(contentsOf: tree.appendingPathComponent("tracer.dict.yaml"), encoding: .utf8)
+    try dictionary.replacingOccurrences(of: "sort: by_weight",
+                                        with: "import_tables:\n  - cn_dicts/8105\nsort: by_weight")
+      .write(to: tree.appendingPathComponent("tracer.dict.yaml"), atomically: true, encoding: .utf8)
+
+    let result = RimeConfigValidation.validate(source: tree, engine: engine)
+    let reported = result.errors.filter { $0.path == "cn_dicts/8105.dict.yaml" }
+    XCTAssertEqual(reported.count, 1,
+                   "one missing table, reported " + String(reported.count) + " times: " + result.summary)
   }
 
   func testMissingOptionalDataIsAWarningThatNamesTheConsequence() throws {

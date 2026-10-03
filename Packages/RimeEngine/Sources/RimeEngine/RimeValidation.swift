@@ -124,13 +124,19 @@ public enum RimeConfigValidation {
     }
 
     // 2 and 3. Every listed schema exists, and names a dictionary that does.
+    //
+    // A dictionary is checked once however many schemas use it: rime-ice's nine schemas share `rime_ice`, so
+    // its broken imported tables were reported once per schema — forty-five identical lines on a device
+    // screen where five files are missing (round 190). The schema's *own* checks stay per schema.
+    var checkedDictionaries: Set<String> = []
     for id in schemaIDs {
       let schemaPath = id + ".schema.yaml"
       guard files.paths.contains(schemaPath) else {
         issues.append(.error(schemaPath, "schema_list names '" + id + "' but the file is not in the config"))
         continue
       }
-      validateSchema(path: schemaPath, id: id, files: files, source: source, engine: engine, issues: &issues)
+      validateSchema(path: schemaPath, id: id, files: files, source: source, engine: engine,
+                     issues: &issues, checkedDictionaries: &checkedDictionaries)
     }
 
     // A schema in the tree that schema_list does not name is worth saying out loud: it is deployed
@@ -160,7 +166,8 @@ public enum RimeConfigValidation {
   // MARK: Schema checks
 
   private static func validateSchema(path: String, id: String, files: RimeFileScan.Result, source: URL,
-                                     engine: RimeEngine, issues: inout [RimeValidationIssue]) {
+                                     engine: RimeEngine, issues: inout [RimeValidationIssue],
+                                     checkedDictionaries: inout Set<String>) {
     let text = RimeFileScan.text(source.appendingPathComponent(path))
     guard let config = parse(text, path: path, engine: engine, issues: &issues) else { return }
     defer { config.close() }
@@ -172,7 +179,7 @@ public enum RimeConfigValidation {
         issues.append(.error(dictionary + ".dict.yaml",
                              "the schema's translator names the dictionary '" + dictionary
                                + "', which is not in the config"))
-      } else {
+      } else if checkedDictionaries.insert(dictionaryPath ?? "").inserted {
         checkImportedTables(dictionaryPath: dictionaryPath ?? "", files: files, source: source,
                             engine: engine, issues: &issues)
       }

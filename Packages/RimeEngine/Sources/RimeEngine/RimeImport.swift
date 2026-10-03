@@ -61,7 +61,42 @@ public enum RimeConfigRootLocator {
         throw RimeImportError.configRootAmbiguous(found.map(\.lastPathComponent))
       }
     }
+    // Nothing within the cap. Before saying "this is not a Rime config", look below it: an archive made
+    // from a path — `zip -r backup.zip /Users/me/Library/Rime`, which stores `Users/me/Library/Rime/…` —
+    // holds a perfectly good config three folders under the cap, and refusing *that* as "not a config" is
+    // a lie the user cannot act on. The cap stays (S1 §5.1 stage 3, so a nested archive is never mistaken
+    // for the config); the sentence says where the config actually is.
+    if let buried = firstMatchBelowCap(in: tree, fileManager: fileManager) {
+      throw RimeImportError.configRootTooDeep(buried.path, buried.depth)
+    }
     throw RimeImportError.configRootNotFound
+  }
+
+  /// The shallowest config root below the cap, for the message only — nothing is imported from it.
+  static func firstMatchBelowCap(in tree: URL,
+                                 fileManager: FileManager = .default) -> (path: String, depth: Int)? {
+    let rootPath = tree.standardizedFileURL.path
+    var level = [tree]
+    var depth = 0
+    // A stop for a pathological tree: a config ten folders down is not something to keep walking for.
+    while depth < 12, !level.isEmpty {
+      var next: [URL] = []
+      for directory in level {
+        next.append(contentsOf: childDirectories(of: directory, fileManager: fileManager))
+      }
+      depth += 1
+      if depth > 2 {
+        let complete = next.filter { matches($0, fileManager: fileManager) }
+        let found = complete.isEmpty ? next.filter { matchesSchemaOnly($0, fileManager: fileManager) } : complete
+        if let match = found.first {
+          let path = match.standardizedFileURL.path
+          let relative = path.hasPrefix(rootPath + "/") ? String(path.dropFirst(rootPath.count + 1)) : path
+          return (relative, depth)
+        }
+      }
+      level = next
+    }
+    return nil
   }
 
   /// A directory with schemas but no `default.yaml` is still a config: §5.3 accepts it and the
@@ -235,6 +270,7 @@ public struct RimeImportOutcome: Sendable {
 public enum RimeImportError: Error, CustomStringConvertible, Sendable {
   case unsupportedPayload(String)
   case configRootNotFound
+  case configRootTooDeep(String, Int)
   case configRootAmbiguous([String])
   case userDataOnly([RimeUserDataCandidate])
   case archive(RimeArchiveError)
@@ -248,6 +284,10 @@ public enum RimeImportError: Error, CustomStringConvertible, Sendable {
       return "'" + name + "' is neither a folder nor a zip archive"
     case .configRootNotFound:
       return "no folder in the import holds default.yaml and a schema; this is not a Rime config"
+    case .configRootTooDeep(let path, let depth):
+      return "the config is at '" + path + "', " + String(depth) + " folders inside the import, and a config "
+        + "root may be at most two (S1 §5.1): an archive that stores the path to the Rime folder buries it "
+        + "like this. Pack the Rime folder itself — the one holding default.yaml."
     case .configRootAmbiguous(let names):
       return "more than one folder could be the config root: " + names.joined(separator: ", ")
     case .userDataOnly(let candidates):

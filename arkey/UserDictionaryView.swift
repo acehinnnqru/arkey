@@ -16,12 +16,16 @@ struct UserDictionaryView: View {
   @State private var pendingImport: String?
   /// One picker per screen: two fileImporters on this List meant neither presented (round 189 — the same
   /// defect the profile library had).
-  private enum Pick: Identifiable {
+  ///
+  /// The kind is set before the picker is presented and the dismissal does not clear it: held in the
+  /// optional the presentation binding clears, it read as `nil` in the completion handler and both branches
+  /// — the dictionary import and the sync folder — were skipped in silence (round 190).
+  private enum Pick {
     case dictionary
     case syncFolder
-    var id: Self { self }
   }
-  @State private var picking: Pick?
+  @State private var isPicking = false
+  @State private var pick: Pick = .dictionary
   @State private var importMessage = ""
   @State private var pendingRemoval: String?
   @State private var query = ""
@@ -82,12 +86,9 @@ struct UserDictionaryView: View {
     .task { model.refreshDictionaries() }
     // S5 §5: the file the user picks is a snapshot or a levers export, and the engine tells them apart. The
     // types are the union of both kinds; each branch keeps to its own.
-    .fileImporter(isPresented: Binding(get: { picking != nil },
-                                       set: { if !$0 { picking = nil } }),
+    .fileImporter(isPresented: $isPicking,
                   allowedContentTypes: [.item, .folder]) { result in
-      let kind = picking
-      picking = nil
-      switch (kind, result) {
+      switch (pick, result) {
       case (.dictionary, .success(let url)):
         guard let name = pendingImport else { return }
         importMessage = model.importDictionary(from: url, into: name)
@@ -97,8 +98,6 @@ struct UserDictionaryView: View {
         model.chooseSyncFolder(url)
       case (.syncFolder, .failure(let error)):
         model.errorMessage = "选择文件夹失败：" + String(describing: error)
-      case (nil, _):
-        break
       }
     }
   }
@@ -132,7 +131,8 @@ struct UserDictionaryView: View {
         }
         Button("导入…") {
           pendingImport = entry.name
-          picking = .dictionary
+          pick = .dictionary
+          isPicking = true
         }
         Button("备份") { model.backupDictionary(entry.name) }
         if let snapshot = exportedSnapshot {
@@ -245,7 +245,10 @@ struct UserDictionaryView: View {
         Button("恢复默认（iCloud / 文稿）") { model.useDefaultSyncFolder() }
           .font(.caption)
       } else {
-        Button("选择同步文件夹…") { picking = .syncFolder }
+        Button("选择同步文件夹…") {
+          pick = .syncFolder
+          isPicking = true
+        }
           .font(.caption)
       }
       if let problem = model.syncChoiceProblem {

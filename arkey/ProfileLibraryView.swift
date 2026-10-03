@@ -10,12 +10,17 @@ struct ProfileLibraryView: View {
   /// One picker per screen, not two. SwiftUI keeps a single presentation per view: with two fileImporters
   /// stacked on this List the toolbar's never presented at all — tapping 导入 did nothing, which is what
   /// round 189's UI test reproduced before this changed.
-  private enum ImportKind: Identifiable {
+  ///
+  /// The kind is a plain state the dismissal cannot touch. It used to live in the optional that the
+  /// presentation binding clears, and that binding is cleared *before* the completion handler runs: the
+  /// handler then read `nil`, skipped every branch and said nothing at all. Round 190's report was exactly
+  /// that — the file was chosen in the picker and no import, no error and no message followed.
+  private enum ImportKind {
     case profile
     case settings
-    var id: Self { self }
   }
-  @State private var importing: ImportKind?
+  @State private var isPicking = false
+  @State private var pickKind: ImportKind = .profile
   @State private var adoptUserData = false
   @State private var pendingDeletion: RimeAppModel.LibraryEntry?
   @State private var deleteDictionaries = false
@@ -36,7 +41,8 @@ struct ProfileLibraryView: View {
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
         Button {
-          importing = .profile
+          pickKind = .profile
+          isPicking = true
         } label: {
           Label("导入", systemImage: "square.and.arrow.down")
         }
@@ -47,20 +53,15 @@ struct ProfileLibraryView: View {
       }
     }
     // The union of both kinds' types; the handler refuses what the kind does not accept, which is what a
-    // second importer was standing in for.
-    .fileImporter(isPresented: Binding(get: { importing != nil },
-                                       set: { if !$0 { importing = nil } }),
+    // second importer was standing in for. The kind is read here, not from the presentation state.
+    .fileImporter(isPresented: $isPicking,
                   allowedContentTypes: [.zip, .folder],
                   allowsMultipleSelection: false) { result in
-      let kind = importing
-      importing = nil
-      switch kind {
+      switch pickKind {
       case .profile:
         handleImport(result)
       case .settings:
         handleSettingsImport(result)
-      case nil:
-        break
       }
     }
     .confirmationDialog("删除配置？",
@@ -149,7 +150,10 @@ struct ProfileLibraryView: View {
       } else {
         Button("导出设置（补丁 + 自定义短语）") { exported = model.exportSettings() }
       }
-      Button("导入设置…") { importing = .settings }
+      Button("导入设置…") {
+        pickKind = .settings
+        isPicking = true
+      }
     } header: {
       Text("设置")
     } footer: {

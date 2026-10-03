@@ -21,6 +21,13 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Round 190: the importer's own picker could not see a single file this app had written. The exported
+	     settings archive and the default sync folder both live in Documents, and Files lists an app's folder
+	     only when the app says so — the picker answered "On My iPhone is Empty" (photographed from the
+	     simulator). This is the switch that opens the round trip through Files, and the same folder the sync
+	     comment already claims the Files app can reach. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<!-- Every App Store upload asks whether the app uses encryption the export rules do not exempt. It uses the

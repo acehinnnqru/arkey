@@ -172,55 +172,50 @@ final class AppScreensTests: XCTestCase {
   /// The import buttons open a picker — the profile library's toolbar 导入 and its 导入设置… row, and the
   /// dictionary screen's 选择同步文件夹…. Nothing tapped them, so the round-189 report that 导入 did nothing
   /// shipped unnoticed: both screens stacked two fileImporters on one view and neither presented.
+  ///
+  /// Each button is checked from a fresh launch. The picker belongs to the system and this test cannot reliably
+  /// dismiss it — it used to tap the picker's Cancel, which is its *root* chrome, and round 190's app declares
+  /// file sharing, so the picker opens inside a location where there is no Cancel at all. Relaunching is the
+  /// reset that does not depend on the picker's location.
   func testTheImportButtonsOpenAPicker() {
+    assertAPickerOpens(menu: "配置库", button: "导入")
+    assertAPickerOpens(menu: "配置库", button: "导入设置…")
+    assertAPickerOpens(menu: "用户词库", button: "选择同步文件夹…")
+  }
+
+  private func assertAPickerOpens(menu: String, button: String) {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
-
     app.buttons["更多"].firstMatch.tap()
-    let library = app.buttons["配置库"].firstMatch
-    XCTAssertTrue(library.waitForExistence(timeout: 10), "no profile library entry")
-    library.tap()
-    XCTAssertTrue(app.navigationBars["配置库"].waitForExistence(timeout: 10), "the profile library did not open")
+    let entry = app.buttons[menu].firstMatch
+    XCTAssertTrue(entry.waitForExistence(timeout: 10), menu + " is not in the menu")
+    entry.tap()
+    XCTAssertTrue(app.navigationBars[menu].waitForExistence(timeout: 10), menu + " did not open")
 
-    let importButton = app.buttons["导入"].firstMatch
-    XCTAssertTrue(importButton.waitForExistence(timeout: 10), "the toolbar has no 导入 button")
-    XCTAssertTrue(importButton.isEnabled, "the 导入 button is disabled")
-    importButton.tap()
-    XCTAssertTrue(cancelOfAPicker(app).waitForExistence(timeout: 10),
-                  "tapping 导入 opened no picker: " + inventory(app))
-    cancelOfAPicker(app).tap()
-    Thread.sleep(forTimeInterval: 1.0)
-
-    let settingsImport = app.buttons["导入设置…"].firstMatch
-    XCTAssertTrue(settingsImport.waitForExistence(timeout: 10), "no 导入设置… button")
-    settingsImport.tap()
-    XCTAssertTrue(cancelOfAPicker(app).waitForExistence(timeout: 10),
-                  "tapping 导入设置… opened no picker: " + inventory(app))
-    cancelOfAPicker(app).tap()
-    Thread.sleep(forTimeInterval: 1.0)
-
-    app.navigationBars["配置库"].buttons.element(boundBy: 0).tap()
-    app.buttons["更多"].firstMatch.tap()
-    let dictionaries = app.buttons["用户词库"].firstMatch
-    XCTAssertTrue(dictionaries.waitForExistence(timeout: 10), "no dictionary entry")
-    dictionaries.tap()
-    XCTAssertTrue(app.navigationBars["用户词库"].waitForExistence(timeout: 10), "the dictionary screen did not open")
-
-    let folder = app.buttons["选择同步文件夹…"].firstMatch
-    XCTAssertTrue(folder.waitForExistence(timeout: 10), "no 选择同步文件夹… button")
-    folder.tap()
-    XCTAssertTrue(cancelOfAPicker(app).waitForExistence(timeout: 10),
-                  "tapping 选择同步文件夹… opened no picker: " + inventory(app))
-    cancelOfAPicker(app).tap()
+    let target = app.buttons[button].firstMatch
+    XCTAssertTrue(target.waitForExistence(timeout: 10), menu + " has no " + button + " button")
+    XCTAssertTrue(target.isEnabled, button + " is disabled")
+    target.tap()
+    XCTAssertTrue(pickerOf(app).waitForExistence(timeout: 15),
+                  "tapping " + button + " opened no picker: " + inventory(app))
+    app.terminate()
   }
 
-  /// The system picker's own way out, in either language.
-  private func cancelOfAPicker(_ app: XCUIApplication) -> XCUIElement {
-    let english = app.buttons["Cancel"]
-    return english.exists ? english : app.buttons["取消"].firstMatch
+  /// The picker itself, wherever it opens: the browser it presents and the search field it always carries.
+  /// The Cancel button this used to look for is the picker's root chrome, not the picker.
+  private func pickerOf(_ app: XCUIApplication) -> XCUIElement {
+    let browser = app.otherElements["Browse View (Picker)"]
+    if browser.exists { return browser }
+    let english = app.searchFields["Search"]
+    return english.exists ? english : app.searchFields["搜索"].firstMatch
   }
 
+  /// What is on screen, element by element. An indexed walk of the whole tree was what this reported with
+  /// before, and it failed the test with "No matches found for Element at index 7" instead — the tree changes
+  /// under an enumerating query while the picker animates (round 190).
   private func inventory(_ app: XCUIApplication) -> String {
-    app.buttons.allElementsBoundByIndex.prefix(12).map { $0.label }.joined(separator: " | ")
+    let labels = ["Cancel", "取消", "Open", "打开", "Browse", "浏览", "Recents", "最近使用", "Search", "搜索"]
+    let present = labels.filter { app.buttons[$0].exists || app.searchFields[$0].exists }
+    return present.isEmpty ? "no picker chrome on screen" : present.joined(separator: " | ")
   }
 }
