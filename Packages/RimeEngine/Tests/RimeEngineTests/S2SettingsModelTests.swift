@@ -169,6 +169,70 @@ final class S2SettingsModelTests: XCTestCase {
     }
   }
 
+  /// Two switch changes made before either is deployed are a sequence, not a race: the second reads the first
+  /// out of the patch, which holds the whole list.
+  ///
+  /// Reading the *deployed* list instead lost the first of every rapid pair — the deployed configuration does
+  /// not know about a write that has not been deployed — and the 方案 screen produces exactly that pair the
+  /// moment its writes are queued rather than run on the tap (reported: 方案的开关特别卡).
+  func testTwoSwitchChangesBeforeADeployBothSurvive() throws {
+    try RimeSettingsModel.setSwitchReset(1, forSwitch: "ascii_mode", schemaID: "tracer", engine: engine)
+    try RimeSettingsModel.setSwitchReset(1, forSwitch: "full_shape", schemaID: "tracer", engine: engine)
+
+    // Nothing has been deployed, so the engine still says 0 for the first one as well. ("User set" is a
+    // list-level fact read from the patch file, so it is already true — see the switch test above.)
+    let deployed = try RimeSettingsModel.describeSchema("tracer", engine: engine)
+    XCTAssertEqual(deployed.switches.first { $0.name == "ascii_mode" }?.reset, 0)
+
+    let patched = try XCTUnwrap(RimePatch(engine: engine, configID: "tracer")
+      .userValue("switches")?.listValue)
+    XCTAssertEqual(patched.count, 2, "the patch is still the schema's whole list")
+    let resets = patched.compactMap { entry -> Int? in
+      guard let map = entry.mapValue, let name = map["name"]?.stringValue,
+            name == "ascii_mode" || name == "full_shape" else { return nil }
+      return map["reset"]?.intValue
+    }
+    XCTAssertEqual(resets, [1, 1], "the second change replaced the first instead of joining it")
+  }
+
+  /// What the screen shows between a tap and the deploy that makes it true.
+  ///
+  /// A control whose value comes from the deployed configuration cannot move until the deploy ends, and a real
+  /// configuration's deploy takes tens of seconds. These are the values that fill that gap; the screen lays them
+  /// over the engine's answer (`RimeAppModel.refreshSettings`), so the control is never the thing that waits.
+  func testADescriptorCanCarryTheChoiceMadeBeforeTheDeploy() throws {
+    let before = try RimeSettingsModel.describeSchema("tracer", engine: engine)
+    XCTAssertEqual(before.switches.first { $0.name == "ascii_mode" }?.reset, 0)
+
+    let chosen = before.replacingSwitchReset(1, forSwitch: "ascii_mode")
+    let ascii = try XCTUnwrap(chosen.switches.first { $0.name == "ascii_mode" })
+    XCTAssertEqual(ascii.reset, 1, "the switch moves on the tap")
+    XCTAssertTrue(ascii.isUserSet, "and the section is marked as the user's, which is what the write makes true")
+    XCTAssertEqual(chosen.switches.first { $0.name == "full_shape" }?.reset, 0, "the others are untouched")
+    XCTAssertEqual(before.switches.first { $0.name == "ascii_mode" }?.reset, 0,
+                   "the descriptor is a value: the one it came from is unchanged")
+
+    // A setting, both ways: chosen, then cleared by 重置.
+    let pageSize = try XCTUnwrap(before.setting("pageSize"))
+    XCTAssertEqual(pageSize.effective, .integer(5))
+    XCTAssertFalse(pageSize.isUserSet)
+    let chosenPage = before.replacingSetting(.integer(8), forKey: "menu/page_size")
+    XCTAssertEqual(chosenPage.settings.count, before.settings.count, "no row is invented")
+    XCTAssertEqual(chosenPage.setting("pageSize")?.effective, .integer(8))
+    XCTAssertTrue(try XCTUnwrap(chosenPage.setting("pageSize")).isUserSet,
+                  "the row offers 重置 as soon as the user has chosen")
+    let cleared = chosenPage.clearingSetting("menu/page_size")
+    XCTAssertFalse(try XCTUnwrap(cleared.setting("pageSize")).isUserSet, "the 重置 button goes on the tap")
+    XCTAssertEqual(cleared.setting("pageSize")?.effective, .integer(8),
+                   "the value in force is the deploy's to change, not this one's")
+
+    // A key the schema does not declare leaves the descriptor alone rather than inventing a row for it.
+    XCTAssertEqual(before.replacingSetting(.integer(9), forKey: "ghost/key").settings.count,
+                   before.settings.count)
+    XCTAssertEqual(before.replacingSwitchReset(1, forSwitch: "ghost").switches.count,
+                   before.switches.count)
+  }
+
   // MARK: The footer (S2 §6)
 
   /// S2 §6: "Every screen that writes shows the same two-state footer." The states and their words live

@@ -327,6 +327,40 @@ also by the two actions that are live without being deploys: 激活 and 回滚. 
 
 Pinned by `testTheFooterHasTheSpecsTwoStatesAndSaysWhenItFailed`.
 
+## The switch moves on the tap (S2 §3)
+
+Reported from the app: 方案的开关特别卡，点击一个关掉要很久才响应. Two separate mistakes were behind it, and
+neither of them was in the switch.
+
+The first is that the screen read librime during a redraw. The 模糊音 section asked
+`enabledFuzzyPresets` for its value, and that was a computed property calling `engine.schemaValue` — a
+synchronous call on the engine's serial queue (`RimeEngine.perform`). A deploy holds that queue for its whole
+duration: `deploySync` runs `start_maintenance` and then `join_maintenance_thread` **inside** `perform`. The
+deploy's progress callback publishes `deployMessage` at every step, so the screen redrew, asked the engine,
+and blocked the main thread until the deploy it had just started finished — tens of seconds on a real
+configuration, before the switch had a chance to move at all. The values a body draws are published state now,
+like `schemaRows` and `schemaOrderIDs` already were, and `refreshSettings()` is the one place that reads them
+back from the engine.
+
+The second is that the switch's value **was the deployed one**. `setSchema` awaited a write and then a deploy
+before `refreshSettings()` re-read the list, so even without the freeze the control could not move until the
+whole deploy was over; and the write itself ran on the main actor, where the engine's queue was exactly what
+the deploy was holding. The tap now publishes the list, and `RimeAppModel.pendingSettingsWrites` writes it
+when the engine is free: one write per control, with a second choice replacing the one still waiting behind it
+(so five taps are not five deploys), and one deploy per batch. The same queue carries the screen's other three
+sections, which had the same shape.
+
+Two rules came out of it, and both are pinned by tests rather than by the screens' own claims. A control moves
+on the tap — `replacingSwitchReset`, `replacingSetting` and `clearingSetting` are what the screen shows between
+the tap and the deploy. And a deploy that is already running is waited for, not dropped: the old guard returned
+early, so a second tap's write reached the patch file and never reached the keyboard, and the next read put the
+switch back where the engine still was.
+
+One engine behaviour had to change for the queue to be safe. Two switch changes made before a deploy are a
+sequence, not a race: `setSwitchReset` composes from the **user's** list when the patch has one, and from the
+deployed list only when it does not. Reading the deployed list lost the first of every rapid pair, which the
+queue produces by construction.
+
 ## Test coverage added
 
 | Suite | Tests | What it covers |
@@ -335,4 +369,4 @@ Pinned by `testTheFooterHasTheSpecsTwoStatesAndSaysWhenItFailed`.
 | `S2SettingsTests` | 8 | what an export collects and what it deliberately leaves behind, the manifest round trip, replace and keep-existing merges, applying a subset, the backup that makes an import reversible, and the refusals: a non-setting file, a nested path, no manifest, a newer manifest |
 | `S2PresetTests` | 6 | the punctuation presets and their required files, well-formed bindings, idempotent composition, two options coexisting, and the blunt ownership rule |
 | `S2CustomPhraseTests` | 6 | the file format as the desktop writes it, unreadable lines reported by number, a missing weight staying missing, the round trip, and the three merge strategies |
-| `S2SettingsModelTests` | 9 | which knobs a script scheme offers and which a table scheme does, switches read from the schema with labels from the engine (and the schema's own words when no session is open), the composed whole-list switch write, effective versus user value before and after a deploy, and the global settings |
+| `S2SettingsModelTests` | 11 | which knobs a script scheme offers and which a table scheme does, switches read from the schema with labels from the engine (and the schema's own words when no session is open), the composed whole-list switch write and that two of them in a row are a sequence, the descriptor that carries a choice made before its deploy, effective versus user value before and after a deploy, and the global settings |

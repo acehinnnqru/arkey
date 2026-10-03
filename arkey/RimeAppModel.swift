@@ -51,6 +51,8 @@ final class RimeAppModel: ObservableObject {
   @Published var schemaRows: [String] = []
   @Published var schemaOrderIDs: [String] = []
   @Published var schemaDescriptor: RimeSchemaDescriptor?
+  /// The 模糊音 presets in force, published rather than asked of the engine per redraw.
+  @Published var enabledFuzzyPresets: [String] = []
   @Published var dictionaryReport: RimeUserDictionaryReport?
   /// S5 §4's timestamped backups, per dictionary, newest first. Refreshed with the report rather than
   /// listed on every body pass: the files live in the sync folder, which may be iCloud Drive.
@@ -62,6 +64,24 @@ final class RimeAppModel: ObservableObject {
   @Published var customPhrases: [RimeCustomPhrase] = []
   @Published var rejectedPhraseLines: [RimeCustomPhraseFile.RejectedLine] = []
   @Published var enabledKeyBindingOptions: [String] = []
+
+  /// The settings writes the user has made and the engine has not been told yet, in the order they were made.
+  ///
+  /// A settings write ends in a deploy, and librime's deploy holds the engine's own queue for its whole
+  /// duration — tens of seconds on a real configuration. So a screen may not write on the tap: the tap would
+  /// wait for that deploy. It publishes what the user chose instead and calls `enqueueSettingsWrite`, which is
+  /// this queue. The value the queue holds is laid back over the engine's own answer by `refreshSettings()`,
+  /// so a control keeps showing the last choice until a deploy makes it true — and a write that arrives while
+  /// another is deploying is not dropped, which is what used to leave a change written and never deployed.
+  var pendingSettingsWrites: [RimeSettingsIntent] = []
+  /// The task working through `pendingSettingsWrites`; nil when nothing is queued or running.
+  var settingsWriter: Task<Void, Never>?
+  /// The deploy in flight, so a settings write can wait for it rather than touch librime's configuration
+  /// underneath it.
+  var deployInFlight: Task<Void, Never>?
+  /// True when a screen asked for a settings read while a deploy was holding the engine's queue, and was told
+  /// to keep what it had. The deploy that refused it reads it back when it ends (`refreshSettings()`).
+  var settingsRefreshDeferred = false
 
   let workspace: RimeWorkspace
   let bundledSharedData: URL
@@ -238,7 +258,24 @@ final class RimeAppModel: ObservableObject {
   // MARK: - Deploy and activation
 
   func deploy(profileID: String) async {
-    guard !isDeploying else { return }
+    // A deploy already running is waited for, not dropped. The callers write a file and then deploy it, so a
+    // dropped request leaves that file written and not live — the change looks applied on the screen and never
+    // reaches the keyboard. librime runs one maintenance at a time, so this is a queue, not a courtesy.
+    while let running = deployInFlight {
+      await running.value
+    }
+    let task = Task { @MainActor in await self.runDeploy(profileID: profileID) }
+    deployInFlight = task
+    await task.value
+    if deployInFlight == task {
+      deployInFlight = nil
+      // A screen that asked for a settings read while this deploy ran was told to keep what it had rather than
+      // wait for the deploy. It gets the answer here, now that the engine's queue is free.
+      if settingsRefreshDeferred { refreshSettings() }
+    }
+  }
+
+  private func runDeploy(profileID: String) async {
     // An empty id is what "there is nothing to deploy into" looks like to the callers that write a file and
     // then deploy it — the phrase list and the settings import both do. Without this the coordinator builds the
     // path `profiles//source` and fails with an English, path-bearing sentence, which is what a user with no

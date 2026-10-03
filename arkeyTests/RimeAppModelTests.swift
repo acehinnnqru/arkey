@@ -76,6 +76,90 @@ final class RimeAppModelTests: XCTestCase {
       atPath: model.workspace.profile(profile.id).build.path), "no build was written")
   }
 
+  /// The 方案 switch, reported from the app as 方案的开关特别卡，点击一个关掉要很久才响应.
+  ///
+  /// Two things made it so, and this pins both. The switch took its value from the *deployed* schema list, which
+  /// is only re-read once the deploy ends, so it could not move until then. And the write that followed the tap
+  /// ran on the main actor, where librime's deploy is holding the engine's own queue — tens of seconds on a real
+  /// configuration. The tap now publishes the choice and returns, and the write and the deploy are queued behind
+  /// it (see `RimeAppModel.pendingSettingsWrites`).
+  func testTheSchemaSwitchMovesOnTheTapAndNotWhenTheDeployEnds() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    _ = try await importAndDeployTracer(named: "Schema switch test", into: model)
+
+    let schema = try XCTUnwrap(model.schemaOrderIDs.first, "the deployed profile offers no schema")
+    XCTAssertTrue(model.schemaRows.contains(schema),
+                  "the row is not on the screen: " + model.schemaRows.joined(separator: ", "))
+
+    let tapped = Date()
+    model.setSchema(schema, enabled: false)
+    let waited = Date().timeIntervalSince(tapped)
+
+    XCTAssertLessThan(waited, 0.05,
+                      "the tap waited " + String(format: "%.3f", waited)
+                        + " s on the deploy it started, so the switch is behind that deploy")
+    XCTAssertFalse(model.schemaOrderIDs.contains(schema),
+                   "the switch did not move on the tap: " + model.schemaOrderIDs.joined(separator: ", "))
+
+    // The write and the deploy are still the app's, and they have to land: what the engine reads back is the
+    // only thing that makes the change real.
+    await model.waitForSettingsWrites()
+    XCTAssertNil(model.errorMessage, "the write reported: " + (model.errorMessage ?? ""))
+    model.refreshSettings()
+    XCTAssertFalse(model.schemaOrderIDs.contains(schema),
+                   "the change was written and never deployed: "
+                     + model.schemaOrderIDs.joined(separator: ", "))
+  }
+
+  /// Two taps in a row leave the last choice deployed, not the first one written and forgotten.
+  ///
+  /// This is the other half of the same report: the deploy guard dropped a request that arrived while another
+  /// deploy was running, so a second tap reached the patch file and never reached the keyboard — and the screen,
+  /// which re-reads the deployed configuration, then showed the switch going back where it was.
+  func testTappingTheSchemaSwitchTwiceLeavesTheLastChoiceDeployed() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    _ = try await importAndDeployTracer(named: "Schema switch pair test", into: model)
+
+    let schema = try XCTUnwrap(model.schemaOrderIDs.first, "the deployed profile offers no schema")
+    model.setSchema(schema, enabled: false)
+    model.setSchema(schema, enabled: true)
+
+    await model.waitForSettingsWrites()
+    XCTAssertNil(model.errorMessage, "the writes reported: " + (model.errorMessage ?? ""))
+    model.refreshSettings()
+    XCTAssertTrue(model.schemaOrderIDs.contains(schema),
+                  "the last tap never reached the deployed configuration: "
+                    + model.schemaOrderIDs.joined(separator: ", "))
+  }
+
+  /// Imports the tracer fixture and deploys it: what every screen below the home screen needs, a live schema to
+  /// configure.
+  ///
+  /// The profile is remembered so tearDown takes it away again, and so is `default.custom.yaml`, which these
+  /// tests are about to write. Both are real places the app uses: a `schema_list: []` left in the user directory
+  /// is what the next run's deploy would compile, and the suite that found that out failed with "the deployed
+  /// profile offers no schema" rather than with anything about the switch.
+  private func importAndDeployTracer(named displayName: String,
+                                     into model: RimeAppModel) async throws -> RimeProfileMetadata {
+    // Start from no patch, whatever an earlier run left behind — the same rule the phrase-list test follows. A
+    // `schema_list: []` left in this file is what a previous run's switch-off wrote, and the deploy the next run
+    // makes compiles exactly that and finds no schema at all: the failure this suite first produced read "the
+    // deployed profile offers no schema" and had nothing to do with the switch.
+    let patch = model.workspace.userData.appendingPathComponent("default.custom.yaml")
+    try? FileManager.default.removeItem(at: patch)
+    userFiles.append(patch)
+    await model.importPayload(at: try makeSourceFolder(), displayName: displayName, adoptUserData: false)
+    let profile = try XCTUnwrap(model.profiles.first { $0.displayName == displayName },
+                                "the import is not listed: "
+                                  + model.profiles.map { $0.displayName }.joined(separator: ", "))
+    imported = profile.id
+    await model.deploy(profileID: profile.id)
+    model.refreshSettings()
+    return profile
+  }
+
   /// The copy of the bundled profile the importer is given: the three files, without the shipped build
   /// directory, which is the shape the app's folder import expects.
   private func makeSourceFolder() throws -> URL {

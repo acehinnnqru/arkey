@@ -140,6 +140,56 @@ public struct RimeSchemaDescriptor: Sendable {
   public func setting(_ id: String) -> RimeSettingDescriptor? {
     settings.first { $0.id == id }
   }
+
+  /// The same descriptor with one switch's default replaced.
+  ///
+  /// A screen shows this between the user's tap and the deploy that makes it true, because a settings write
+  /// ends in a deploy, a deploy holds the engine's own queue for its whole duration, and a control whose value
+  /// only changes once the deploy ends does not respond. Reported from the app as 方案的开关特别卡，点击一个关掉
+  /// 要很久才响应; `RimeAppModel.pendingSettingsWrites` is the queue that keeps the tap off that path.
+  ///
+  /// `isUserSet` becomes true: the write this stands for is a `switches` patch, which is what that flag means.
+  public func replacingSwitchReset(_ reset: Int, forSwitch name: String) -> RimeSchemaDescriptor {
+    replacing(switches: switches.map { entry in
+      guard entry.name == name else { return entry }
+      return RimeSwitchDescriptor(name: entry.name, states: entry.states, reset: reset,
+                                  labels: entry.labels, effective: entry.effective, isUserSet: true)
+    })
+  }
+
+  /// The same descriptor with one setting's value replaced, as the user just chose it. The key names the
+  /// setting, because that is what the write addresses.
+  public func replacingSetting(_ value: RimeSettingDescriptor.Value,
+                               forKey key: String) -> RimeSchemaDescriptor {
+    replacing(settings: settings.map { entry in
+      guard entry.key == key else { return entry }
+      return RimeSettingDescriptor(id: entry.id, title: entry.title, key: entry.key, scope: entry.scope,
+                                   effective: value, userValue: value, note: entry.note)
+    })
+  }
+
+  /// The same descriptor with one setting's user value cleared, which is what "重置" asks for.
+  ///
+  /// The **value in force** is deliberately left alone: the schema's own value is what the engine will answer
+  /// once the reset is deployed, and this type does not know it — the row keeps showing the patched value until
+  /// the deploy replaces it. What changes now is the row's own state, so the 重置 button is gone the moment it
+  /// is pressed rather than a deploy later.
+  public func clearingSetting(_ key: String) -> RimeSchemaDescriptor {
+    replacing(settings: settings.map { entry in
+      guard entry.key == key else { return entry }
+      return RimeSettingDescriptor(id: entry.id, title: entry.title, key: entry.key, scope: entry.scope,
+                                   effective: entry.effective, userValue: nil, note: entry.note)
+    })
+  }
+
+  private func replacing(switches: [RimeSwitchDescriptor]? = nil,
+                         settings: [RimeSettingDescriptor]? = nil) -> RimeSchemaDescriptor {
+    RimeSchemaDescriptor(schemaID: schemaID, name: name, translatorKind: translatorKind,
+                         translatorNames: translatorNames, dictionary: dictionary,
+                         hasUserDictionary: hasUserDictionary, switches: switches ?? self.switches,
+                         settings: settings ?? self.settings, pageSize: pageSize,
+                         hasPunctuator: hasPunctuator, hasGrammar: hasGrammar)
+  }
 }
 
 // MARK: - Model
@@ -220,19 +270,30 @@ public enum RimeSettingsModel {
   /// entry and every switch loses its states. Rime replaces a list wholesale, which is why this reads
   /// the effective list, changes one element's `reset`, and writes the list back — the same rule
   /// S2 §2.1 already applies to `schema_list`.
+  ///
+  /// The list it changes is the **user's own** when there is one, and the schema's when there is not. That
+  /// order is what makes two changes in a row a sequence instead of a race: the patch holds the whole list, so
+  /// the second change sees the first, while the deployed configuration still shows neither until the deploy
+  /// that follows runs. Reading the deployed list instead lost the first switch of every rapid pair.
   @discardableResult
   public static func setSwitchReset(_ reset: Int, forSwitch name: String, schemaID: String,
                                     engine: RimeEngine) throws -> RimeConfigChange {
-    let effective = try engine.withSchemaConfig(schemaID) { $0.value("switches") }?.listValue ?? []
+    let patch = RimePatch(engine: engine, configID: schemaID)
+    let base: [RimeConfigValue]
+    if let patched = try patch.userValue("switches")?.listValue {
+      base = patched
+    } else {
+      base = try engine.withSchemaConfig(schemaID) { $0.value("switches") }?.listValue ?? []
+    }
     var found = false
-    let updated: [RimeConfigValue] = effective.map { entry in
+    let updated: [RimeConfigValue] = base.map { entry in
       guard var map = entry.mapValue, map["name"]?.stringValue == name else { return entry }
       found = true
       map["reset"] = .int(reset)
       return .map(map)
     }
     guard found else { throw RimePatchError.switchNotInSchema(name) }
-    return try RimePatch(engine: engine, configID: schemaID).set(.list(updated), at: "switches")
+    return try patch.set(.list(updated), at: "switches")
   }
 
   /// The settings that belong to no single schema: what the 配置库 screen writes to

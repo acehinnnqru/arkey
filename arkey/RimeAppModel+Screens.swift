@@ -12,103 +12,120 @@ import SwiftUI
 extension RimeAppModel {
   // MARK: - Settings (S2)
 
-  /// Which schema the settings screens are editing: the deployed one if there is one, the first
-  /// otherwise.
+  /// Which schema the settings screens are editing: the deployed one if there is one, the first otherwise.
   var settingsSchemaID: String? {
     if let current = try? engine.currentSchema(), !current.isEmpty { return current }
     return schemas.first
   }
 
+  /// Reads the configuration back into the state the 方案 screen draws.
+  ///
+  /// Called when the screen opens, by its 刷新 button, and after every settings write — never from a body
+  /// pass. Every read here is a synchronous call on the engine's queue, and a deploy holds that queue for its
+  /// whole duration, so a body pass that made one would freeze the screen for the length of that deploy. That
+  /// is the half of the reported 方案的开关特别卡 that has nothing to do with the switch itself.
+  ///
+  /// A choice that has been made and not deployed yet is laid back over that answer: it is what the user last
+  /// said, the footer says it is waiting, and without it a redraw in the middle of a deploy would put the
+  /// control back where the engine still is.
   func refreshSettings() {
-    schemas = (try? engine.schemaIDs()) ?? []
-    schemaOrderIDs = schemaOrder
-    let enabled = schemaOrderIDs
-    let offered = (try? schemaListEditor().available()) ?? installedSchemaIDs
-    schemaRows = offered + enabled.filter { !offered.contains($0) }
-    guard let id = settingsSchemaID else {
-      schemaDescriptor = nil
+    // Every read below is a synchronous call on the engine's queue, and a deploy holds that queue for its whole
+    // duration — so a read asked for while one runs waits for it, on the main actor. That is the freeze the 方案
+    // switches were reported as, and it is reachable without touching a switch: the screen's own `.task` runs
+    // when it is entered, and 刷新 is a button. The values would be out of date by the time the deploy ended in
+    // any case, so the screen keeps what it has and the deploy that refused the read hands it the answer.
+    guard deployInFlight == nil else {
+      settingsRefreshDeferred = true
       return
     }
-    do {
-      schemaDescriptor = try RimeSettingsModel.describeSchema(id, engine: engine)
-    } catch {
-      schemaDescriptor = nil
-      errorMessage = "读取方案设置失败：" + String(describing: error)
+    settingsRefreshDeferred = false
+
+    schemas = (try? engine.schemaIDs()) ?? []
+    let editor = schemaListEditor()
+    let deployedOrder = (try? editor.effective()) ?? []
+    let offered = (try? editor.available()) ?? installedSchemaIDs
+    schemaRows = offered + deployedOrder.filter { !offered.contains($0) }
+
+    var descriptor: RimeSchemaDescriptor?
+    let schemaID = settingsSchemaID
+    if let schemaID {
+      do {
+        descriptor = try RimeSettingsModel.describeSchema(schemaID, engine: engine)
+      } catch {
+        descriptor = nil
+        errorMessage = "读取方案设置失败：" + String(describing: error)
+      }
     }
+
+    // The queue is the overlay, so the two cannot disagree: what is queued is exactly what is not deployed.
+    var order = deployedOrder
+    var fuzzy: [String]?
+    for intent in pendingSettingsWrites {
+      switch intent {
+      case .schemaList(let ids):
+        order = ids
+      case .switchReset(_, let name, let reset):
+        descriptor = descriptor?.replacingSwitchReset(reset, forSwitch: name)
+      case .setting(_, let key, let value):
+        descriptor = descriptor?.replacingSetting(value, forKey: key)
+      case .resetSetting(_, let key):
+        descriptor = descriptor?.clearingSetting(key)
+      case .fuzzyPresets(_, let enabled):
+        fuzzy = enabled
+      }
+    }
+
+    schemaDescriptor = descriptor
+    schemaOrderIDs = order
+    enabledFuzzyPresets = fuzzy ?? deployedFuzzyPresets(schemaID: schemaID)
   }
 
-  /// Writes one setting as a patch and redeploys, which is the only path S2 allows: shipped sources
-  /// are read-only and a change reaches the keyboard through a deploy.
-  func setSetting(_ descriptor: RimeSettingDescriptor, value: RimeSettingDescriptor.Value) async {
-    guard let id = settingsSchemaID else { return }
-    let patch = RimePatch(engine: engine, configID: configID(for: descriptor.scope, schemaID: id))
-    do {
-      let change: RimeConfigChange
-      switch value {
-      case .boolean(let raw): change = try patch.set(.bool(raw), at: descriptor.key)
-      case .integer(let raw): change = try patch.set(.int(raw), at: descriptor.key)
-      case .text(let raw): change = try patch.set(.string(raw), at: descriptor.key)
-      case .list(let raw): change = try patch.set(.list(raw.map { .string($0) }), at: descriptor.key)
-      }
-      await deploy(profileID: activeProfileID ?? "")
-      recordConfigChange(change)
-      refreshSettings()
-    } catch {
-      errorMessage = "写入设置失败：" + String(describing: error)
-    }
+  /// The presets the deployed algebra carries, so the screen can show the state it wrote.
+  private func deployedFuzzyPresets(schemaID: String?) -> [String] {
+    guard let schemaID,
+          let algebra = try? engine.schemaValue("speller/algebra", schemaID: schemaID)?.listValue
+    else { return [] }
+    return RimeFuzzyPinyin.enabledPresets(in: algebra.compactMap(\.stringValue))
+  }
+
+  /// Writes one translator setting and redeploys, which is the only path S2 allows: shipped sources are
+  /// read-only and a change reaches the keyboard through a deploy.
+  ///
+  /// The row shows the chosen value before any of that happens, and the write itself is queued — see
+  /// `RimeAppModel.pendingSettingsWrites`. Writing here would be a synchronous engine call on the main actor,
+  /// and a deploy holds the engine's queue for tens of seconds on a real configuration.
+  ///
+  /// The schema is the one the screen is showing, taken from the descriptor the row came out of, and not asked
+  /// of the engine: `settingsSchemaID` is a read on that same queue, so asking it here reintroduces the wait
+  /// this method exists to avoid.
+  func setSetting(_ descriptor: RimeSettingDescriptor, value: RimeSettingDescriptor.Value) {
+    guard let id = schemaDescriptor?.schemaID else { return }
+    schemaDescriptor = schemaDescriptor?.replacingSetting(value, forKey: descriptor.key)
+    enqueueSettingsWrite(.setting(configID: configID(for: descriptor.scope, schemaID: id),
+                                  key: descriptor.key, value: value))
   }
 
   /// Reset deletes the key from the patch, so the schema's own value comes back (S2 §4).
-  func resetSetting(_ descriptor: RimeSettingDescriptor) async {
-    guard let id = settingsSchemaID else { return }
-    let patch = RimePatch(engine: engine, configID: configID(for: descriptor.scope, schemaID: id))
-    do {
-      let change = try patch.remove(key: descriptor.key)
-      await deploy(profileID: activeProfileID ?? "")
-      recordConfigChange(change)
-      refreshSettings()
-    } catch {
-      errorMessage = "重置失败：" + String(describing: error)
-    }
+  func resetSetting(_ descriptor: RimeSettingDescriptor) {
+    guard let id = schemaDescriptor?.schemaID else { return }
+    schemaDescriptor = schemaDescriptor?.clearingSetting(descriptor.key)
+    enqueueSettingsWrite(.resetSetting(configID: configID(for: descriptor.scope, schemaID: id),
+                                       key: descriptor.key))
   }
 
   /// A switch default is the whole list, not an index (measured: patching `switches/@N/reset` replaces
   /// the list and leaves one nameless entry).
-  func setSwitch(_ name: String, reset: Int) async {
-    guard let id = settingsSchemaID else { return }
-    do {
-      let change = try RimeSettingsModel.setSwitchReset(reset, forSwitch: name, schemaID: id,
-                                                        engine: engine)
-      await deploy(profileID: activeProfileID ?? "")
-      recordConfigChange(change)
-      refreshSettings()
-    } catch {
-      errorMessage = "写入开关失败：" + String(describing: error)
-    }
+  func setSwitch(_ name: String, reset: Int) {
+    guard let id = schemaDescriptor?.schemaID else { return }
+    schemaDescriptor = schemaDescriptor?.replacingSwitchReset(reset, forSwitch: name)
+    enqueueSettingsWrite(.switchReset(schemaID: id, name: name, reset: reset))
   }
 
   /// 模糊音 is composed into `speller/algebra` from the schema's own algebra, never appended (S2 §2.1).
-  func setFuzzyPinyin(_ enabled: [String]) async {
-    guard let id = settingsSchemaID else { return }
-    do {
-      let base = (try engine.schemaValue("speller/algebra", schemaID: id)?.listValue ?? [])
-        .compactMap(\.stringValue)
-      let composed = RimeFuzzyPinyin.compose(baseAlgebra: base, enabled: enabled)
-      let patch = RimePatch(engine: engine, configID: id)
-      let change = try patch.set(.list(composed.map { .string($0) }), at: "speller/algebra")
-      await deploy(profileID: activeProfileID ?? "")
-      recordConfigChange(change)
-      refreshSettings()
-    } catch {
-      errorMessage = "写入模糊音失败：" + String(describing: error)
-    }
-  }
-
-  var enabledFuzzyPresets: [String] {
-    guard let id = settingsSchemaID,
-          let algebra = try? engine.schemaValue("speller/algebra", schemaID: id)?.listValue
-    else { return [] }
-    return RimeFuzzyPinyin.enabledPresets(in: algebra.compactMap(\.stringValue))
+  func setFuzzyPinyin(_ enabled: [String]) {
+    guard let id = schemaDescriptor?.schemaID else { return }
+    enabledFuzzyPresets = enabled
+    enqueueSettingsWrite(.fuzzyPresets(schemaID: id, enabled: enabled))
   }
 
   // MARK: - Schema list (S2 §3, 方案)
@@ -120,40 +137,34 @@ extension RimeAppModel {
     return RimeTreeClassifier.classify(root: workspace.profile(id).source).schemaIDs
   }
 
-  /// The enabled schemas, in the order the keyboard offers them; the first is the default (S2 §3).
-  var schemaOrder: [String] {
-    (try? schemaListEditor().effective()) ?? []
+  /// Enable, order and default are the same key, so they are the same write (S2 §3).
+  ///
+  /// The switch moves here and the write follows it. That order is the whole fix for the reported freeze: a
+  /// switch whose value came from the *deployed* list could not move until the deploy ended, and a write made
+  /// on the tap waited on the engine's queue, which is what that deploy was holding.
+  func setSchemaList(_ ids: [String]) {
+    guard ids != schemaOrderIDs else { return }
+    schemaOrderIDs = ids
+    enqueueSettingsWrite(.schemaList(ids))
   }
 
-  /// Enable, order and default are the same key, so they are the same write.
-  func setSchemaList(_ ids: [String]) async {
-    do {
-      let change = try schemaListEditor().write(ids)
-      await deploy(profileID: activeProfileID ?? "")
-      recordConfigChange(change)
-      refreshSettings()
-    } catch {
-      errorMessage = "写入方案列表失败：" + String(describing: error)
-    }
-  }
-
-  func moveSchema(_ id: String, by offset: Int) async {
-    var ids = schemaOrder
+  func moveSchema(_ id: String, by offset: Int) {
+    var ids = schemaOrderIDs
     guard let index = ids.firstIndex(of: id), ids.indices.contains(index + offset) else { return }
     ids.swapAt(index, index + offset)
-    await setSchemaList(ids)
+    setSchemaList(ids)
   }
 
-  func setSchemaDefault(_ id: String) async {
-    var ids = schemaOrder
+  func setSchemaDefault(_ id: String) {
+    var ids = schemaOrderIDs
     guard ids.contains(id), ids.first != id else { return }
     ids.removeAll { $0 == id }
     ids.insert(id, at: 0)
-    await setSchemaList(ids)
+    setSchemaList(ids)
   }
 
-  func setSchema(_ id: String, enabled: Bool) async {
-    var ids = schemaOrder
+  func setSchema(_ id: String, enabled: Bool) {
+    var ids = schemaOrderIDs
     if enabled {
       guard !ids.contains(id) else { return }
       ids.append(id)
@@ -161,10 +172,10 @@ extension RimeAppModel {
       guard ids.contains(id) else { return }
       ids.removeAll { $0 == id }
     }
-    await setSchemaList(ids)
+    setSchemaList(ids)
   }
 
-  private func schemaListEditor() -> RimeSchemaListEditor {
+  func schemaListEditor() -> RimeSchemaListEditor {
     RimeSchemaListEditor(engine: engine, installed: installedSchemaIDs)
   }
 

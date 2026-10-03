@@ -36,6 +36,10 @@ struct SchemaSettingsView: View {
 
   /// S2 §3's first row: which schemas the keyboard offers, in which order, and which one it starts
   /// on. The first entry *is* the default, so there is no separate setting to get out of step.
+  ///
+  /// Every control here writes through `RimeAppModel`: the tap publishes the choice and the write and the
+  /// deploy that carries it are queued, so none of these closures awaits anything. Awaiting would put the
+  /// control's own state behind a deploy that takes tens of seconds on a real configuration.
   private var schemaSection: some View {
     let order = model.schemaOrderIDs
     let rows = model.schemaRows
@@ -44,7 +48,7 @@ struct SchemaSettingsView: View {
         HStack(spacing: 12) {
           Toggle(isOn: Binding(
             get: { order.contains(id) },
-            set: { isOn in Task { await model.setSchema(id, enabled: isOn) } })) {
+            set: { isOn in model.setSchema(id, enabled: isOn) })) {
               VStack(alignment: .leading, spacing: 2) {
                 Text(id)
                 if order.first == id {
@@ -53,18 +57,18 @@ struct SchemaSettingsView: View {
               }
             }
           if order.contains(id) {
-            Button { Task { await model.moveSchema(id, by: -1) } } label: {
+            Button { model.moveSchema(id, by: -1) } label: {
               Image(systemName: "arrow.up")
             }
             .buttonStyle(.borderless)
             .disabled(order.first == id)
-            Button { Task { await model.moveSchema(id, by: 1) } } label: {
+            Button { model.moveSchema(id, by: 1) } label: {
               Image(systemName: "arrow.down")
             }
             .buttonStyle(.borderless)
             .disabled(order.last == id)
             if order.first != id {
-              Button("设为默认") { Task { await model.setSchemaDefault(id) } }
+              Button("设为默认") { model.setSchemaDefault(id) }
                 .font(.caption)
                 .buttonStyle(.borderless)
             }
@@ -86,7 +90,7 @@ struct SchemaSettingsView: View {
           Picker(entry.displayLabels[0] + " / " + entry.displayLabels[1],
                  selection: Binding(
                    get: { entry.reset },
-                   set: { value in Task { await model.setSwitch(entry.name, reset: value) } })) {
+                   set: { value in model.setSwitch(entry.name, reset: value) })) {
             Text(entry.displayLabels[0]).tag(0)
             Text(entry.displayLabels[1]).tag(1)
           }
@@ -123,11 +127,11 @@ struct SchemaSettingsView: View {
       case .boolean(let value):
         Toggle(setting.title, isOn: Binding(
           get: { value },
-          set: { newValue in Task { await model.setSetting(setting, value: .boolean(newValue)) } }))
+          set: { newValue in model.setSetting(setting, value: .boolean(newValue)) }))
       case .integer(let value):
         Stepper(value: Binding(
           get: { value },
-          set: { newValue in Task { await model.setSetting(setting, value: .integer(newValue)) } }),
+          set: { newValue in model.setSetting(setting, value: .integer(newValue)) }),
                 in: 0...20) {
           Text(setting.title + "：" + String(value))
             .font(.body)
@@ -141,7 +145,7 @@ struct SchemaSettingsView: View {
           Text(note).font(.caption2).foregroundStyle(.secondary)
         }
         if setting.isUserSet {
-          Button("重置") { Task { await model.resetSetting(setting) } }
+          Button("重置") { model.resetSetting(setting) }
             .font(.caption2)
         }
       }
@@ -162,7 +166,7 @@ struct SchemaSettingsView: View {
             } else {
               next.removeAll { $0 == preset.id }
             }
-            Task { await model.setFuzzyPinyin(next) }
+            model.setFuzzyPinyin(next)
           }))
       }
     } header: {
