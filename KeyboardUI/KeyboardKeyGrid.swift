@@ -30,13 +30,7 @@ enum KeyLayer {
   }
 }
 
-/// The key rows, laid out by S3's model rather than by this file.
-///
-/// The tracer computed unit widths here and had its own idea of the margins; the measurements say
-/// otherwise (8.3 pt margins, 9.7 pt gaps, 45 pt keys), and the frames come from
-/// `RimeKeyboardLayoutEngine` so that the keyboard's height and the keys' positions are the same
-/// calculation. That is the class of bug that killed the tracer's extension: a frame the system
-/// animates disagreeing with the frames inside it.
+/// Key rows share the same style and geometry engine as the extension height.
 final class KeyboardKeyGrid: UIView {
   var onKey: ((KeyboardKey) -> Void)?
   /// The touch's life on a key, in the grid's own coordinates, so the caller owns the callout: it has
@@ -66,7 +60,7 @@ final class KeyboardKeyGrid: UIView {
   /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
   /// the views that own them, so this grid's coordinate space starts at its first row.
   private static var rowStyle: RimeKeyboardStyle {
-    var style = RimeKeyboardStyle.measured
+    var style = KeyboardMetrics.style
     style.candidateSlotHeight = 0
     style.bottomInset = 0
     return style

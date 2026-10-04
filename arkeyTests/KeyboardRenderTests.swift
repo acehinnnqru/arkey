@@ -44,7 +44,7 @@ final class KeyboardRenderTests: XCTestCase {
     // material, and the capture reader's rectangle detector is built for that composition — its background
     // is the material the keys sit on, which a tight crop of the rows does not contain enough of. The grid
     // lays its own rows out from its own origin, so it is placed below the slot.
-    let style = RimeKeyboardStyle.measured
+    let style = KeyboardMetrics.style
     let layout = RimeKeyboardLayoutEngine.layout(width: width, layer: .letters, needsGlobeRow: globe,
                                                  style: style)
     let size = layout.size

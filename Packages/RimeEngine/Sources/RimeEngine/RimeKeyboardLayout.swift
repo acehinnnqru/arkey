@@ -72,6 +72,23 @@ public struct RimeKeyboardStyle: Sendable, Equatable {
     cornerRadius: 6.7,
     globeRowHeight: 40.0)
 
+  /// Revised from the October 2026 side-by-side reference. Keep `measured` as the
+  /// historical capture baseline; the UI uses this wider, flat-cap treatment.
+  public static let systemAligned: RimeKeyboardStyle = {
+    var style = measured
+    style.sideMargin = 6.5
+    style.horizontalGap = 6.5
+    style.cornerRadius = 8.5
+    style.shiftWidth = 48.5
+    style.deleteWidth = 48.5
+    style.sideKeyGap = 15
+    style.layerKeyWidth = 46
+    style.emojiKeyWidth = 47
+    style.spaceKeyWidth = 205
+    style.returnKeyWidth = 99.5
+    return style
+  }()
+
   /// The letter key width at a given keyboard width: `keyWidth = (width − 2 × margin − 9 × gap) / 10`
   /// (S3 §3.1). At 430 pt this is 32.6 pt, which is the measurement.
   public func letterKeyWidth(for width: CGFloat) -> CGFloat {

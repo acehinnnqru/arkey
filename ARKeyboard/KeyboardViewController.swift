@@ -49,7 +49,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = theme.background
+    applyBacking()
 
     candidateBar.translatesAutoresizingMaskIntoConstraints = false
     keyGrid.translatesAutoresizingMaskIntoConstraints = false
@@ -402,9 +402,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   // MARK: - Presentation
 
+  /// Let the keyboard material extend continuously into the system-owned bottom
+  /// strip. An opaque fill here produces square corners and a visible seam.
+  private func applyBacking() {
+    let hasKeyboardMaterial = (view as? UIInputView)?.inputViewStyle == .keyboard
+    view.backgroundColor = theme.backingFollowsMaterial && hasKeyboardMaterial
+      ? .clear : theme.background
+  }
+
   private func applyCurrentTheme() {
     theme = KeyboardTheme.current(for: textDocumentProxy.keyboardAppearance ?? .default)
-    view.backgroundColor = theme.background
+    applyBacking()
     candidateBar.onForget = { [weak self] index in self?.forgetCandidate(index) }
     candidateBar.apply(theme: theme)
     candidatePanel.apply(theme: theme)

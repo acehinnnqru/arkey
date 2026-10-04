@@ -92,9 +92,9 @@ final class KeyboardGeometryTests: XCTestCase {
   /// The style the views use is the engine's measured one: the view layer must not carry a second copy
   /// of the numbers S3 §3 measured.
   func testTheViewMetricsAreTheEnginesMeasuredStyle() {
-    XCTAssertEqual(KeyboardMetrics.style, RimeKeyboardStyle.measured)
+    XCTAssertEqual(KeyboardMetrics.style, RimeKeyboardStyle.systemAligned)
     XCTAssertEqual(KeyboardMetrics.keyHeight, 45, accuracy: 0.01)
-    XCTAssertEqual(KeyboardMetrics.sideMargin, 8.3, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.sideMargin, 6.5, accuracy: 0.01)
   }
 
   /// The frame the extension asks for is the sum of the views stacked inside it: the candidate bar, and the key

@@ -108,7 +108,7 @@ final class CandidateBar: UIView {
 
   func apply(theme: KeyboardTheme) {
     self.theme = theme
-    backgroundColor = theme.background
+    backgroundColor = .clear
     messageLabel.textColor = theme.candidateText.withAlphaComponent(0.75)
     for chevron in [leadingChevron, trailingChevron, expandButton] {
       chevron.tintColor = theme.candidateText.withAlphaComponent(0.6)

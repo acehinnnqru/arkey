@@ -1,15 +1,9 @@
 import UIKit
 import RimeEngine
 
-/// The keyboard's geometry, from S3's measured style rather than from eyeballed values.
-///
-/// The tracer used 3 pt margins, 6 pt gaps and 48 pt keys; the captures say 8.3 / 9.7 / 45.0, and the
-/// difference is visible the moment the two are side by side. Every number here comes from
-/// `RimeKeyboardStyle.measured`, which carries the device and OS it was measured on, and the layout
-/// itself is computed by `RimeKeyboardLayoutEngine` — these are the few values the views need before
-/// a layout exists.
+/// Shared geometry for the extension and in-app preview.
 enum KeyboardMetrics {
-  static var style: RimeKeyboardStyle { .measured }
+  static var style: RimeKeyboardStyle { .systemAligned }
 
   static var sideMargin: CGFloat { style.sideMargin }
   static var keyGap: CGFloat { style.horizontalGap }
@@ -111,8 +105,8 @@ struct KeyboardTheme {
 
   var returnKeyText: UIColor { .white }
 
-  /// The system keyboard has no drop shadow in dark mode and a soft one in light.
-  var keyShadowOpacity: Float { palette.isDark ? 0 : 0.35 }
+  /// Flat caps: a hard bottom shadow makes the wider keys look raised.
+  var keyShadowOpacity: Float { 0 }
 
   var candidateText: UIColor { Self.color(palette.glyph) }
 
