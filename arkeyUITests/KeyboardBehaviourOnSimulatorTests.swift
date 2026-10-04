@@ -115,7 +115,11 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
   /// screenshot in round 189 showed a band of empty backing under the last row, and the user said why: iOS
   /// already reserves the height of its own bottom row (the globe key) and the home-indicator area, and the
   /// layout was adding the system keyboard's measured 80.3 pt bottom inset on top of that. Measured on an
-  /// iPhone 17 Pro: 144.3 pt of space under the last row before, 64.0 pt after — the system's strip itself.
+  /// iPhone 17 Pro: 144.3 pt of space under the last row before, 64.0 pt after — which round 191 read again:
+  /// that 64.0 was the strip *minus* the 11 pt the frame was clipping off the bottom row, measured from the
+  /// keys' model position, and a clip does not move it. A ceiling on the band cannot see a clip, so the
+  /// frame-and-views agreement is pinned by
+  /// `KeyboardControllerTests.testTheFrameTheExtensionAsksForHoldsEveryKey`; this stays as the band's guard.
   func testTheKeysReachTheBottomOfTheSystemStrip() throws {
     enableThirdPartyKeyboard()
     let (app, _) = launchAppWithArkeyKeyboard()

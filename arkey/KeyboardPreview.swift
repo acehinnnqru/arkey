@@ -35,7 +35,9 @@ final class KeyboardPreviewView: UIView {
       candidateBar.leadingAnchor.constraint(equalTo: leadingAnchor),
       candidateBar.trailingAnchor.constraint(equalTo: trailingAnchor),
       candidateBar.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
-      keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor, constant: KeyboardMetrics.rowGap),
+      // Same stack as the extension's: the slot is the bar plus the room under it, so the grid starts at the
+      // bar's bottom and the whole thing is exactly `totalHeight`, which is the frame this preview is given.
+      keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
       keyGrid.leadingAnchor.constraint(equalTo: leadingAnchor),
       keyGrid.trailingAnchor.constraint(equalTo: trailingAnchor),
       keyGrid.bottomAnchor.constraint(equalTo: bottomAnchor),

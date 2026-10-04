@@ -1134,6 +1134,13 @@ is what the capture shows.
 The regression test is geometric rather than visual: it measures the distance from the 换行 key to the window's
 bottom and requires it to be less than the system's strip, so the band cannot come back unnoticed.
 
+**Round 191 read that 64.0 pt again**, from a screenshot that showed what else was wrong with the same frame. On
+the 430 × 932 pt device that screenshot came from, the system's own strip is 75 pt — the globe and the
+home-indicator area under the frame the extension asked for — and the space under the last key row measures
+64.0 pt: the strip, minus the 11 pt the frame was clipping off that row. The band was gone; the last 11 pt of the
+bottom row had taken its place. The same frame is measured in
+[the round-191 note](#the-bottom-row-was-cut-off-round-191-reported-from-a-device).
+
 ## The file the user chose went nowhere (round 190, reported from a device)
 
 A report: importing a rime-ice zip did nothing at all. Two device screenshots came with it, both showing the
@@ -1213,3 +1220,49 @@ imports an absent table and fails with "one missing table, reported 9 times" wit
 What the user is left with is the truth: their archive is missing the five dictionaries rime-ice's own
 dictionary imports, so the import refuses — a rime-ice archive that includes `cn_dicts/` (the project's
 `full.zip`) is what the importer accepts.
+
+## The bottom row was cut off (round 191, reported from a device)
+
+"键盘现在被吃掉了一部分", with a screenshot of Arkey in the app's own field: the last key row stopped on a straight
+line — `123`, `中`, `空格` and the blue `换行` all cut at the same height, without the rounded bottom corners the
+rows above them have — while the globe below it drew as usual. Measuring that capture (430 × 932 pt, 3×) column
+by column says what was cut, and where:
+
+| what a column through the keys measures | value |
+| --- | --- |
+| the candidate bar's message band, centred at 624.7 pt → a 39.7 pt bar spanning 604.3 … 644.0 | the measured slot ✓ |
+| the first key row's top | 655.0 pt = 604.3 + 39.7 + 11.0 |
+| the row tops (655.0 / 711.0 / 767.0 / 823.0) and the caps | pitch 56.0 = 45.0 + 11.0, caps 45.0 ✓ the style's own numbers |
+| the cut, straight across all four caps of the bottom row | 857.0 pt |
+| the bottom row's visible height | 34.0 pt of the measured 45.0 |
+| the space under the cut, which is the system's own strip — its globe key and the home-indicator area | 75.0 pt |
+
+604.3 + 252.7 = 857.0, and 252.7 pt is exactly `KeyboardMetrics.totalHeight(needsGlobeRow: false)` — so the cut is
+the system clipping the extension's view to the frame the extension itself asked for. The views inside that frame
+needed 263.7 pt: `keyGrid.topAnchor` was pinned one `rowGap` (11.0 pt) below `candidateBar.bottomAnchor`, while
+the layout engine counts the slot once — the measured 39.7 pt slot *is* everything above the first key row, which
+is why S3's reference sums `39.7 + 4 × 45.0 + 3 × 11.0 + 80.3 = 333.0` against its measured 332.7. One row gap of
+disagreement between the frame and the views is exactly the 11 pt iOS then took off the bottom row: the test's
+four failing keys are the four the screenshot shows cut — `123`, `中`, `空格` and `换行`.
+
+The grid now starts where the bar ends, in the extension and in the app's 键盘预览 — which had the same 11 pt,
+clipped off its globe row by its own `clipShape`. The height the extension asks for does not change, so the
+keyboard is the size it was: the same frame, with its bottom row whole.
+
+The overflow is older than round 189, which is why that round's own numbers add up this way too: the frame then
+carried the system keyboard's 80.3 pt bottom inset as slack, so the 11 pt fitted inside it, and the band the user
+photographed was what was left of that slack — 80.3 − 11 + 75 = 144.3 pt, exactly what was measured. Removing the
+slack did not create the overflow; it turned an invisible one into a clip.
+
+**The regression test is the geometry that broke, and it runs on a simulator**:
+`KeyboardControllerTests.testTheFrameTheExtensionAsksForHoldsEveryKey` boots the controller, gives its view
+exactly `totalHeight(needsGlobeRow: needsInputModeSwitchKey)`, and requires every key to be inside that frame —
+and the rows to end where the grid does, which is round 189's band from the other side. Against the unfixed tree
+it fails once per cut key with "a key ends 11.0 pt below the frame the extension asks for" (four failures) and
+with "213.0 pt of keys in 202.0 pt of grid". The arithmetic half is
+`KeyboardGeometryTests.testTheHeightTheExtensionAsksForIsTheSumOfItsViews` — the bar plus the grid, globe row
+shown and hidden — which passes either way: it says the two halves must agree, it cannot see the constraint that
+made them disagree.
+
+Verified: `scripts/verify-all.sh` green, the whole iOS unit target green (42 tests, the two new ones among them),
+and the controller suite red on the unfixed build — which is the point of the round.

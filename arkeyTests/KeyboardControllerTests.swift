@@ -101,4 +101,37 @@ final class KeyboardControllerTests: XCTestCase {
     XCTAssertNotEqual(after, before, "the tap never reached the bar")
     XCTAssertFalse(try keys(controller).isEmpty, "the keyboard disappeared after one key")
   }
+
+  /// The frame the extension asks for holds every key it draws. A keyboard the system has to clip is a keyboard
+  /// with a row of cut caps, which is what a device sent in round 191: `123 / 中 / 空格 / 换行` came back 34 pt
+  /// tall instead of 45, with the cut running straight across all four. The grid used to start one row gap below
+  /// the candidate bar — 11 pt lower than the slot the height counts — so the bottom row hung below the frame.
+  func testTheFrameTheExtensionAsksForHoldsEveryKey() throws {
+    let controller = KeyboardViewController()
+    controller.loadViewIfNeeded()
+    controller.viewWillAppear(false)
+    let asked = KeyboardMetrics.totalHeight(needsGlobeRow: controller.needsInputModeSwitchKey)
+    controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: asked)
+    controller.view.setNeedsLayout()
+    controller.view.layoutIfNeeded()
+
+    let grid = try XCTUnwrap(descendants(KeyboardKeyGrid.self, in: controller.view).first,
+                             "the controller has no key grid")
+    let buttons = try keys(controller)
+    XCTAssertGreaterThanOrEqual(buttons.count, 30, "the controller built no keyboard")
+
+    // The frame is what the system clips with, so this is the boundary that matters.
+    for button in buttons {
+      let frame = button.convert(button.bounds, to: controller.view)
+      XCTAssertLessThanOrEqual(frame.maxY, controller.view.bounds.maxY + 0.5,
+                               "a key ends " + String(format: "%.1f", frame.maxY - controller.view.bounds.maxY)
+                                 + " pt below the frame the extension asks for")
+    }
+    // And the rows end where the grid does: a keyboard shorter than its frame leaves a band of empty backing,
+    // which is the other half of the same disagreement (round 189).
+    let rows = buttons.map(\.frame.maxY).max() ?? 0
+    XCTAssertEqual(rows, grid.bounds.height, accuracy: 0.5,
+                   "the rows do not fill the grid: " + String(format: "%.1f", rows) + " pt of keys in "
+                     + String(format: "%.1f", grid.bounds.height) + " pt of grid")
+  }
 }

@@ -61,7 +61,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       candidateBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       candidateBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       candidateBar.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
-      keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor, constant: KeyboardMetrics.rowGap),
+      // The measured slot is *everything* above the first key row — the bar and the room under it — so the grid
+      // starts where the bar ends. One more row gap here (round 191) made the stack 11 pt taller than the frame
+      // `updateHeight()` asks for, and iOS clipped exactly that off the bottom row: 123 / 中 / 空格 / 换行 came
+      // back 34 pt tall instead of 45.
+      keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
       keyGrid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       keyGrid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       // The system's own strip is below this frame, so the grid ends where the frame does (round 189: adding

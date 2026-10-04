@@ -96,4 +96,18 @@ final class KeyboardGeometryTests: XCTestCase {
     XCTAssertEqual(KeyboardMetrics.keyHeight, 45, accuracy: 0.01)
     XCTAssertEqual(KeyboardMetrics.sideMargin, 8.3, accuracy: 0.01)
   }
+
+  /// The frame the extension asks for is the sum of the views stacked inside it: the candidate bar, and the key
+  /// grid directly below it. Round 191: the grid was pinned one row gap lower than that, so the two disagreed by
+  /// 11 pt — and the system clipped the disagreement off the bottom row. This is the arithmetic half, which runs
+  /// without a controller.
+  func testTheHeightTheExtensionAsksForIsTheSumOfItsViews() {
+    for globe in [false, true] {
+      let stack = KeyboardMetrics.candidateBarHeight
+        + KeyboardKeyGrid.rowsHeight(width: 430, needsGlobeRow: globe)
+      XCTAssertEqual(stack, KeyboardMetrics.totalHeight(needsGlobeRow: globe), accuracy: 0.01,
+                     "the bar plus the grid is not what the extension asks for, globe row "
+                       + (globe ? "shown" : "hidden"))
+    }
+  }
 }
