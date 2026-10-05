@@ -43,6 +43,19 @@ final class KeyboardGeometryTests: XCTestCase {
     }
   }
 
+  func testBottomRowFitsPhoneWidths() throws {
+    for width: CGFloat in [320, 375, 390, 402, 430, 440] {
+      for layer in [KeyLayer.letters, .numbers, .symbols] {
+        let buttons = keys(grid(width: width, layer: layer))
+        let enter = try XCTUnwrap(buttons.first { $0.key == .returnKey })
+        let space = try XCTUnwrap(buttons.first { $0.key == .space })
+        XCTAssertEqual(enter.frame.maxX, width - KeyboardMetrics.sideMargin, accuracy: 0.01)
+        XCTAssertEqual(enter.frame.minX - space.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
+        XCTAssertGreaterThan(space.frame.width, 0)
+      }
+    }
+  }
+
   /// Rows are bands: no key overlaps a key in another row, and the rows together are exactly the height
   /// the engine says they are. Two models of the same keyboard disagreeing is the bug this catches.
   func testRowsDoNotOverlapAndTheirUnionIsTheModelHeight() throws {

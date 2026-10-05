@@ -59,16 +59,20 @@ final class KeyboardKeyGrid: UIView {
 
   /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
   /// the views that own them, so this grid's coordinate space starts at its first row.
-  private static var rowStyle: RimeKeyboardStyle {
+  private static func rowStyle(width: CGFloat) -> RimeKeyboardStyle {
     var style = KeyboardMetrics.style
     style.candidateSlotHeight = 0
     style.bottomInset = 0
+    // The bottom row's outer keys keep their widths; space absorbs the device
+    // width so return stays inside the host on phones narrower than 430 pt.
+    style.spaceKeyWidth = max(1, width - 2 * style.sideMargin - 3 * style.horizontalGap
+      - style.layerKeyWidth - style.emojiKeyWidth - style.returnKeyWidth)
     return style
   }
 
   static func rowsHeight(width: CGFloat, needsGlobeRow: Bool) -> CGFloat {
     RimeKeyboardLayoutEngine.layout(width: max(width, 1), layer: .letters,
-                                    needsGlobeRow: needsGlobeRow, style: rowStyle).height
+                                    needsGlobeRow: needsGlobeRow, style: rowStyle(width: max(width, 1))).height
   }
 
   func configure(theme: KeyboardTheme,
@@ -154,7 +158,7 @@ final class KeyboardKeyGrid: UIView {
       returnKey: RimeReturnKey(label: returnKeyLabel),
       language: language,
       needsGlobeRow: showsGlobeRow,
-      style: Self.rowStyle)
+      style: Self.rowStyle(width: width))
   }
 
   private func rebuild() {

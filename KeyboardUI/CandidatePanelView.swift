@@ -117,7 +117,8 @@ final class CandidatePanelView: UIView {
 
   func apply(theme: KeyboardTheme) {
     self.theme = theme
-    backgroundColor = theme.background
+    backgroundColor = .clear
+    isOpaque = false
     syllables.textColor = theme.candidateText
     for button in [leadingButton, trailingButton, collapseButton] {
       button.tintColor = theme.candidateText.withAlphaComponent(0.6)

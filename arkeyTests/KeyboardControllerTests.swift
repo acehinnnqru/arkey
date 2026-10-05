@@ -58,6 +58,21 @@ final class KeyboardControllerTests: XCTestCase {
                   "the controller has no candidate bar")
   }
 
+  /// A transparent surface must stay transparent through appearance/theme setup,
+  /// including the expanded panel which replaces the key grid.
+  func testTheExtensionDoesNotPaintOverTheHostBackground() throws {
+    let controller = booted()
+    controller.viewWillAppear(false)
+    let root = try XCTUnwrap(controller.inputView)
+    XCTAssertEqual(root.inputViewStyle, .default)
+    XCTAssertFalse(root.isOpaque)
+    XCTAssertEqual(root.backgroundColor, .clear)
+    XCTAssertEqual(try bar(controller).backgroundColor, .clear)
+    let panel = try XCTUnwrap(descendants(CandidatePanelView.self, in: root).first)
+    XCTAssertEqual(panel.backgroundColor, .clear)
+    XCTAssertFalse(panel.isOpaque)
+  }
+
   /// The engine behind the extension boots, and the bar says so. The failure this catches is the one a user
   /// sees: a sentence where the keyboard should be.
   func testTheKeyboardBoots() throws {

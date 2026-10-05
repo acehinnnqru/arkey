@@ -129,6 +129,10 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
     }
     let enter = keyboardKey(app, "换行")
     let window = app.windows.firstMatch
+    let capture = XCTAttachment(screenshot: app.screenshot())
+    capture.name = "Keyboard host background"
+    capture.lifetime = .keepAlways
+    add(capture)
     let gap = window.frame.maxY - enter.frame.maxY
     XCTAssertLessThan(gap, 90,
                       "the last key row stops " + String(format: "%.0f", gap) + " pt above the window, more than "

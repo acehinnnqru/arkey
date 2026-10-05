@@ -41,8 +41,8 @@ enum KeyboardMetrics {
 
 /// The keyboard's colours, from S3's measured palette.
 ///
-/// The palette is the *fallback*: the backing should come from the system material
-/// (`inputViewStyle = .keyboard`) when the host gives it, which is what `backingFollowsMaterial` records.
+/// The extension leaves the backing to its host. Standalone previews use the
+/// palette backing because they have no system keyboard container.
 /// Everything else — key caps, the action key's two states, the glyph colour — is measured.
 struct KeyboardTheme {
   let appearance: UIKeyboardAppearance
@@ -68,8 +68,7 @@ struct KeyboardTheme {
     UIColor(red: value.red, green: value.green, blue: value.blue, alpha: value.alpha)
   }
 
-  /// Only used when the material path is unavailable; the extension's root view is a `UIInputView` with
-  /// `.keyboard` style, which is the documented way to get the system's own background.
+  /// Solid backing for standalone previews; never painted by the extension.
   var background: UIColor { Self.color(palette.backing) }
 
   var backingFollowsMaterial: Bool { palette.backingFollowsMaterial }

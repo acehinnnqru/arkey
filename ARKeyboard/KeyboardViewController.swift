@@ -47,6 +47,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   // MARK: - Lifecycle
 
+  override func loadView() {
+    // The host supplies the keyboard backing and the bottom system strip. A
+    // .keyboard-style input view would add another material inside that backing.
+    let contentView = UIInputView(frame: .zero, inputViewStyle: .default)
+    contentView.backgroundColor = .clear
+    contentView.isOpaque = false
+    inputView = contentView
+  }
+
   override func viewDidLoad() {
     super.viewDidLoad()
     applyBacking()
@@ -402,12 +411,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   // MARK: - Presentation
 
-  /// Let the keyboard material extend continuously into the system-owned bottom
-  /// strip. An opaque fill here produces square corners and a visible seam.
+  /// The extension owns content only; its host owns the keyboard background.
+  /// Keep this transparent on every appearance, including theme changes.
   private func applyBacking() {
-    let hasKeyboardMaterial = (view as? UIInputView)?.inputViewStyle == .keyboard
-    view.backgroundColor = theme.backingFollowsMaterial && hasKeyboardMaterial
-      ? .clear : theme.background
+    view.backgroundColor = .clear
+    view.isOpaque = false
   }
 
   private func applyCurrentTheme() {
