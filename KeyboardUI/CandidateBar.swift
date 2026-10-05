@@ -20,8 +20,6 @@ final class CandidateBar: UIView {
   /// The expand control: S4 §6's panel replaces the keyboard area, so the bar has to offer it.
   var onExpand: (() -> Void)?
 
-  private let leadingChevron = UIButton(type: .system)
-  private let trailingChevron = UIButton(type: .system)
   private let expandButton = UIButton(type: .system)
   private let cellsStack = UIStackView()
   private let outerStack = UIStackView()
@@ -44,7 +42,7 @@ final class CandidateBar: UIView {
   }
 
   @objc private func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
-    onPage?(gesture.direction == .left)
+    onPage?(gesture.direction == .right)
   }
   private static let maxCells = 9
 
@@ -62,24 +60,16 @@ final class CandidateBar: UIView {
     outerStack.distribution = .fill
     outerStack.spacing = 0
     outerStack.translatesAutoresizingMaskIntoConstraints = false
-    outerStack.addArrangedSubview(leadingChevron)
     outerStack.addArrangedSubview(cellsStack)
-    outerStack.addArrangedSubview(trailingChevron)
     outerStack.addArrangedSubview(expandButton)
     addSubview(outerStack)
 
-    for chevron in [leadingChevron, trailingChevron, expandButton] {
+    for chevron in [expandButton] {
       chevron.translatesAutoresizingMaskIntoConstraints = false
       chevron.tintColor = .secondaryLabel
     }
-    leadingChevron.setImage(UIImage(systemName: "chevron.left"), for: .normal)
-    trailingChevron.setImage(UIImage(systemName: "chevron.right"), for: .normal)
-    leadingChevron.accessibilityLabel = "上一页"
-    trailingChevron.accessibilityLabel = "下一页"
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
     expandButton.accessibilityLabel = "展开候选面板"
-    leadingChevron.addTarget(self, action: #selector(handleLeading), for: .touchUpInside)
-    trailingChevron.addTarget(self, action: #selector(handleTrailing), for: .touchUpInside)
     expandButton.addTarget(self, action: #selector(handleExpand), for: .touchUpInside)
 
     messageLabel.font = .systemFont(ofSize: 13)
@@ -93,8 +83,6 @@ final class CandidateBar: UIView {
       outerStack.trailingAnchor.constraint(equalTo: trailingAnchor),
       outerStack.topAnchor.constraint(equalTo: topAnchor),
       outerStack.bottomAnchor.constraint(equalTo: bottomAnchor),
-      leadingChevron.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
-      trailingChevron.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
       expandButton.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
       messageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
       messageLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
@@ -110,7 +98,7 @@ final class CandidateBar: UIView {
     self.theme = theme
     backgroundColor = .clear
     messageLabel.textColor = theme.candidateText.withAlphaComponent(0.75)
-    for chevron in [leadingChevron, trailingChevron, expandButton] {
+    for chevron in [expandButton] {
       chevron.tintColor = theme.candidateText.withAlphaComponent(0.6)
     }
     for button in cellButtons {
@@ -126,8 +114,6 @@ final class CandidateBar: UIView {
       return
     }
     hideMessage()
-    leadingChevron.isHidden = !model.showsLeadingChevron
-    trailingChevron.isHidden = !model.showsTrailingChevron
     expandButton.isHidden = false
 
     let count = min(model.cells.count, Self.maxCells)
@@ -146,7 +132,7 @@ final class CandidateBar: UIView {
         button.setAttributedTitle(title, for: .normal)
       }
       button.setTitleColor(theme.candidateText, for: .normal)
-      let fill = cell.isHighlighted ? theme.candidateHighlightFill : UIColor.clear
+      let fill = UIColor.clear
       if button.backgroundColor != fill {
         button.backgroundColor = fill
       }
@@ -214,14 +200,6 @@ final class CandidateBar: UIView {
           let button = recognizer.view as? UIButton,
           let index = cellButtons.firstIndex(of: button) else { return }
     onForget?(index)
-  }
-
-  @objc private func handleLeading() {
-    onPage?(true)
-  }
-
-  @objc private func handleTrailing() {
-    onPage?(false)
   }
 
   @objc private func handleExpand() {

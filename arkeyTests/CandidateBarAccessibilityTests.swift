@@ -48,22 +48,20 @@ final class CandidateBarAccessibilityTests: XCTestCase {
                    "the comment belongs in the value, not glued onto the label")
   }
 
-  /// The chevrons follow the model: a first page has no leading chevron, a last page no trailing one,
-  /// and the counts move by exactly one when a page turn becomes available.
-  func testThePageChevronsFollowTheModel() {
-    let middle = RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: "你")],
-                                       pageNumber: 1, isLastPage: false)
-    let bothEnds = visibleButtonCount(bar(middle))
-
-    let first = RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: "你")],
-                                      pageNumber: 0, isLastPage: false)
-    XCTAssertEqual(visibleButtonCount(bar(first)), bothEnds - 1,
-                   "a first page must not offer a way back")
-
-    let last = RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: "你")],
-                                     pageNumber: 1, isLastPage: true)
-    XCTAssertEqual(visibleButtonCount(bar(last)), bothEnds - 1,
-                   "a last page must not offer a way forward")
+  /// Paging stays available through swipes; the only accessory is the panel expander.
+  func testPagesOnlyShowCandidatesAndTheExpandButton() {
+    for (pageNumber, isLastPage) in [(0, false), (1, false), (1, true)] {
+      let model = RimeCandidateBarModel(cells: [
+        RimeCandidateCell(index: 0, text: "你", isHighlighted: true),
+      ], pageNumber: pageNumber, isLastPage: isLastPage)
+      let view = bar(model)
+      XCTAssertEqual(visibleButtonCount(view), 2)
+      XCTAssertFalse(labels(view).contains("上一页"))
+      XCTAssertFalse(labels(view).contains("下一页"))
+      XCTAssertTrue(labels(view).contains("展开候选面板"))
+      let candidate = allButtons(in: view).first { $0.accessibilityLabel == "你" }
+      XCTAssertEqual(candidate?.backgroundColor, UIColor.clear)
+    }
   }
 
   /// With nothing to show, the bar says what happened rather than showing an empty row: the tracer's
