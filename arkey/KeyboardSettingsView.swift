@@ -10,6 +10,7 @@ struct KeyboardSettingsView: View {
 
   var body: some View {
     List {
+      compositionSection
       appearanceSection
       feedbackSection
       resetSection
@@ -23,6 +24,21 @@ struct KeyboardSettingsView: View {
     }
     .navigationTitle("键盘")
     .task { model.refreshPreferences() }
+  }
+
+  private var compositionSection: some View {
+    Section {
+      Picker("输入中显示", selection: Binding(
+        get: { model.keyboardPreferences.compositionDisplay },
+        set: { value in model.updatePreferences { $0.compositionDisplay = value } })) {
+        Text("原始按键").tag(RimeKeyboardPreferences.CompositionDisplay.rawInput)
+        Text("方案转换结果").tag(RimeKeyboardPreferences.CompositionDisplay.preedit)
+      }
+    } header: {
+      Text("未确认文字")
+    } footer: {
+      Text("例如小鹤双拼输入 nihc：原始按键显示 nihc，方案转换结果显示 ni hao。只影响输入框中未确认的文字，不影响候选词。")
+    }
   }
 
   private var appearanceSection: some View {

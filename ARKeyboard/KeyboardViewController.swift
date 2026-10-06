@@ -249,7 +249,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       textDocumentProxy.insertText(commit)
     }
 
-    let preedit = output.preedit ?? ""
+    let preferences = preferencesStore?.value ?? .standard
+    let preedit = preferences.markedText(for: output) ?? ""
     if preedit != (markedText ?? "") {
       if preedit.isEmpty {
         if markedText != nil {

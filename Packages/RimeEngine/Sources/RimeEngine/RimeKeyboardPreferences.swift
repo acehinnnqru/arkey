@@ -15,6 +15,12 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     case fixed
   }
 
+  public enum CompositionDisplay: String, Codable, Sendable, CaseIterable {
+    case rawInput
+    case preedit
+  }
+
+  public var compositionDisplay: CompositionDisplay
   public var paletteMode: PaletteMode
   /// S3 §5: the click sound and the haptic fire only when the user enabled them.
   public var keyClickEnabled: Bool
@@ -26,12 +32,14 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public var deleteRepeatInterval: TimeInterval
 
   public init(paletteMode: PaletteMode = .followHost,
+              compositionDisplay: CompositionDisplay = .rawInput,
               keyClickEnabled: Bool = true,
               hapticsEnabled: Bool = true,
               calloutEnabled: Bool = true,
               capsLockEnabled: Bool = true,
               deleteRepeatDelay: TimeInterval = RimeKeyFeedback.standard.deleteRepeatDelay,
               deleteRepeatInterval: TimeInterval = RimeKeyFeedback.standard.deleteRepeatInterval) {
+    self.compositionDisplay = compositionDisplay
     self.paletteMode = paletteMode
     self.keyClickEnabled = keyClickEnabled
     self.hapticsEnabled = hapticsEnabled
@@ -49,6 +57,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let standard = RimeKeyboardPreferences()
+    compositionDisplay = try container.decodeIfPresent(CompositionDisplay.self, forKey: .compositionDisplay)
+      ?? standard.compositionDisplay
     paletteMode = try container.decodeIfPresent(PaletteMode.self, forKey: .paletteMode)
       ?? standard.paletteMode
     keyClickEnabled = try container.decodeIfPresent(Bool.self, forKey: .keyClickEnabled)
@@ -63,6 +73,14 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
       ?? standard.deleteRepeatDelay
     deleteRepeatInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .deleteRepeatInterval)
       ?? standard.deleteRepeatInterval
+  }
+
+  /// Only changes the client's temporary marked text; candidates and commits remain engine-owned.
+  public func markedText(for output: RimeOutput) -> String? {
+    switch compositionDisplay {
+    case .rawInput: return output.input ?? output.preedit
+    case .preedit: return output.preedit
+    }
   }
 
   /// The feedback policy these preferences describe, so the view never keeps a second copy of the

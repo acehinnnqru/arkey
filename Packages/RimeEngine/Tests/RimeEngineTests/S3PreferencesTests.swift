@@ -29,6 +29,7 @@ final class S3PreferencesTests: XCTestCase {
 
   func testAValueSurvivesARoundTrip() {
     var preferences = store.value
+    preferences.compositionDisplay = .preedit
     preferences.paletteMode = .fixed
     preferences.keyClickEnabled = false
     preferences.deleteRepeatInterval = 0.08
@@ -51,8 +52,27 @@ final class S3PreferencesTests: XCTestCase {
     // the whole blob.
     defaults.set(Data(#"{"paletteMode":"fixed"}"#.utf8),
                  forKey: RimeKeyboardPreferencesStore.storageKey)
+    XCTAssertEqual(store.value.compositionDisplay, .rawInput)
     XCTAssertEqual(store.value.paletteMode, .fixed)
     XCTAssertTrue(store.value.hapticsEnabled, "the missing fields keep their defaults")
+  }
+
+  func testDoublePinyinMarkedTextUsesSelectedRepresentation() {
+    let output = RimeOutput(handled: true, commit: nil,
+      composition: RimeCompositionInfo(preedit: "ni hao", cursorPosition: 6,
+                                       selectionStart: 0, selectionEnd: 6),
+      page: nil, status: nil, input: "nihc")
+    var preferences = RimeKeyboardPreferences.standard
+    XCTAssertEqual(preferences.markedText(for: output), "nihc")
+    preferences.compositionDisplay = .preedit
+    XCTAssertEqual(preferences.markedText(for: output), "ni hao")
+
+    let committed = RimeOutput(handled: true, commit: "你好", composition: nil,
+                               page: nil, status: nil, input: "")
+    for mode in RimeKeyboardPreferences.CompositionDisplay.allCases {
+      preferences.compositionDisplay = mode
+      XCTAssertTrue((preferences.markedText(for: committed) ?? "").isEmpty)
+    }
   }
 
   func testResetRestoresTheDefaults() {
