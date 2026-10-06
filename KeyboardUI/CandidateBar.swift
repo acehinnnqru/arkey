@@ -21,7 +21,8 @@ final class CandidateBar: UIView {
   var onExpand: (() -> Void)?
 
   private let expandButton = UIButton(type: .system)
-  private let cellsStack = UIStackView()
+  private let cellsStack = UIView()
+  private var preferredWidths: [CGFloat] = []
   private let outerStack = UIStackView()
   private let messageLabel = UILabel()
   private var cellButtons: [UIButton] = []
@@ -50,10 +51,6 @@ final class CandidateBar: UIView {
     super.init(frame: frame)
     addSwipePaging()
 
-    cellsStack.axis = .horizontal
-    cellsStack.alignment = .fill
-    cellsStack.distribution = .fillEqually
-    cellsStack.spacing = 0
 
     outerStack.axis = .horizontal
     outerStack.alignment = .fill
@@ -119,6 +116,7 @@ final class CandidateBar: UIView {
     let count = min(model.cells.count, Self.maxCells)
     ensureCells(count: count)
 
+    preferredWidths = model.cells.prefix(count).map { max(44, ceil(Self.title(for: $0, theme: theme).size().width) + 24) }
     for (index, button) in cellButtons.enumerated() {
       let visible = index < count
       button.isHidden = !visible
@@ -136,6 +134,31 @@ final class CandidateBar: UIView {
       if button.backgroundColor != fill {
         button.backgroundColor = fill
       }
+    }
+    setNeedsLayout()
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    outerStack.layoutIfNeeded()
+    let available = cellsStack.bounds.width
+    guard available > 0, !preferredWidths.isEmpty else { return }
+    var widths: [CGFloat] = []
+    var used: CGFloat = 0
+    for width in preferredWidths {
+      let fitted = min(width, available)
+      if !widths.isEmpty && used + fitted > available { break }
+      widths.append(fitted)
+      used += fitted
+    }
+    let extra = (available - used) / CGFloat(widths.count)
+    var x: CGFloat = 0
+    for (index, button) in cellButtons.enumerated() {
+      button.isHidden = index >= widths.count
+      guard index < widths.count else { continue }
+      let width = widths[index] + extra
+      button.frame = CGRect(x: x, y: 0, width: width, height: cellsStack.bounds.height)
+      x += width
     }
   }
 
@@ -209,8 +232,9 @@ final class CandidateBar: UIView {
   private func ensureCells(count: Int) {
     while cellButtons.count < count {
       let button = UIButton(type: .custom)
-      button.titleLabel?.adjustsFontSizeToFitWidth = true
-      button.titleLabel?.minimumScaleFactor = 0.6
+      button.titleLabel?.adjustsFontSizeToFitWidth = false
+      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+      button.clipsToBounds = true
       button.titleLabel?.lineBreakMode = .byTruncatingTail
       button.tag = cellButtons.count
       button.addTarget(self, action: #selector(handleTap(_:)), for: .touchUpInside)
@@ -219,13 +243,14 @@ final class CandidateBar: UIView {
       if !cellButtons.isEmpty {
         addSeparator(to: button)
       }
-      cellsStack.addArrangedSubview(button)
+      cellsStack.addSubview(button)
       cellButtons.append(button)
     }
   }
 
   private func addSeparator(to host: UIView) {
     let separator = UIView()
+    separator.isUserInteractionEnabled = false
     separator.backgroundColor = theme.separator
     separator.translatesAutoresizingMaskIntoConstraints = false
     host.addSubview(separator)

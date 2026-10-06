@@ -77,4 +77,64 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertTrue(texts.contains("键盘启动失败：没有可用的配置"),
                   "the message is not on screen: " + texts.joined(separator: " | "))
   }
+  func testLongCandidatesKeepFontAndAdaptToWidth() throws {
+    let view = bar(RimeCandidateBarModel(cells: (0..<9).map {
+      RimeCandidateCell(index: $0, text: "这是一个比较长的候选词")
+    }))
+    func candidates() -> [UIButton] {
+      allButtons(in: view).filter { !$0.isHidden && $0.attributedTitle(for: .normal) != nil }
+    }
+    XCTAssertEqual(candidates().count, 1)
+    let button = try XCTUnwrap(candidates().first)
+    XCTAssertFalse(try XCTUnwrap(button.titleLabel).adjustsFontSizeToFitWidth)
+    let font = try XCTUnwrap(button.attributedTitle(for: .normal)?.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+    XCTAssertEqual(font.pointSize, 20)
+    view.frame.size.width = 900
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    XCTAssertGreaterThan(candidates().count, 1)
+  }
+
+  func testWholeCandidateCellsAreTappableIncludingSeparatorAndPadding() throws {
+    let view = bar(RimeCandidateBarModel(cells: [
+      RimeCandidateCell(index: 7, text: "你"),
+      RimeCandidateCell(index: 8, text: "这是比较长的词"),
+    ]))
+    var selected: Int?
+    view.onSelect = { selected = $0 }
+    for button in allButtons(in: view) where !button.isHidden && button.attributedTitle(for: .normal) != nil {
+      for x in [CGFloat(0.5), button.bounds.midX, button.bounds.width - 0.5] {
+        let point = button.convert(CGPoint(x: x, y: button.bounds.midY), to: view)
+        let hit = try XCTUnwrap(view.hitTest(point, with: nil) as? UIButton)
+        XCTAssertTrue(hit === button)
+        hit.sendActions(for: .touchUpInside)
+        XCTAssertEqual(selected, button.tag)
+      }
+    }
+  }
+
+  func testExpandedLongCandidatesWrapAndRemainReachable() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 373))
+    view.apply(model: .all((0..<36).map { _ in RimeCandidateItem(text: "这是一个很长的候选词", comment: nil) }))
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
+    let buttons = allButtons(in: scroll).filter { !$0.isHidden }
+    XCTAssertEqual(buttons.count, 36)
+    XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
+    var selected: Int?
+    view.onSelect = { selected = $0 }
+    for button in buttons {
+      XCTAssertEqual(button.titleLabel?.font.pointSize, 20)
+      XCTAssertEqual(button.titleLabel?.adjustsFontSizeToFitWidth, false)
+      XCTAssertLessThanOrEqual(button.frame.maxX, scroll.bounds.width)
+      scroll.scrollRectToVisible(button.frame, animated: false)
+      let point = button.convert(CGPoint(x: 1, y: button.bounds.midY), to: view)
+      let hit = try XCTUnwrap(view.hitTest(point, with: nil) as? UIButton)
+      XCTAssertTrue(hit === button)
+      hit.sendActions(for: .touchUpInside)
+      XCTAssertEqual(selected, button.tag)
+    }
+    XCTAssertFalse(try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "收起候选面板" }).superview!.isHidden)
+  }
+
 }
