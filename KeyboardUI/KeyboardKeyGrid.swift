@@ -30,6 +30,30 @@ enum KeyLayer {
   }
 }
 
+enum KeyboardKeyLabels {
+  static var systemLanguage: String { Locale.preferredLanguages.first ?? "en" }
+
+  static func space(language: String) -> String {
+    language.lowercased().hasPrefix("zh") ? "空格" : "space"
+  }
+
+  static func returnKey(_ type: UIReturnKeyType, language: String) -> String {
+    let chinese = language.lowercased().hasPrefix("zh")
+    switch type {
+    case .send: return chinese ? "发送" : "Send"
+    case .search, .google, .yahoo: return chinese ? "搜索" : "Search"
+    case .go: return chinese ? "前往" : "Go"
+    case .done: return chinese ? "完成" : "Done"
+    case .next: return chinese ? "下一项" : "Next"
+    case .continue: return chinese ? "继续" : "Continue"
+    case .join: return chinese ? "加入" : "Join"
+    case .route: return chinese ? "路线" : "Route"
+    case .emergencyCall: return chinese ? "紧急呼叫" : "Emergency Call"
+    default: return chinese ? "换行" : "return"
+    }
+  }
+}
+
 /// Key rows share the same style and geometry engine as the extension height.
 final class KeyboardKeyGrid: UIView {
   var onKey: ((KeyboardKey) -> Void)?
@@ -47,13 +71,14 @@ final class KeyboardKeyGrid: UIView {
   private var shift: RimeShiftState = .off
   private var language: RimeLanguageKey?
   private var returnKeyLabel = "换行"
+  private var spaceKeyLabel = "空格"
   private var showsGlobeRow = false
   private var feedback = RimeKeyFeedback.standard
 
   /// Last configuration actually applied. Restyling the whole grid on every keystroke (fonts,
   /// SF Symbol lookups, colours) was a measurable part of the input latency.
   private var applied: (keyLayer: KeyLayer, shift: RimeShiftState, asciiMode: Bool,
-                        returnKeyLabel: String, showsGlobeRow: Bool,
+                        returnKeyLabel: String, spaceKeyLabel: String, showsGlobeRow: Bool,
                         appearance: UIKeyboardAppearance, language: RimeLanguageKey?)?
   private var laidOutWidth: CGFloat = 0
 
@@ -79,6 +104,7 @@ final class KeyboardKeyGrid: UIView {
                  layer: KeyLayer,
                  asciiMode: Bool,
                  returnKeyLabel: String,
+                 spaceKeyLabel: String = KeyboardKeyLabels.space(language: KeyboardKeyLabels.systemLanguage),
                  showsGlobeRow: Bool,
                  shift: RimeShiftState = .off,
                  language: RimeLanguageKey? = nil,
@@ -94,18 +120,20 @@ final class KeyboardKeyGrid: UIView {
        applied.shift == shift,
        applied.asciiMode == asciiMode,
        applied.returnKeyLabel == returnKeyLabel,
+       applied.spaceKeyLabel == spaceKeyLabel,
        applied.showsGlobeRow == showsGlobeRow,
        applied.appearance == theme.appearance,
        applied.language == language {
       return
     }
-    applied = (layer, shift, asciiMode, returnKeyLabel, showsGlobeRow, theme.appearance, language)
+    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language)
 
     self.theme = theme
     self.currentLayer = layer
     self.asciiMode = asciiMode
     self.shift = shift
     self.returnKeyLabel = returnKeyLabel
+    self.spaceKeyLabel = spaceKeyLabel
     self.showsGlobeRow = showsGlobeRow
     self.language = language
     self.feedback = feedback
@@ -156,7 +184,7 @@ final class KeyboardKeyGrid: UIView {
     RimeKeyboardLayoutEngine.layout(
       width: width,
       layer: currentLayer.rimeLayer,
-      shift: shift.isUppercase ? shift : (asciiMode ? .on : .off),
+      shift: shift,
       returnKey: RimeReturnKey(label: returnKeyLabel),
       language: language,
       needsGlobeRow: showsGlobeRow,
@@ -267,7 +295,7 @@ final class KeyboardKeyGrid: UIView {
     switch key {
     case .character: return .letter
     case .space: return .wide
-    case .shift: return shift != .off || asciiMode ? .pressedLetter : .wide
+    case .shift: return shift != .off ? .pressedLetter : .wide
     case .returnKey: return .actionEnabled
     case .globe: return .plain
     default: return .wide
@@ -279,7 +307,7 @@ final class KeyboardKeyGrid: UIView {
     case .character, .space:
       return .letter
     case .shift:
-      return shift != .off || asciiMode ? .active : .special
+      return shift != .off ? .active : .special
     case .language:
       return .special
     case .globe:
@@ -294,12 +322,12 @@ final class KeyboardKeyGrid: UIView {
     case .character(let value):
       let uppercase = !value.isEmpty
         && value.rangeOfCharacter(from: .letters) != nil
-        && (shift.isUppercase || asciiMode)
+        && shift.isUppercase
       button.setTitle(uppercase ? value.uppercased() : value, pointSize: 24)
     case .space:
-      button.setTitle(currentLayer == .numbers ? "" : "空格", pointSize: 16)
+      button.setTitle(currentLayer == .numbers ? "" : spaceKeyLabel, pointSize: 16)
     case .returnKey:
-      if returnKeyLabel == "搜索" {
+      if returnKeyLabel == "搜索" || returnKeyLabel == "Search" {
         button.setSymbol("magnifyingglass", pointSize: 22)
       } else {
         button.setTitle(returnKeyLabel, pointSize: 16)

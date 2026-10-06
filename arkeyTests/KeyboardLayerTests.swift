@@ -46,6 +46,29 @@ final class KeyboardLayerTests: XCTestCase {
     button.sendActions(for: .primaryActionTriggered)
   }
 
+  func testFunctionKeyLabelsFollowSystemLanguageIndependentlyOfInputMode() {
+    XCTAssertEqual(KeyboardKeyLabels.space(language: "zh-Hans-CN"), "空格")
+    XCTAssertEqual(KeyboardKeyLabels.space(language: "en-US"), "space")
+    XCTAssertEqual(KeyboardKeyLabels.returnKey(.default, language: "zh-Hans-CN"), "换行")
+    XCTAssertEqual(KeyboardKeyLabels.returnKey(.default, language: "en-US"), "return")
+    XCTAssertEqual(KeyboardKeyLabels.returnKey(.send, language: "en-US"), "Send")
+    XCTAssertEqual(KeyboardKeyLabels.returnKey(.search, language: "en-US"), "Search")
+
+    let grid = KeyboardKeyGrid(frame: CGRect(x: 0, y: 0, width: 430, height: 300))
+    let theme = KeyboardTheme.current(for: .light)
+    grid.configure(theme: theme, layer: .letters, asciiMode: false, returnKeyLabel: "return",
+                   spaceKeyLabel: "space", showsGlobeRow: false)
+    XCTAssertTrue(titles(grid).contains("space"))
+    grid.configure(theme: theme, layer: .letters, asciiMode: true, returnKeyLabel: "return",
+                   spaceKeyLabel: "space", showsGlobeRow: false)
+    XCTAssertTrue(titles(grid).contains("space"))
+    XCTAssertTrue(titles(grid).contains("q"), "English mode should start with lowercase letters")
+    XCTAssertFalse(titles(grid).contains("Q"))
+    let shift = buttons(grid).first { $0.key == .shift }
+    XCTAssertEqual(shift?.backgroundColor, theme.fill(for: .wide),
+                   "English mode alone should not highlight Shift")
+  }
+
   func testTheLayerKeysChangeWhatTheGridDraws() throws {
     let controller = booted()
     let grid = try grid(controller)

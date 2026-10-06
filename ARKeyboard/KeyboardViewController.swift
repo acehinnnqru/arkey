@@ -593,6 +593,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                       layer: keyLayer,
                       asciiMode: asciiMode,
                       returnKeyLabel: returnKeyLabel,
+                      spaceKeyLabel: KeyboardKeyLabels.space(language: KeyboardKeyLabels.systemLanguage),
                       showsGlobeRow: needsInputModeSwitchKey,
                       shift: shiftController.state,
                       language: languageKey,
@@ -622,17 +623,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   /// Native keyboards label the return key from the client's return key type.
   private var returnKeyLabel: String {
-    switch textDocumentProxy.returnKeyType {
-    case .send: return "发送"
-    case .search, .google, .yahoo: return "搜索"
-    case .go: return "前往"
-    case .done: return "完成"
-    case .next: return "下一项"
-    case .continue: return "继续"
-    case .join: return "加入"
-    case .route: return "路线"
-    case .emergencyCall: return "紧急呼叫"
-    default: return "换行"
-    }
+    KeyboardKeyLabels.returnKey(textDocumentProxy.returnKeyType ?? .default,
+                                language: KeyboardKeyLabels.systemLanguage)
   }
 }
