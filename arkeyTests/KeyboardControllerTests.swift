@@ -73,6 +73,27 @@ final class KeyboardControllerTests: XCTestCase {
     XCTAssertFalse(panel.isOpaque)
   }
 
+  /// The host must be able to measure the keyboard before appearance begins, and
+  /// intermediate dismissal frames must not expose keys outside that surface.
+  func testKeyboardHeightIsReadyBeforePresentation() throws {
+    let controller = KeyboardViewController()
+    controller.loadViewIfNeeded()
+    let root = try XCTUnwrap(controller.inputView)
+    let height = try XCTUnwrap(root.constraints.first {
+      $0.firstAttribute == .height && $0.secondItem == nil && $0.isActive
+    })
+    XCTAssertEqual(height.constant,
+                   KeyboardMetrics.totalHeight(needsGlobeRow: controller.needsInputModeSwitchKey))
+    XCTAssertTrue(root.clipsToBounds)
+    controller.viewWillAppear(false)
+    controller.viewDidAppear(false)
+    controller.viewWillDisappear(false)
+    XCTAssertTrue(height.isActive)
+    XCTAssertEqual(root.constraints.filter {
+      $0.firstAttribute == .height && $0.secondItem == nil && $0.isActive
+    }.count, 1)
+  }
+
   /// The engine behind the extension boots, and the bar says so. The failure this catches is the one a user
   /// sees: a sentence where the keyboard should be.
   func testTheKeyboardBoots() throws {

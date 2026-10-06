@@ -151,6 +151,11 @@ final class S3LayoutTests: XCTestCase {
     XCTAssertEqual(numbers.rows.map { $0.keys.count }, [10, 10, 7, 4])
     XCTAssertEqual(numbers.rows[0].keys.map(\.label).joined(), "1234567890")
     XCTAssertEqual(numbers.rows[1].keys.map(\.label).joined(), "-/:;()$&@\"")
+    XCTAssertEqual(numbers.rows[2].keys.map(\.label), ["#+=", ".", ",", "?", "!", "'", "⌫"])
+    XCTAssertEqual(numbers.rows[2].keys[1].frame.minX - numbers.rows[2].keys[0].frame.maxX,
+                   style.sideKeyGap, accuracy: 0.01)
+    XCTAssertEqual(numbers.rows[2].keys[6].frame.minX - numbers.rows[2].keys[5].frame.maxX,
+                   style.sideKeyGap, accuracy: 0.01)
     // The numbers third row's middle keys are wider than a letter key — the difference the spec
     // says a single parametric grid gets wrong.
     XCTAssertGreaterThan(numbers.rows[2].keys[1].frame.width, style.letterKeyWidth(for: referenceWidth))

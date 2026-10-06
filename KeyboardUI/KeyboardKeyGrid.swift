@@ -88,6 +88,7 @@ final class KeyboardKeyGrid: UIView {
     // look at, which kept the old word on the cap (found by KeyboardLayerTests, round 148).
     let previousLanguage = applied?.language
     let previousShift = applied?.shift
+    let previousLayer = applied?.keyLayer
     if let applied,
        applied.keyLayer == layer,
        applied.shift == shift,
@@ -116,6 +117,7 @@ final class KeyboardKeyGrid: UIView {
     // KeyboardLayerTests, round 148).
     let needsRebuild = buttons.isEmpty
       || buttons.count != currentLayout(width: max(laidOutWidth, 1)).keys.count
+      || previousLayer != layer
       || previousLanguage != language
       || previousShift != shift
     if needsRebuild {
@@ -295,9 +297,13 @@ final class KeyboardKeyGrid: UIView {
         && (shift.isUppercase || asciiMode)
       button.setTitle(uppercase ? value.uppercased() : value, pointSize: 24)
     case .space:
-      button.setTitle("空格", pointSize: 16)
+      button.setTitle(currentLayer == .numbers ? "" : "空格", pointSize: 16)
     case .returnKey:
-      button.setTitle(returnKeyLabel, pointSize: 16)
+      if returnKeyLabel == "搜索" {
+        button.setSymbol("magnifyingglass", pointSize: 22)
+      } else {
+        button.setTitle(returnKeyLabel, pointSize: 16)
+      }
     case .numbers:
       button.setTitle("123", pointSize: 16)
     case .symbols:

@@ -48,20 +48,32 @@ struct KeyboardTheme {
   let appearance: UIKeyboardAppearance
   private let palette: RimeKeyboardPalette
 
-  static func current(for appearance: UIKeyboardAppearance) -> KeyboardTheme {
-    KeyboardTheme(appearance: appearance)
+  /// Losing the text client during a navigation transition is not a theme change.
+  /// Resolve a real default appearance from traits, and retain the last palette
+  /// while the proxy temporarily has no appearance to report.
+  static func current(for appearance: UIKeyboardAppearance?,
+                      interfaceStyle: UIUserInterfaceStyle = .unspecified,
+                      previous: KeyboardTheme? = nil) -> KeyboardTheme {
+    guard let appearance else {
+      return previous ?? current(for: .default, interfaceStyle: interfaceStyle)
+    }
+    let resolved: UIKeyboardAppearance
+    switch appearance {
+    case .light: resolved = .light
+    case .dark, .alert: resolved = .dark
+    default:
+      switch interfaceStyle {
+      case .dark: resolved = .dark
+      case .light: resolved = .light
+      default: resolved = previous?.appearance ?? .light
+      }
+    }
+    return KeyboardTheme(appearance: resolved)
   }
 
   private init(appearance: UIKeyboardAppearance) {
     self.appearance = appearance
-    switch appearance {
-    case .light:
-      self.palette = .light
-    case .dark, .alert:
-      self.palette = .dark
-    default:
-      self.palette = .dark
-    }
+    self.palette = appearance == .dark ? .dark : .light
   }
 
   private static func color(_ value: RimeKeyboardPalette.Color) -> UIColor {

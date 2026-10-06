@@ -62,8 +62,7 @@ struct ContentView: View {
         }
       }
       .padding()
-      // The system announces the keyboard frame, but a third-party keyboard is not always
-      // reported the way the automatic avoidance expects, so the inset is applied explicitly.
+      // Third-party keyboards need explicit avoidance after returning from navigation.
       .padding(.bottom, keyboardHeight)
       .ignoresSafeArea(.keyboard, edges: .bottom)
       .navigationTitle("Arkey")
@@ -101,18 +100,40 @@ struct ContentView: View {
         LaunchProbe.mark("checkDone")
         LaunchProbe.flush()
       }
-      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
-        guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-          return
-        }
-        let screenHeight = UIApplication.shared.connectedScenes
-          .compactMap { ($0 as? UIWindowScene)?.screen.bounds.height }
-          .first ?? frame.maxY
-        keyboardHeight = max(0, screenHeight - frame.origin.y)
+      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
+        updateKeyboardHeight($0)
       }
-      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-        keyboardHeight = 0
+      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) {
+        updateKeyboardHeight($0, hiding: true)
       }
+    }
+  }
+
+  private func updateKeyboardHeight(_ notification: Notification, hiding: Bool = false) {
+    let info = notification.userInfo ?? [:]
+    let height: CGFloat
+    if hiding {
+      height = 0
+    } else {
+      guard let frame = info[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+      let screenHeight = UIApplication.shared.connectedScenes
+        .compactMap { ($0 as? UIWindowScene)?.screen.bounds.height }
+        .first ?? frame.maxY
+      height = max(0, screenHeight - frame.minY)
+    }
+    guard height != keyboardHeight else { return }
+    let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0
+    let curve = (info[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber)?.intValue ?? 0
+    let animation: Animation
+    switch curve {
+    case UIView.AnimationCurve.easeIn.rawValue: animation = .easeIn(duration: duration)
+    case UIView.AnimationCurve.easeOut.rawValue: animation = .easeOut(duration: duration)
+    case UIView.AnimationCurve.linear.rawValue: animation = .linear(duration: duration)
+    default: animation = .easeInOut(duration: duration)
+    }
+    // A zero-duration frame update (for example an interactive transition) stays immediate.
+    withAnimation(duration > 0 ? animation : nil) {
+      keyboardHeight = height
     }
   }
 }

@@ -92,6 +92,35 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
                    "delete left the letter: before=[\(before)] after=[\(afterOne)] bar=[\(bar)]")
   }
 
+  func testKeyboardSurvivesAppSwitchAndDismissal() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    let before = keyboardKey(app, "换行").frame
+    XCTAssertLessThanOrEqual(field.frame.maxY, app.keys["q"].frame.minY)
+
+    XCUIDevice.shared.press(.home)
+    app.activate()
+    XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+    let status = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Arkey 就绪'")).firstMatch
+    XCTAssertTrue(status.waitForExistence(timeout: 10))
+    XCTAssertTrue(keyboardKey(app, "换行").waitForExistence(timeout: 10))
+    XCTAssertEqual(keyboardKey(app, "换行").frame.minY, before.minY, accuracy: 1)
+
+    // Navigation resigns the editor; returning and focusing it presents the same extension again.
+    app.navigationBars.buttons["键盘"].tap()
+    XCTAssertTrue(app.navigationBars["键盘预览"].waitForExistence(timeout: 10))
+    let dismissed = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "isHittable == false"), object: status)
+    XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
+    app.navigationBars.buttons.firstMatch.tap()
+    XCTAssertTrue(field.waitForExistence(timeout: 10))
+    field.tap()
+    switchToArkey(app)
+    XCTAssertTrue(arkeyKeyboardIsUp(app))
+    XCTAssertEqual(keyboardKey(app, "换行").frame.minY, before.minY, accuracy: 1)
+    XCTAssertLessThanOrEqual(field.frame.maxY, app.keys["q"].frame.minY)
+  }
+
   /// S1 §9's diagnostics, in the keyboard the system hosts: the bar says which container the extension got and
   /// whether full access was granted, which is the line the device run reads out. It is also the proof that the
   /// other tests in this file are on Arkey rather than on the system's Chinese keyboard.

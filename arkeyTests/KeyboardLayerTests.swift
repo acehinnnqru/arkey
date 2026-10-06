@@ -55,6 +55,9 @@ final class KeyboardLayerTests: XCTestCase {
     XCTAssertTrue(titles(grid).contains("1"),
                   "123 did not switch the board: " + titles(grid).joined(separator: " "))
     XCTAssertFalse(titles(grid).contains("q"), "the letters are still on the numbers layer")
+    XCTAssertTrue(titles(grid).contains("?"))
+    XCTAssertTrue(buttons(grid).contains { $0.key == .character(".") },
+                  "the decimal key still sends a character from the previous layer")
 
     try tap(.symbols, in: grid)
     let symbols = titles(grid)

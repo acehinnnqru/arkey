@@ -22,6 +22,35 @@ import UIKit
 /// defect in the reader it drives: a glyph's antialiased edge can match the material's luminance and split
 /// its cap into three rectangles, which is fixed in RimeKeyboardCapture.keyRects (one key, one rectangle).
 final class KeyboardRenderTests: XCTestCase {
+  func testMissingClientAppearancePreservesKeyColoursDuringNavigation() {
+    for appearance in [UIKeyboardAppearance.light, .dark] {
+      let before = KeyboardTheme.current(for: appearance)
+      let detached = KeyboardTheme.current(for: nil, interfaceStyle: .unspecified, previous: before)
+      XCTAssertEqual(detached.appearance, before.appearance)
+      XCTAssertEqual(detached.keyFill, before.keyFill)
+      XCTAssertEqual(detached.candidateText, before.candidateText)
+      let reattached = KeyboardTheme.current(for: appearance, previous: detached)
+      XCTAssertEqual(reattached.keyFill, before.keyFill)
+    }
+  }
+
+  func testDefaultKeyboardAppearanceFollowsHostTraits() {
+    for style in [UIUserInterfaceStyle.light, .dark] {
+      let expected = KeyboardTheme.current(for: style == .dark ? .dark : .light)
+      let theme = KeyboardTheme.current(for: .default, interfaceStyle: style)
+      XCTAssertEqual(theme.appearance, expected.appearance)
+      XCTAssertEqual(theme.keyFill, expected.keyFill)
+      XCTAssertEqual(KeyboardTheme.current(for: nil, interfaceStyle: style).keyFill, expected.keyFill)
+      let explicit = KeyboardTheme.current(for: .light, interfaceStyle: style)
+      XCTAssertEqual(explicit.appearance, .light)
+    }
+    let dark = KeyboardTheme.current(for: .dark)
+    XCTAssertEqual(KeyboardTheme.current(for: .default, previous: dark).keyFill, dark.keyFill)
+    let switchedToLight = KeyboardTheme.current(for: .default, interfaceStyle: .light, previous: dark)
+    XCTAssertEqual(switchedToLight.appearance, .light)
+    XCTAssertNotEqual(switchedToLight.keyFill, dark.keyFill)
+  }
+
   private let width: CGFloat = 430
 
   /// A device capture arrives at 2x or 3x; so does this one. Rendering at 1x put the cap shadows and the

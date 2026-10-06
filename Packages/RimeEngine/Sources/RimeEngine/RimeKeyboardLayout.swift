@@ -273,13 +273,14 @@ public enum RimeKeyboardLayoutEngine {
       rows.append(row(y: y, style: style, keys: plainRow(second, width: width, style: style)))
       y += style.keyHeight + style.rowGap
       let third = layer == .numbers
-        ? ["+", "×", "÷", "=", "/"]
+        ? [".", ",", "?", "!", "'"]
         : ["%", "‰", "√", "π", "≈"]
       // The switch key on this row goes to the *other* punctuation layer, not to the letters: S3 §3.2
       // gives the numbers layer a `#+=` key and the symbols layer a `123` key.
       let thirdSwitch: RimeKeyboardLayer = layer == .numbers ? .symbols : .numbers
       rows.append(row(y: y, style: style,
-                      keys: specialThirdRow(third, width: width, layer: thirdSwitch, style: style)))
+                      keys: specialThirdRow(third, width: width, layer: thirdSwitch, style: style,
+                                            outerGap: layer == .numbers ? style.sideKeyGap : nil)))
       y += style.keyHeight + style.rowGap
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .letters,
                                                           style: style, returnKey: returnKey,
@@ -384,17 +385,19 @@ public enum RimeKeyboardLayoutEngine {
   /// the middle five share what is left, so the row still ends exactly at the right margin.
   private static func specialThirdRow(_ characters: [String], width: CGFloat,
                                       layer: RimeKeyboardLayer,
-                                      style: RimeKeyboardStyle) -> [RimeKeyboardKey] {
+                                      style: RimeKeyboardStyle,
+                                      outerGap: CGFloat? = nil) -> [RimeKeyboardKey] {
     var keys: [RimeKeyboardKey] = []
     keys.append(RimeKeyboardKey(kind: .layer(layer),
                                 frame: CGRect(x: style.sideMargin, y: 0,
                                               width: style.layerKeyWidth, height: style.keyHeight),
                                 label: layer.switchLabel,
                                 accessibilityLabel: layer.accessibilityLabel))
+    let edgeGap = outerGap ?? style.horizontalGap
     let middleWidth = (width - 2 * style.sideMargin - style.layerKeyWidth - style.deleteWidth
-      - 2 * style.horizontalGap - CGFloat(characters.count - 1) * style.horizontalGap)
+      - 2 * edgeGap - CGFloat(characters.count - 1) * style.horizontalGap)
       / CGFloat(characters.count)
-    var x = style.sideMargin + style.layerKeyWidth + style.horizontalGap
+    var x = style.sideMargin + style.layerKeyWidth + edgeGap
     for character in characters {
       keys.append(RimeKeyboardKey(kind: .character(character),
                                   frame: CGRect(x: x, y: 0, width: middleWidth, height: style.keyHeight),

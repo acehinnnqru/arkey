@@ -30,6 +30,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// Kept so the appearance can adopt a profile the app activated (S1 §8).
   private var engineSetup: KeyboardEngine.Setup?
   private var theme = KeyboardTheme.current(for: .default)
+  private var hasAppliedTheme = false
   private var keyLayer: KeyLayer = .letters
   /// One-shot, caps lock and consumption live in the model, so the states are testable off-device.
   private var shiftController = RimeShiftController()
@@ -53,12 +54,26 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let contentView = UIInputView(frame: .zero, inputViewStyle: .default)
     contentView.backgroundColor = .clear
     contentView.isOpaque = false
+    contentView.clipsToBounds = true
     inputView = contentView
   }
 
   override func viewDidLoad() {
     super.viewDidLoad()
     applyBacking()
+    // Supply the height before the host begins presenting the extension.
+    updateHeight()
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) {
+      (controller: KeyboardViewController, _: UITraitCollection) in
+      controller.updateThemeIfNeeded()
+    }
+    // The host can update the input view's appearance without changing the
+    // extension controller's traits at the same time (for example while the
+    // keyboard remains presented during a system appearance switch).
+    view.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self]
+      (_: UIView, _: UITraitCollection) in
+      self?.updateThemeIfNeeded()
+    }
 
     candidateBar.translatesAutoresizingMaskIntoConstraints = false
     keyGrid.translatesAutoresizingMaskIntoConstraints = false
@@ -127,11 +142,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
   }
 
-  override func viewDidAppear(_ animated: Bool) {
-    super.viewDidAppear(animated)
-    updateHeight()
-  }
-
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     flushKeyStatistics()
@@ -144,11 +154,24 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
-    // This fires on every marked-text update, so it only does work when the appearance really
-    // changed.
-    let appearance = textDocumentProxy.keyboardAppearance ?? .default
-    if appearance != theme.appearance {
-      theme = KeyboardTheme.current(for: appearance)
+    updateThemeIfNeeded()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    updateThemeIfNeeded()
+  }
+
+  private var currentTheme: KeyboardTheme {
+    KeyboardTheme.current(for: textDocumentProxy.keyboardAppearance,
+                          interfaceStyle: view.traitCollection.userInterfaceStyle,
+                          previous: hasAppliedTheme ? theme : nil)
+  }
+
+  private func updateThemeIfNeeded() {
+    guard currentTheme.appearance != theme.appearance else { return }
+    // Do not inherit the host's navigation animation when changing key colours.
+    UIView.performWithoutAnimation {
       applyCurrentTheme()
       refreshLayout()
     }
@@ -426,7 +449,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func applyCurrentTheme() {
-    theme = KeyboardTheme.current(for: textDocumentProxy.keyboardAppearance ?? .default)
+    theme = currentTheme
+    hasAppliedTheme = true
     applyBacking()
     candidateBar.onForget = { [weak self] index in self?.forgetCandidate(index) }
     candidateBar.apply(theme: theme)
