@@ -574,8 +574,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func updateHeight() {
-    // The panel reaches above the keyboard's own top, so the extension has to ask for a taller frame
-    // while it is open — that overhang is the 63.3 pt the capture measures.
+    // The expanded panel requests only its header and candidate area.
     let height = isPanelExpanded
       ? candidatePanel.height(bottomInset: 0)
       : KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)

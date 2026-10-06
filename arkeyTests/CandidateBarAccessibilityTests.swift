@@ -113,6 +113,30 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     }
   }
 
+  func testExpandedHeaderStaysAtTopWithCollapseOnTrailingEdge() throws {
+    for count in [1, 36, 40] {
+      for page in [0, 1] {
+        let view = CandidatePanelView(frame: .zero)
+        view.apply(model: .page((0..<count).map { _ in
+          RimeCandidateItem(text: "测试", comment: nil)
+        }, page: page))
+        view.frame = CGRect(x: 0, y: 0, width: 430, height: view.height(bottomInset: 0))
+        view.layoutIfNeeded()
+        let collapse = try XCTUnwrap(allButtons(in: view).first {
+          $0.accessibilityLabel == "收起候选面板"
+        })
+        let frame = collapse.convert(collapse.bounds, to: view)
+        XCTAssertEqual(frame.minY, 0, accuracy: 0.5)
+        XCTAssertEqual(frame.maxX, view.bounds.width - KeyboardMetrics.sideMargin, accuracy: 0.5)
+        XCTAssertEqual(frame.width, 32, accuracy: 0.5)
+        let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
+        XCTAssertEqual(scroll.frame.minY, frame.maxY, accuracy: 0.5)
+        XCTAssertEqual(scroll.frame.maxY, view.bounds.height, accuracy: 0.5)
+        XCTAssertEqual(scroll.frame.height, 270, accuracy: 0.5)
+      }
+    }
+  }
+
   func testExpandedLongCandidatesWrapAndRemainReachable() throws {
     let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 373))
     view.apply(model: .all((0..<36).map { _ in RimeCandidateItem(text: "这是一个很长的候选词", comment: nil) }))

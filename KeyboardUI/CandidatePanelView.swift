@@ -11,6 +11,7 @@ final class CandidatePanelView: UIView {
 
   private let syllableRow = UIStackView()
   private let syllables = UILabel()
+  private let headerSpacer = UIView()
   private let leadingButton = UIButton(type: .system)
   private let trailingButton = UIButton(type: .system)
   private let collapseButton = UIButton(type: .system)
@@ -34,9 +35,13 @@ final class CandidatePanelView: UIView {
     syllableRow.translatesAutoresizingMaskIntoConstraints = false
     syllableRow.addArrangedSubview(leadingButton)
     syllableRow.addArrangedSubview(syllables)
+    syllableRow.addArrangedSubview(headerSpacer)
     syllableRow.addArrangedSubview(trailingButton)
     syllableRow.addArrangedSubview(collapseButton)
     addSubview(syllableRow)
+
+    headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    headerSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
     syllables.font = .systemFont(ofSize: 17)
     syllables.textAlignment = .center
@@ -73,8 +78,7 @@ final class CandidatePanelView: UIView {
     NSLayoutConstraint.activate([
       syllableRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: KeyboardMetrics.sideMargin),
       syllableRow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -KeyboardMetrics.sideMargin),
-      syllableRow.topAnchor.constraint(equalTo: topAnchor,
-                                       constant: RimeCandidatePanelModel.topOverhang),
+      syllableRow.topAnchor.constraint(equalTo: topAnchor),
       syllableRow.heightAnchor.constraint(equalToConstant: syllableHeight),
       leadingButton.widthAnchor.constraint(equalToConstant: 32),
       trailingButton.widthAnchor.constraint(equalToConstant: 32),
@@ -84,7 +88,7 @@ final class CandidatePanelView: UIView {
       gridStack.trailingAnchor.constraint(equalTo: trailingAnchor,
                                           constant: -KeyboardMetrics.sideMargin),
       gridStack.topAnchor.constraint(equalTo: syllableRow.bottomAnchor),
-      gridStack.heightAnchor.constraint(equalToConstant: gridHeight),
+      gridStack.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
   }
 
@@ -92,10 +96,10 @@ final class CandidatePanelView: UIView {
     fatalError("init(coder:) is not used")
   }
 
-  /// The height the extension has to ask the system for while the panel is open: the panel reaches
-  /// above the keyboard's own top, which is what the 63.3 pt overhang is.
+  /// Only the header and candidate rows occupy space inside the extension.
+  /// The system owns the globe and home-indicator strip below it.
   func height(bottomInset: CGFloat) -> CGFloat {
-    RimeCandidatePanelModel.topOverhang + syllableHeight + gridHeight + bottomInset
+    syllableHeight + gridHeight + bottomInset
   }
 
   func apply(theme: KeyboardTheme) {
@@ -116,6 +120,7 @@ final class CandidatePanelView: UIView {
     syllableHeight = model.syllableRowHeight
     rowPitch = model.rowPitch
     gridHeight = model.gridHeight
+    headerSpacer.isHidden = showsSyllables
     syllables.isHidden = !showsSyllables
     syllables.text = (model.syllableRow ?? []).joined(separator: " ")
     leadingButton.isHidden = model.isFirstPage
@@ -141,6 +146,7 @@ final class CandidatePanelView: UIView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    syllableRow.layoutIfNeeded()
     let available = gridStack.bounds.width
     guard available > 0 else { return }
     var x: CGFloat = 0
