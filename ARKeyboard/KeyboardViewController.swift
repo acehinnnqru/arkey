@@ -254,6 +254,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     if preedit != (markedText ?? "") {
       if preedit.isEmpty {
         if markedText != nil {
+          // Unmarking preserves the text. When composition is deleted/cancelled,
+          // replace the old marked range before releasing it. A commit above
+          // already replaced that range and must be left intact.
+          if output.commit?.isEmpty != false {
+            textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+          }
           textDocumentProxy.unmarkText()
         }
         markedText = nil

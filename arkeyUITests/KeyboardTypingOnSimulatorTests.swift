@@ -11,6 +11,33 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testFourBackspacesRemoveAllOfNihc() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    let initial = (field.value as? String) ?? ""
+
+    for letter in ["n", "i", "h", "c"] {
+      let key = app.keys[letter].firstMatch
+      XCTAssertTrue(key.waitForExistence(timeout: 5), "no " + letter + " key")
+      key.tap()
+    }
+
+    func assertSuffix(_ suffix: String) {
+      let expected = String((initial + suffix).filter { !$0.isWhitespace })
+      let matches = NSPredicate { _, _ in
+        String(((field.value as? String) ?? "").filter { !$0.isWhitespace }) == expected
+      }
+      expectation(for: matches, evaluatedWith: field)
+      waitForExpectations(timeout: 5)
+    }
+
+    assertSuffix("nihc")
+    for remaining in ["nih", "ni", "n", ""] {
+      keyboardKey(app, "删除").tap()
+      assertSuffix(remaining)
+    }
+  }
+
   func testTheRealKeyboardTypesNihaoIntoTheField() throws {
     enableThirdPartyKeyboard()
     let (app, field) = launchAppWithArkeyKeyboard()
