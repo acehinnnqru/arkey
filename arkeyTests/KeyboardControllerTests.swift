@@ -94,6 +94,21 @@ final class KeyboardControllerTests: XCTestCase {
     }.count, 1)
   }
 
+  func testExpandedCandidateContentDoesNotResizeKeyboard() throws {
+    let controller = booted()
+    let root = try XCTUnwrap(controller.inputView)
+    let before = root.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+    let panel = try XCTUnwrap(descendants(CandidatePanelView.self, in: root).first)
+    panel.applyContinuation((0..<500).map { RimeCandidateItem(text: "候选词\($0)") },
+                            startingAt: 0, resetScroll: true)
+    panel.isHidden = false
+    try XCTUnwrap(descendants(KeyboardKeyGrid.self, in: root).first).isHidden = true
+    root.layoutIfNeeded()
+    let after = root.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+    XCTAssertEqual(after, before, accuracy: 0.5,
+                   "candidate content must scroll inside the existing keyboard frame")
+  }
+
   /// The engine behind the extension boots, and the bar says so. The failure this catches is the one a user
   /// sees: a sentence where the keyboard should be.
   func testTheKeyboardBoots() throws {

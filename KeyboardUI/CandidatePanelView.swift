@@ -4,14 +4,6 @@ import RimeEngine
 /// Keep a drag available to the scroll view even when it starts over a candidate control.
 private final class CandidateScrollView: UIScrollView {
   override func touchesShouldCancel(in view: UIView) -> Bool { true }
-
-  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    // Stop momentum as soon as a new touch lands so that contact can start the next drag.
-    if event?.type == .touches && isDecelerating {
-      stopScrollingAndZooming()
-    }
-    return super.hitTest(point, with: event)
-  }
 }
 
 /// Expanded candidates wrap at their natural text width and scroll within the keyboard.
