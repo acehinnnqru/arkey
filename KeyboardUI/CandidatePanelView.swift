@@ -1,8 +1,7 @@
 import UIKit
 import RimeEngine
 
-/// A drag that begins on a candidate must take over its button's touch tracking.
-/// UIScrollView otherwise keeps delivering the touch to UIControl and never scrolls.
+/// Keep a drag available to the scroll view even when it starts over a candidate control.
 private final class CandidateScrollView: UIScrollView {
   override func touchesShouldCancel(in view: UIView) -> Bool { true }
 }
@@ -14,6 +13,9 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
   var onCollapse: (() -> Void)?
   /// Page the grid. Never commits (S3 §5).
   var onPage: ((Bool) -> Void)?
+  #if DEBUG
+  var onScroll: ((CGFloat) -> Void)?
+  #endif
 
   private let syllableRow = UIStackView()
   private let syllables = UILabel()
@@ -78,8 +80,10 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     collapseButton.addTarget(self, action: #selector(handleCollapse), for: .touchUpInside)
 
     gridStack.translatesAutoresizingMaskIntoConstraints = false
+    gridStack.accessibilityIdentifier = "candidate-scroll"
     gridStack.alwaysBounceVertical = true
-    gridStack.delaysContentTouches = false
+    gridStack.delaysContentTouches = true
+    gridStack.canCancelContentTouches = true
     gridStack.delegate = self
     addSubview(gridStack)
     loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
@@ -172,7 +176,8 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
   }
 
   /// The collapsed candidate row stays in place; this view draws only the rows below it.
-  func applyContinuation(_ candidates: [RimeCandidateItem], startingAt start: Int) {
+  func applyContinuation(_ candidates: [RimeCandidateItem], startingAt start: Int,
+                         resetScroll: Bool = false) {
     loadingIndicator.stopAnimating()
     syllableRow.isHidden = true
     headerHeightConstraint.constant = 0
@@ -181,7 +186,7 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
             label: nil, isHighlighted: false)
     }
     needsCellLayout = true
-    gridStack.setContentOffset(.zero, animated: false)
+    if resetScroll { gridStack.setContentOffset(.zero, animated: false) }
     setNeedsLayout()
   }
 
@@ -217,6 +222,7 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
       cellFrames.append(CGRect(x: x, y: y, width: width, height: rowPitch))
       x += width
     }
+    for button in cellButtons { button.isHidden = true }
     displayedIndices = Array(repeating: -1, count: cellButtons.count)
     gridStack.contentSize = CGSize(width: available, height: entries.isEmpty ? 0 : y + rowPitch)
   }
@@ -251,29 +257,33 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
       }
     }
     ensureCells(visible.count)
-    for (slot, button) in cellButtons.enumerated() {
-      guard slot < visible.count else {
-        button.isHidden = true
-        displayedIndices[slot] = -1
-        continue
-      }
-      let index = visible[slot]
+    let visibleSet = Set(visible)
+    for slot in cellButtons.indices where displayedIndices[slot] >= 0
+      && !visibleSet.contains(displayedIndices[slot]) {
+      cellButtons[slot].isHidden = true
+      displayedIndices[slot] = -1
+    }
+    for index in visible {
+      if displayedIndices.contains(index) { continue }
+      guard let slot = displayedIndices.firstIndex(of: -1) else { continue }
+      let button = cellButtons[slot]
       let entry = entries[index]
       button.isHidden = false
       button.frame = cellFrames[index]
-      if displayedIndices[slot] != index {
-        button.tag = entry.index
-        button.accessibilityLabel = entry.label.map { $0 + ". " + entry.text } ?? entry.text
-        button.accessibilityValue = entry.comment
-        button.setTitle(entry.text, for: .normal)
-        button.backgroundColor = entry.isHighlighted ? theme.candidatePanelHighlightFill : .clear
-        displayedIndices[slot] = index
-      }
+      button.tag = entry.index
+      button.accessibilityLabel = entry.label.map { $0 + ". " + entry.text } ?? entry.text
+      button.accessibilityValue = entry.comment
+      button.setTitle(entry.text, for: .normal)
+      button.backgroundColor = entry.isHighlighted ? theme.candidatePanelHighlightFill : .clear
+      displayedIndices[slot] = index
     }
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    guard !needsCellLayout else { return }
+    #if DEBUG
+    onScroll?(scrollView.contentOffset.y)
+    #endif
+    guard !needsCellLayout, entries.count > RimeCandidatePanelModel.cellsPerPage else { return }
     updateVisibleCells()
   }
 

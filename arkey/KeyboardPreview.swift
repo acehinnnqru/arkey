@@ -77,3 +77,49 @@ final class KeyboardPreviewView: UIView {
     fatalError("init(coder:) is not used")
   }
 }
+
+#if DEBUG
+/// A deterministic surface for gesture tests; it is shown only with the UI-test launch argument.
+struct CandidateScrollTestScreen: View {
+  var body: some View {
+    CandidateScrollTestFixture()
+      .frame(height: 350)
+      .padding()
+  }
+}
+
+private struct CandidateScrollTestFixture: UIViewRepresentable {
+  func makeUIView(context: Context) -> UIView {
+    let container = UIView()
+    let offset = UILabel()
+    offset.accessibilityIdentifier = "candidate-offset"
+    offset.text = "0"
+    offset.translatesAutoresizingMaskIntoConstraints = false
+    let selection = UILabel()
+    selection.accessibilityIdentifier = "candidate-selection"
+    selection.text = "none"
+    selection.translatesAutoresizingMaskIntoConstraints = false
+    let panel = CandidatePanelView()
+    panel.translatesAutoresizingMaskIntoConstraints = false
+    panel.onScroll = { [weak offset] value in offset?.text = String(Int(value)) }
+    panel.onSelect = { [weak selection] value in selection?.text = String(value) }
+    container.addSubview(offset)
+    container.addSubview(selection)
+    container.addSubview(panel)
+    NSLayoutConstraint.activate([
+      offset.topAnchor.constraint(equalTo: container.topAnchor),
+      offset.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      selection.topAnchor.constraint(equalTo: container.topAnchor),
+      selection.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      panel.topAnchor.constraint(equalTo: offset.bottomAnchor),
+      panel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      panel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      panel.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
+    panel.applyContinuation((0..<500).map { RimeCandidateItem(text: "候选词\($0)") }, startingAt: 0)
+    return container
+  }
+
+  func updateUIView(_ uiView: UIView, context: Context) {}
+}
+#endif

@@ -15,7 +15,15 @@ struct arkeyApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--candidate-scroll-ui-test") {
+                CandidateScrollTestScreen()
+            } else {
+                ContentView()
+            }
+            #else
             ContentView()
+            #endif
         }
     }
 }

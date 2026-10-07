@@ -596,7 +596,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     candidateBar.setExpanded(true)
     candidatePanel.isHidden = false
     keyGrid.isHidden = true
-    applyPanelModel()
+    applyPanelModel(resetScroll: true)
     candidatePanel.setLoading(panelCandidates.isEmpty)
     animatePanelAppearance(candidatePanel)
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -638,11 +638,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     appearing.layer.add(animation, forKey: "candidateTransition")
   }
 
-  private func applyPanelModel() {
+  private func applyPanelModel(resetScroll: Bool = false) {
     candidatePanel.apply(theme: theme)
     let barCount = currentPage?.pageNumber == 0 ? candidateBar.visibleCandidateCount : 0
     let start = panelCandidates.count > barCount ? barCount : 0
-    candidatePanel.applyContinuation(panelCandidates, startingAt: start)
+    candidatePanel.applyContinuation(panelCandidates, startingAt: start, resetScroll: resetScroll)
   }
 
   /// A candidate tapped in the panel commits and collapses (S4 §6).

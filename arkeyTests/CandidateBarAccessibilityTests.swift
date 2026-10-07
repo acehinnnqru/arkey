@@ -170,6 +170,8 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
     let button = try XCTUnwrap(allButtons(in: scroll).first { !$0.isHidden })
     XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
+    XCTAssertTrue(scroll.delaysContentTouches,
+                  "the scroll view must decide whether a touch is a drag before a cell tracks it")
     XCTAssertTrue(scroll.canCancelContentTouches)
     XCTAssertTrue(scroll.touchesShouldCancel(in: button),
                   "a drag starting on a candidate should scroll instead of tracking the button")
@@ -184,6 +186,13 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertLessThan(allButtons(in: scroll).count, 100)
     XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
 
+    let middle = try XCTUnwrap(allButtons(in: scroll).first { !$0.isHidden && $0.tag == 9 })
+    for offset: CGFloat in [45, 90, 45, 0] {
+      scroll.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
+      XCTAssertTrue(allButtons(in: scroll).first { !$0.isHidden && $0.tag == 9 } === middle,
+                    "a candidate still on screen must keep its button while scrolling")
+    }
+
     scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
                             animated: false)
     let last = try XCTUnwrap(allButtons(in: scroll).first {
@@ -194,6 +203,27 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     view.onSelect = { selected = $0 }
     last.sendActions(for: .touchUpInside)
     XCTAssertEqual(selected, 499)
+  }
+
+  func testCandidateRefreshKeepsScrollPositionUntilNextExpansion() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    let candidates = (0..<200).map { RimeCandidateItem(text: "候选词\($0)") }
+    view.applyContinuation(candidates, startingAt: 0, resetScroll: true)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
+    scroll.setContentOffset(CGPoint(x: 0, y: 180), animated: false)
+
+    view.applyContinuation(candidates + [RimeCandidateItem(text: "新候选")], startingAt: 0)
+    view.layoutIfNeeded()
+    XCTAssertEqual(scroll.contentOffset.y, 180, accuracy: 0.5)
+
+    view.applyContinuation(candidates, startingAt: 0, resetScroll: true)
+    view.layoutIfNeeded()
+    XCTAssertEqual(scroll.contentOffset.y, 0, accuracy: 0.5)
+
+    view.applyContinuation(Array(candidates.prefix(2)), startingAt: 0, resetScroll: true)
+    view.layoutIfNeeded()
+    XCTAssertEqual(allButtons(in: scroll).filter { !$0.isHidden }.count, 2)
   }
 
 }
