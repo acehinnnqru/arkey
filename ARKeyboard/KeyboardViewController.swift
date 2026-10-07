@@ -308,6 +308,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     switch key {
     case .character(let value):
       typeLiteralKey(value)
+      // A single Shift tap applies to one character only. Keep caps lock active.
+      if shiftController.state == .on {
+        shiftController.consumeAfterCharacter()
+        refreshLayout()
+      }
     case .space:
       send(RimeKey.space, fallback: " ")
     case .backspace:

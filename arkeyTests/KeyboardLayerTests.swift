@@ -117,6 +117,18 @@ final class KeyboardLayerTests: XCTestCase {
                   "shift did not come back off: " + titles(grid).joined(separator: " "))
   }
 
+  func testSingleShiftReturnsToLowercaseAfterOneLetter() throws {
+    let controller = booted()
+    let grid = try grid(controller)
+    XCTAssertTrue(titles(grid).contains("q"))
+
+    try tap(.shift, in: grid)
+    XCTAssertTrue(titles(grid).contains("Q"))
+    try tap(.character("Q"), in: grid)
+    XCTAssertTrue(titles(grid).contains("q"),
+                  "a single Shift should be consumed by the first letter")
+  }
+
   /// The 中/英 key says the state the keyboard is in, in the schema's own word. Tapping it flips both.
   func testTheLanguageKeyFlipsTheStateItNames() throws {
     let controller = booted()
