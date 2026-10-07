@@ -138,11 +138,34 @@ final class KeyboardTypingTests: XCTestCase {
     let panel = try panel(controller)
     XCTAssertTrue(panel.isHidden, "the panel is visible before it is asked for")
 
-    bar.onExpand?()
+    let expand = try XCTUnwrap(descendants(UIButton.self, in: bar).first {
+      $0.accessibilityLabel == "展开候选面板"
+    })
+    bar.layoutIfNeeded()
+    XCTAssertGreaterThanOrEqual(expand.bounds.width, 44)
+    let tap = expand.convert(CGPoint(x: 2, y: expand.bounds.midY), to: bar)
+    XCTAssertTrue(bar.hitTest(tap, with: nil) === expand)
+    expand.sendActions(for: .touchUpInside)
 
     XCTAssertFalse(panel.isHidden, "the expand button did not open the panel")
     XCTAssertTrue(bar.isHidden, "the bar is still up behind the panel")
     XCTAssertTrue(texts(in: panel).contains { $0.contains("你好") },
                   "the panel shows: " + texts(in: panel).joined(separator: " | "))
+  }
+
+  func testSelectingFromExpandedPanelCommitsCandidate() throws {
+    try deployBundledProfile()
+    let controller = booted()
+    try type(["n", "i", "h", "a", "o"], in: controller)
+    let bar = try bar(controller)
+    bar.onExpand?()
+    let panel = try panel(controller)
+    let cell = try XCTUnwrap(descendants(UIButton.self, in: panel).first {
+      $0.title(for: .normal) == "你好" && !$0.isHidden
+    })
+    cell.sendActions(for: .touchUpInside)
+    XCTAssertTrue(panel.isHidden)
+    XCTAssertFalse(bar.isHidden)
+    XCTAssertFalse(visibleTitles(in: bar).contains { $0.contains("你好") })
   }
 }

@@ -28,7 +28,7 @@ final class CandidateBar: UIView {
   private var cellButtons: [UIButton] = []
   private var theme = KeyboardTheme.current(for: .default)
 
-  private static let chevronWidth: CGFloat = 32
+  private static let chevronWidth: CGFloat = 44
 
   /// S4 §6: "swipe on the bar pages as well". A swipe recognizer on the container does not steal the
   /// cells' taps — a tap has no movement — so the two gestures coexist the way the system keyboard's do.

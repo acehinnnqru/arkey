@@ -566,10 +566,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       var current = page.pageNumber
       while current != target.page {
         let moved = try engine.changePage(backward: target.page < current)
-        guard let next = moved.page?.pageNumber, next != current else { break }
+        guard let next = moved.page?.pageNumber, next != current else { return }
         current = next
       }
-      selectCandidate(target.indexOnPage)
+      apply(try engine.selectCandidateOnCurrentPage(at: target.indexOnPage))
     } catch {
       report("select.failed", error, userVisible: "选词出错：")
     }
