@@ -1,6 +1,12 @@
 import UIKit
 import RimeEngine
 
+/// A drag that begins on a candidate must take over its button's touch tracking.
+/// UIScrollView otherwise keeps delivering the touch to UIControl and never scrolls.
+private final class CandidateScrollView: UIScrollView {
+  override func touchesShouldCancel(in view: UIView) -> Bool { true }
+}
+
 /// Expanded candidates wrap at their natural text width and scroll within the keyboard.
 final class CandidatePanelView: UIView {
   /// A cell was tapped: the argument is librime's own candidate index, not the cell's position.
@@ -15,7 +21,7 @@ final class CandidatePanelView: UIView {
   private let leadingButton = UIButton(type: .system)
   private let trailingButton = UIButton(type: .system)
   private let collapseButton = UIButton(type: .system)
-  private let gridStack = UIScrollView()
+  private let gridStack = CandidateScrollView()
   private var rowPitch = RimeCandidatePanelModel.rowPitch
   private var cellButtons: [UIButton] = []
   private var theme = KeyboardTheme.current(for: .default)

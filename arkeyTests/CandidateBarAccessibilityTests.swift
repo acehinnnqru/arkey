@@ -161,4 +161,18 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertFalse(try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "收起候选面板" }).superview!.isHidden)
   }
 
+  func testExpandedCandidatesCanScrollWhenDragStartsOnAButton() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    view.applyContinuation((0..<36).map { RimeCandidateItem(text: "候选词\($0)", comment: nil) },
+                           startingAt: 0)
+    view.layoutIfNeeded()
+
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
+    let button = try XCTUnwrap(allButtons(in: scroll).first { !$0.isHidden })
+    XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
+    XCTAssertTrue(scroll.canCancelContentTouches)
+    XCTAssertTrue(scroll.touchesShouldCancel(in: button),
+                  "a drag starting on a candidate should scroll instead of tracking the button")
+  }
+
 }
