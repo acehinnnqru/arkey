@@ -75,6 +75,16 @@ final class KeyboardTypingTests: XCTestCase {
     try XCTUnwrap(descendants(CandidatePanelView.self, in: controller.view).first, "no candidate panel")
   }
 
+  private func waitForPanelCandidates(_ panel: CandidatePanelView) {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+      panel.layoutIfNeeded()
+      return self.descendants(UIButton.self, in: panel).contains {
+        !$0.isHidden && $0.title(for: .normal) != nil
+      }
+    }, object: panel)
+    XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 3), .completed)
+  }
+
   /// Installs the bundled profile into the keyboard's workspace with the keyboard's own engine, which is the
   /// app's first-run flow.
   @discardableResult
@@ -156,10 +166,15 @@ final class KeyboardTypingTests: XCTestCase {
     }?.constant, keyboardHeight, "expanding candidates resized the keyboard")
     XCTAssertFalse(bar.isHidden, "the candidate row should remain fixed")
     controller.view.layoutIfNeeded()
+    waitForPanelCandidates(panel)
     XCTAssertEqual(panel.frame.minY, bar.frame.maxY, accuracy: 0.5)
     XCTAssertTrue(texts(in: bar).contains { $0.contains("你好") })
+    let panelScroll = panel.subviews.compactMap { $0 as? UIScrollView }.first
     XCTAssertTrue(texts(in: panel).contains { $0.contains("你") },
-                  "the continuation shows: " + texts(in: panel).joined(separator: " | "))
+                  "the continuation shows: " + texts(in: panel).joined(separator: " | ")
+                    + " panel=" + String(describing: panel.frame)
+                    + " scroll=" + String(describing: panelScroll?.frame)
+                    + " content=" + String(describing: panelScroll?.contentSize))
     XCTAssertEqual(expand.accessibilityLabel, "收起候选面板")
   }
 
@@ -170,6 +185,7 @@ final class KeyboardTypingTests: XCTestCase {
     let bar = try bar(controller)
     bar.onExpand?()
     let panel = try panel(controller)
+    waitForPanelCandidates(panel)
     let cell = try XCTUnwrap(descendants(UIButton.self, in: panel).first {
       !$0.isHidden && $0.title(for: .normal) != nil
     })

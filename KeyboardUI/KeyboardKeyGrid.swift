@@ -115,6 +115,10 @@ final class KeyboardKeyGrid: UIView {
                  feedback: RimeKeyFeedback = .standard,
                  auxiliaryPrefix: String = ",",
                  auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right) {
+    if self.feedback != feedback {
+      self.feedback = feedback
+      for entry in buttons { entry.view.feedback = feedback }
+    }
     // The 中/英 label is part of the *key*, not a style applied to it, so a label that changes on its own
     // needs new keys rather than a restyle — and it is the one applied field the comparison below did not
     // look at, which kept the old word on the cap (found by KeyboardLayerTests, round 148).
@@ -150,19 +154,24 @@ final class KeyboardKeyGrid: UIView {
     self.auxiliaryPrefix = auxiliaryPrefix
     self.auxiliaryKeySide = auxiliaryKeySide
 
-    // A different key set has to be rebuilt; a different colour does not.
-    // A shift change rebuilds rather than restyles: the label a character key reports is the layout's, and
-    // the layout's is cased. Restyling could only paint the old case over the new state — and the key would
-    // still *type* the old one — which is how shift-off left the board in capitals (found by
-    // KeyboardLayerTests, round 148).
+    // Shift changes both the cap and the key value. Update the existing controls in place so a
+    // one-shot Shift press does not destroy and recreate the whole keyboard twice.
+    let layout = currentLayout(width: max(laidOutWidth, 1))
+    let onlyShiftChanged = previousShift != shift
+      && previousLayer == layer
+      && previousLanguage == language
+      && previousAuxiliaryPrefix == auxiliaryPrefix
+      && previousAuxiliaryKeySide == auxiliaryKeySide
+      && buttons.count == layout.keys.count
     let needsRebuild = buttons.isEmpty
-      || buttons.count != currentLayout(width: max(laidOutWidth, 1)).keys.count
+      || buttons.count != layout.keys.count
       || previousLayer != layer
       || previousLanguage != language
-      || previousShift != shift
       || previousAuxiliaryPrefix != auxiliaryPrefix
       || previousAuxiliaryKeySide != auxiliaryKeySide
-    if needsRebuild {
+    if onlyShiftChanged {
+      updateKeys(in: layout)
+    } else if needsRebuild {
       rebuild()
     } else {
       refreshAppearance()
@@ -215,13 +224,10 @@ final class KeyboardKeyGrid: UIView {
     let layout = currentLayout(width: max(laidOutWidth, 1))
     for key in layout.keys {
       let button = KeyButton(frame: .zero)
-      button.key = self.key(for: key)
-      if let mapped = button.key {
-        button.repeatsWhileHeld = (mapped == .backspace)
-        button.feedback = feedback
+      configure(button, for: key)
+      if button.key != nil {
         button.addTarget(self, action: #selector(handleKeyPress(_:)), for: .primaryActionTriggered)
         button.isAccessibilityElement = true
-        button.accessibilityLabel = key.accessibilityLabel
         // The accessibility label is the character or the action; the trait tells VoiceOver it is a
         // key rather than a paragraph (S3 §8).
         button.accessibilityTraits = .keyboardKey
@@ -232,24 +238,34 @@ final class KeyboardKeyGrid: UIView {
       if let mapped = button.key {
         buttons.append((mapped, button))
       }
-      // The model's key carries the frame the callout is positioned from; the app's key does not.
-      // The point arrives in the button's own coordinates and is documented to leave in the grid's: the
-      // caller positions the callout against the whole keyboard, so a button-local point puts it a key to
-      // the left. The button is a direct subview, so this is the whole conversion. (Found by
-      // KeyboardCalloutTests: the callout sat at x=20 for a key at x=215.)
-      button.onTouchDown = { [weak self, weak button] point in
-        guard let self, let button else { return }
-        self.onKeyTouchDown?(key, button.convert(point, to: self))
-      }
-      button.onTouchMove = { [weak self, weak button] point in
-        guard let self, let button else { return }
-        self.onKeyTouchMove?(key, button.convert(point, to: self))
-      }
-      button.onTouchEnded = { [weak self] in
-        self?.onKeyTouchEnded?()
-      }
     }
     refreshAppearance()
+  }
+
+  private func updateKeys(in layout: RimeKeyboardLayout) {
+    for (index, key) in layout.keys.enumerated() {
+      let button = buttons[index].view
+      configure(button, for: key)
+      if let mapped = button.key { buttons[index] = (mapped, button) }
+    }
+    refreshAppearance()
+  }
+
+  private func configure(_ button: KeyButton, for key: RimeKeyboardKey) {
+    button.key = self.key(for: key)
+    button.repeatsWhileHeld = button.key == .backspace
+    button.feedback = feedback
+    button.accessibilityLabel = key.accessibilityLabel
+    // The model's frame positions the callout. Convert button-local touch points into grid space.
+    button.onTouchDown = { [weak self, weak button] point in
+      guard let self, let button else { return }
+      self.onKeyTouchDown?(key, button.convert(point, to: self))
+    }
+    button.onTouchMove = { [weak self, weak button] point in
+      guard let self, let button else { return }
+      self.onKeyTouchMove?(key, button.convert(point, to: self))
+    }
+    button.onTouchEnded = { [weak self] in self?.onKeyTouchEnded?() }
   }
 
   private func placeButtons() {

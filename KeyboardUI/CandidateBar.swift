@@ -10,7 +10,7 @@ import RimeEngine
 ///    separators on every keystroke was a large part of why typing felt laggy;
 ///  - a keystroke that changes nothing visible must not restyle anything.
 final class CandidateBar: UIView {
-  /// Called with the index of the tapped candidate, in librime's own list.
+  /// Called with the index of the tapped candidate on the current page.
   var onSelect: ((Int) -> Void)?
   /// A long press forgets the word (S4 §8, S5-AC5). The index is the cell's position on the page the bar is
   /// showing, which is the numbering librime's `delete_candidate` expects.
@@ -28,7 +28,7 @@ final class CandidateBar: UIView {
   private var cellButtons: [UIButton] = []
   private var theme = KeyboardTheme.current(for: .default)
 
-  private static let chevronWidth: CGFloat = 52
+  private static let chevronWidth: CGFloat = 64
   var visibleCandidateCount: Int { cellButtons.filter { !$0.isHidden }.count }
 
   func setExpanded(_ expanded: Bool) {

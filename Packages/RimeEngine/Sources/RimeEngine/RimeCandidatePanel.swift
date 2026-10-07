@@ -5,8 +5,7 @@ import Foundation
 
 /// One candidate as the bar and the panel draw it.
 public struct RimeCandidateCell: Sendable, Hashable {
-  /// The index in librime's whole candidate list, not in the page: paging must not renumber
-  /// selection.
+  /// The index passed to the view: page-relative in the bar, global in the expanded panel.
   public let index: Int
   public let text: String
   public let comment: String?

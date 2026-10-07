@@ -1,6 +1,23 @@
 import UIKit
 import RimeEngine
 
+private final class CandidateLoadCancellation {
+  private let lock = NSLock()
+  private var cancelled = false
+
+  func cancel() {
+    lock.lock()
+    cancelled = true
+    lock.unlock()
+  }
+
+  var isCancelled: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return cancelled
+  }
+}
+
 /// Rime keyboard: system-like key grid, candidate bar, and marked-text composition.
 ///
 /// The whole input path is synchronous. The engine owns a serial queue, so a key press is one
@@ -19,10 +36,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private lazy var callout = KeyCalloutView()
   private var calloutKey: RimeKeyboardKey?
   private var feedbackPreferences: RimeKeyboardPreferences = .standard
+  private let preferencesStore = RimeKeyboardPreferencesStore.appGroup()
+  private var preferences: RimeKeyboardPreferences = .standard
   /// Prepared on touch down so the impact lands with the key rather than after the first use.
   private lazy var haptic = UIImpactFeedbackGenerator(style: .light)
   private var isPanelExpanded = false
   private var panelCandidates: [RimeCandidateItem] = []
+  private var panelLoadGeneration = 0
+  private var panelLoadCancellation: CandidateLoadCancellation?
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
   private var engine: RimeEngine?
@@ -49,6 +70,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// number S4-AC6 is about.
   private var keyLatency = RimeKeyLatencyWindow()
 
+  deinit { panelLoadCancellation?.cancel() }
 
   // MARK: - Lifecycle
 
@@ -64,6 +86,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    preferences = preferencesStore?.value ?? .standard
     applyBacking()
     // Supply the height before the host begins presenting the extension.
     updateHeight()
@@ -139,6 +162,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    preferences = preferencesStore?.value ?? .standard
     applyCurrentTheme()
     refreshLayout()
     updateHeight()
@@ -156,6 +180,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    if isPanelExpanded { collapsePanel() }
     flushKeyStatistics()
     // S5 §3.2: the dictionary lease is released when the keyboard goes away. The engine-side safety net
     // is the staleness rule, but a released lease is what makes the app usable again immediately.
@@ -237,8 +262,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func selectCandidate(_ index: Int) {
     guard let engine else { return }
+    panelLoadCancellation?.cancel()
     do {
-      apply(try engine.selectCandidate(at: index))
+      apply(try engine.selectCandidateOnCurrentPage(at: index))
     } catch {
       report("select.failed", error, userVisible: "选词出错：")
     }
@@ -250,7 +276,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func forgetCandidate(_ index: Int) {
     guard let engine else { return }
     do {
-      let forgotten = try engine.deleteCandidate(at: index)
+      let forgotten = try engine.deleteCandidateOnCurrentPage(at: index)
       apply(try engine.refresh())
       candidateBar.setMessage(forgotten ? "已忘记这个词" : "这个词不在用户词典里")
     } catch {
@@ -286,7 +312,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       textDocumentProxy.insertText(commit)
     }
 
-    let preferences = preferencesStore?.value ?? .standard
     let preedit = preferences.markedText(for: output) ?? ""
     if preedit != (markedText ?? "") {
       if preedit.isEmpty {
@@ -308,15 +333,21 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       }
     }
 
+    let previousAsciiMode = asciiMode
+    let previousLanguageKey = languageKey
     asciiMode = output.status?.isAsciiMode ?? asciiMode
     if let status = output.status {
       refreshLanguageKey(schemaID: status.schemaID, isASCII: status.isAsciiMode)
     }
     // The page the bar is showing, kept so a select key can be matched against its labels: a commit clears it,
     // and then no key is a select key any more.
-    currentPage = output.page
-    candidateBar.setPage(output.page)
-    refreshLayout()
+    if currentPage != output.page || output.page == nil {
+      currentPage = output.page
+      candidateBar.setPage(output.page)
+    }
+    if previousAsciiMode != asciiMode || previousLanguageKey != languageKey {
+      refreshLayout()
+    }
   }
 
   // MARK: - Input
@@ -515,7 +546,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       return
     }
     calloutKey = key
-    callout.apply(theme: theme)
     let frame = calloutFrame(for: key, at: point)
     callout.show(label: label(for: key), frame: frame)
   }
@@ -552,19 +582,41 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   // MARK: - Candidate panel
 
   private func expandPanel() {
-    guard let engine, let candidates = try? engine.candidateList(), !candidates.isEmpty else { return }
+    guard let engine, let page = currentPage, !page.candidates.isEmpty else { return }
     candidateBar.layoutIfNeeded()
-    panelCandidates = candidates
+    panelLoadCancellation?.cancel()
+    let cancellation = CandidateLoadCancellation()
+    panelLoadCancellation = cancellation
+    panelLoadGeneration += 1
+    let generation = panelLoadGeneration
+    // Show the already available page immediately. Enumerating the whole Rime candidate list
+    // can be expensive, so it must not hold up the expand control's touch response.
+    panelCandidates = page.pageNumber == 0 ? page.candidates : []
     isPanelExpanded = true
     candidateBar.setExpanded(true)
     candidatePanel.isHidden = false
     keyGrid.isHidden = true
     applyPanelModel()
+    candidatePanel.setLoading(panelCandidates.isEmpty)
     animatePanelAppearance(candidatePanel)
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      let candidates = try? engine.candidateList { !cancellation.isCancelled }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.isPanelExpanded, self.panelLoadGeneration == generation,
+              let candidates else { return }
+        self.panelLoadCancellation = nil
+        self.panelCandidates = candidates
+        self.applyPanelModel()
+      }
+    }
   }
 
   private func collapsePanel() {
+    panelLoadCancellation?.cancel()
+    panelLoadCancellation = nil
+    panelLoadGeneration += 1
     isPanelExpanded = false
+    panelCandidates.removeAll(keepingCapacity: true)
     candidateBar.setExpanded(false)
     candidatePanel.isHidden = true
     keyGrid.isHidden = false
@@ -574,44 +626,36 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func animatePanelAppearance(_ appearing: UIView) {
     guard !UIAccessibility.isReduceMotionEnabled else { return }
     let fade = CABasicAnimation(keyPath: "opacity")
-    fade.fromValue = 0.2
+    fade.fromValue = 0.65
     fade.toValue = 1
     let slide = CABasicAnimation(keyPath: "transform.translation.y")
-    slide.fromValue = 12
+    slide.fromValue = 6
     slide.toValue = 0
     let animation = CAAnimationGroup()
     animation.animations = [fade, slide]
-    animation.duration = 0.22
+    animation.duration = 0.14
     animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
     appearing.layer.add(animation, forKey: "candidateTransition")
   }
 
   private func applyPanelModel() {
     candidatePanel.apply(theme: theme)
-    candidatePanel.applyContinuation(panelCandidates, startingAt: candidateBar.visibleCandidateCount)
+    let barCount = currentPage?.pageNumber == 0 ? candidateBar.visibleCandidateCount : 0
+    let start = panelCandidates.count > barCount ? barCount : 0
+    candidatePanel.applyContinuation(panelCandidates, startingAt: start)
   }
 
   /// A candidate tapped in the panel commits and collapses (S4 §6).
   ///
-  /// The index is the panel's, which numbers the whole candidate list; librime's selection call numbers the
-  /// candidates on the page it is showing. So the engine is paged to the right page first, and the selection
-  /// is made with the page-relative index — the arithmetic lives in `RimeCandidatePanelModel.engineSelection`,
-  /// because getting it wrong commits a different candidate than the one that was tapped.
+  /// The panel's index is global. librime's select_candidate accepts that index directly;
+  /// select_candidate_on_current_page is reserved for the collapsed bar's page-relative index.
   private func selectFromPanel(_ index: Int) {
     defer { collapsePanel() }
     guard let engine else { return }
+    panelLoadCancellation?.cancel()
+    guard panelCandidates.indices.contains(index) else { return }
     do {
-      guard let page = try engine.refresh().page else { return }
-      guard let target = RimeCandidatePanelModel.engineSelection(forGlobalIndex: index,
-                                                                 pageNumber: page.pageNumber,
-                                                                 pageSize: page.pageSize) else { return }
-      var current = page.pageNumber
-      while current != target.page {
-        let moved = try engine.changePage(backward: target.page < current)
-        guard let next = moved.page?.pageNumber, next != current else { return }
-        current = next
-      }
-      apply(try engine.selectCandidateOnCurrentPage(at: target.indexOnPage))
+      apply(try engine.selectCandidate(at: index))
     } catch {
       report("select.failed", error, userVisible: "选词出错：")
     }
@@ -620,7 +664,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func refreshLayout() {
     // The keyboard's own preferences live in the app group, so a calibration change reaches the
     // keyboard the next time it appears — no deploy, and nothing for the extension to write.
-    let preferences = preferencesStore?.value ?? .standard
     feedbackPreferences = preferences
 
     keyGrid.configure(theme: theme,
@@ -667,10 +710,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     hasResolvedLanguageSchema = false
     languageKey = nil
     refreshLanguageKey(schemaID: schemaID, isASCII: isASCII)
-  }
-
-  private var preferencesStore: RimeKeyboardPreferencesStore? {
-    RimeKeyboardPreferencesStore.appGroup()
   }
 
   private func updateHeight() {

@@ -95,6 +95,7 @@ final class KeyboardLayerTests: XCTestCase {
     let controller = booted()
     let grid = try grid(controller)
     XCTAssertTrue(titles(grid).contains("q"), "no lower-case letters to begin with")
+    let originalQ = try XCTUnwrap(buttons(grid).first { $0.key == .character("q") })
 
     // One tap is one key event. A second target on the same control would toggle twice and the board would
     // never leave capitals, which is worth pinning next to the case assertions.
@@ -108,6 +109,8 @@ final class KeyboardLayerTests: XCTestCase {
     XCTAssertEqual(fired, [.shift], "one tap fired the controller " + String(fired.count) + " time(s)")
     XCTAssertTrue(titles(grid).contains("Q"),
                   "shift did not upper-case the board: " + titles(grid).joined(separator: " "))
+    XCTAssertTrue(buttons(grid).first { $0.key == .character("Q") } === originalQ,
+                  "Shift should update the existing key instead of rebuilding the whole grid")
 
     // The second tap has to be outside the double-tap window (0.3 s), or it is the caps-lock gesture and the
     // board is *meant* to stay upper-case.

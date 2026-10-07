@@ -175,4 +175,25 @@ final class CandidateBarAccessibilityTests: XCTestCase {
                   "a drag starting on a candidate should scroll instead of tracking the button")
   }
 
+  func testLongCandidateListReusesButtonsAndKeepsLastSelectionCorrect() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    view.applyContinuation((0..<500).map { RimeCandidateItem(text: "候选词\($0)") },
+                           startingAt: 0)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
+    XCTAssertLessThan(allButtons(in: scroll).count, 100)
+    XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
+
+    scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
+                            animated: false)
+    let last = try XCTUnwrap(allButtons(in: scroll).first {
+      !$0.isHidden && $0.tag == 499
+    })
+    XCTAssertEqual(last.title(for: .normal), "候选词499")
+    var selected: Int?
+    view.onSelect = { selected = $0 }
+    last.sendActions(for: .touchUpInside)
+    XCTAssertEqual(selected, 499)
+  }
+
 }

@@ -142,8 +142,21 @@ extension RimeEngine {
     }
   }
 
+  /// Deletes a candidate using the index shown in the current page's candidate bar.
+  @discardableResult
+  public func deleteCandidateOnCurrentPage(at index: Int) throws -> Bool {
+    try perform {
+      let api = try requireAPI()
+      let session = try requireSession(api: api)
+      guard let delete = api.pointee.delete_candidate_on_current_page else {
+        throw RimeEngineError.apiUnavailable
+      }
+      return delete(session, index)
+    }
+  }
+
   /// The whole candidate list, not just the current page. S3's expanded panel is a grid over it.
-  public func candidateList() throws -> [RimeCandidateItem] {
+  public func candidateList(shouldContinue: () -> Bool = { true }) throws -> [RimeCandidateItem] {
     try perform {
       let api = try requireAPI()
       let session = try requireSession(api: api)
@@ -156,7 +169,7 @@ extension RimeEngine {
       guard begin(session, &iterator) else { return [] }
       defer { end(&iterator) }
       var items: [RimeCandidateItem] = []
-      while next(&iterator) {
+      while shouldContinue() && next(&iterator) {
         let candidate = iterator.candidate
         items.append(RimeCandidateItem(text: candidate.text.map { String(cString: $0) } ?? "",
                                        comment: candidate.comment.map { String(cString: $0) }))
