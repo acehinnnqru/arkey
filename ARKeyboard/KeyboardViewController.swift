@@ -23,7 +23,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private lazy var haptic = UIImpactFeedbackGenerator(style: .light)
   private var isPanelExpanded = false
   private var panelCandidates: [RimeCandidateItem] = []
-  private var panelPage = 0
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
   private var engine: RimeEngine?
@@ -102,7 +101,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     NSLayoutConstraint.activate([
       candidatePanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       candidatePanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      candidatePanel.topAnchor.constraint(equalTo: view.topAnchor),
+      candidatePanel.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
       candidatePanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
     callout.isHidden = true
@@ -111,11 +110,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     candidatePanel.isHidden = true
     candidatePanel.onSelect = { [weak self] index in self?.selectFromPanel(index) }
     candidatePanel.onCollapse = { [weak self] in self?.collapsePanel() }
-    candidatePanel.onPage = { [weak self] backward in self?.pagePanel(backward: backward) }
 
-    candidateBar.onSelect = { [weak self] index in self?.selectCandidate(index) }
+    candidateBar.onSelect = { [weak self] index in
+      guard let self else { return }
+      self.selectCandidate(index)
+      if self.isPanelExpanded { self.collapsePanel() }
+    }
     candidateBar.onPage = { [weak self] backward in self?.changePage(backward: backward) }
-    candidateBar.onExpand = { [weak self] in self?.expandPanel() }
+    candidateBar.onExpand = { [weak self] in
+      guard let self else { return }
+      if self.isPanelExpanded { self.collapsePanel() } else { self.expandPanel() }
+    }
     keyGrid.onKey = { [weak self] key in self?.handle(key) }
     keyGrid.onKeyTouchDown = { [weak self] key, point in
       self?.haptic.prepare()
@@ -515,38 +520,42 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func expandPanel() {
     guard let engine, let candidates = try? engine.candidateList(), !candidates.isEmpty else { return }
+    candidateBar.layoutIfNeeded()
     panelCandidates = candidates
-    panelPage = 0
     isPanelExpanded = true
+    candidateBar.setExpanded(true)
     candidatePanel.isHidden = false
-    candidateBar.isHidden = true
     keyGrid.isHidden = true
     applyPanelModel()
-    updateHeight()
+    animatePanelAppearance(candidatePanel)
   }
 
   private func collapsePanel() {
     isPanelExpanded = false
+    candidateBar.setExpanded(false)
     candidatePanel.isHidden = true
-    candidateBar.isHidden = false
     keyGrid.isHidden = false
-    updateHeight()
+    animatePanelAppearance(keyGrid)
+  }
+
+  private func animatePanelAppearance(_ appearing: UIView) {
+    guard !UIAccessibility.isReduceMotionEnabled else { return }
+    let fade = CABasicAnimation(keyPath: "opacity")
+    fade.fromValue = 0.2
+    fade.toValue = 1
+    let slide = CABasicAnimation(keyPath: "transform.translation.y")
+    slide.fromValue = 12
+    slide.toValue = 0
+    let animation = CAAnimationGroup()
+    animation.animations = [fade, slide]
+    animation.duration = 0.22
+    animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+    appearing.layer.add(animation, forKey: "candidateTransition")
   }
 
   private func applyPanelModel() {
-    let output = try? engine?.refresh()
-    let model = RimeCandidatePanelModel.page(panelCandidates, page: panelPage,
-                                             highlightedIndex: output?.page?.highlightedIndex,
-                                             selectLabels: [],
-                                             syllableRow: output?.syllables)
     candidatePanel.apply(theme: theme)
-    candidatePanel.apply(model: model)
-  }
-
-  private func pagePanel(backward: Bool) {
-    panelPage += backward ? -1 : 1
-    panelPage = max(0, panelPage)
-    applyPanelModel()
+    candidatePanel.applyContinuation(panelCandidates, startingAt: candidateBar.visibleCandidateCount)
   }
 
   /// A candidate tapped in the panel commits and collapses (S4 §6).
@@ -610,10 +619,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func updateHeight() {
-    // The expanded panel requests only its header and candidate area.
-    let height = isPanelExpanded
-      ? candidatePanel.height(bottomInset: 0)
-      : KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+    // The panel replaces the keys inside this frame; opening it must not resize the host keyboard.
+    let height = KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
     if let heightConstraint {
       if heightConstraint.constant != height {
         heightConstraint.constant = height

@@ -24,6 +24,8 @@ final class CandidatePanelView: UIView {
     * RimeCandidatePanelModel.rowPitch
   private var syllableHeight: CGFloat = RimeCandidatePanelModel.syllableRowHeight
   private var showsSyllables = false
+  private var continuationMode = false
+  private var headerHeightConstraint: NSLayoutConstraint!
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -61,25 +63,14 @@ final class CandidatePanelView: UIView {
     gridStack.delaysContentTouches = false
     addSubview(gridStack)
 
-    for _ in 0..<RimeCandidatePanelModel.cellsPerPage {
-      let button = UIButton(type: .custom)
-      button.titleLabel?.font = .systemFont(ofSize: 20)
-      button.titleLabel?.adjustsFontSizeToFitWidth = false
-      button.titleLabel?.lineBreakMode = .byTruncatingTail
-      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
-      button.clipsToBounds = true
-      button.layer.cornerRadius = 8
-      button.layer.cornerCurve = .continuous
-      button.addTarget(self, action: #selector(handleCell(_:)), for: .touchUpInside)
-      gridStack.addSubview(button)
-      cellButtons.append(button)
-    }
+    ensureCells(RimeCandidatePanelModel.cellsPerPage)
 
+    headerHeightConstraint = syllableRow.heightAnchor.constraint(equalToConstant: syllableHeight)
     NSLayoutConstraint.activate([
       syllableRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: KeyboardMetrics.sideMargin),
       syllableRow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -KeyboardMetrics.sideMargin),
       syllableRow.topAnchor.constraint(equalTo: topAnchor),
-      syllableRow.heightAnchor.constraint(equalToConstant: syllableHeight),
+      headerHeightConstraint,
       leadingButton.widthAnchor.constraint(equalToConstant: 32),
       trailingButton.widthAnchor.constraint(equalToConstant: 32),
       collapseButton.widthAnchor.constraint(equalToConstant: 32),
@@ -90,6 +81,23 @@ final class CandidatePanelView: UIView {
       gridStack.topAnchor.constraint(equalTo: syllableRow.bottomAnchor),
       gridStack.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
+  }
+
+  private func ensureCells(_ count: Int) {
+    while cellButtons.count < count {
+      let button = UIButton(type: .custom)
+      button.titleLabel?.font = .systemFont(ofSize: 20)
+      button.titleLabel?.adjustsFontSizeToFitWidth = false
+      button.titleLabel?.lineBreakMode = .byTruncatingTail
+      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+      button.clipsToBounds = true
+      button.layer.cornerRadius = 8
+      button.layer.cornerCurve = .continuous
+      button.setTitleColor(theme.candidateText, for: .normal)
+      button.addTarget(self, action: #selector(handleCell(_:)), for: .touchUpInside)
+      gridStack.addSubview(button)
+      cellButtons.append(button)
+    }
   }
 
   required init?(coder: NSCoder) {
@@ -116,6 +124,9 @@ final class CandidatePanelView: UIView {
   }
 
   func apply(model: RimeCandidatePanelModel) {
+    continuationMode = false
+    syllableRow.isHidden = false
+    headerHeightConstraint.constant = model.syllableRowHeight
     showsSyllables = !(model.syllableRow ?? []).isEmpty
     syllableHeight = model.syllableRowHeight
     rowPitch = model.rowPitch
@@ -144,9 +155,32 @@ final class CandidatePanelView: UIView {
     setNeedsLayout()
   }
 
+  /// The collapsed candidate row stays in place; this view draws only the rows below it.
+  func applyContinuation(_ candidates: [RimeCandidateItem], startingAt start: Int) {
+    continuationMode = true
+    syllableRow.isHidden = true
+    headerHeightConstraint.constant = 0
+    ensureCells(candidates.count - min(start, candidates.count))
+    for (offset, button) in cellButtons.enumerated() {
+      let index = start + offset
+      guard index < candidates.count else {
+        button.isHidden = true
+        continue
+      }
+      button.isHidden = false
+      button.tag = index
+      button.setTitle(candidates[index].text, for: .normal)
+      button.accessibilityLabel = candidates[index].text
+      button.accessibilityValue = candidates[index].comment
+      button.backgroundColor = .clear
+    }
+    gridStack.setContentOffset(.zero, animated: false)
+    setNeedsLayout()
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
-    syllableRow.layoutIfNeeded()
+    if !continuationMode { syllableRow.layoutIfNeeded() }
     let available = gridStack.bounds.width
     guard available > 0 else { return }
     var x: CGFloat = 0

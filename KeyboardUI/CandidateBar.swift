@@ -29,6 +29,12 @@ final class CandidateBar: UIView {
   private var theme = KeyboardTheme.current(for: .default)
 
   private static let chevronWidth: CGFloat = 44
+  var visibleCandidateCount: Int { cellButtons.filter { !$0.isHidden }.count }
+
+  func setExpanded(_ expanded: Bool) {
+    expandButton.setImage(UIImage(systemName: expanded ? "chevron.up" : "chevron.down"), for: .normal)
+    expandButton.accessibilityLabel = expanded ? "收起候选面板" : "展开候选面板"
+  }
 
   /// S4 §6: "swipe on the bar pages as well". A swipe recognizer on the container does not steal the
   /// cells' taps — a tap has no movement — so the two gestures coexist the way the system keyboard's do.

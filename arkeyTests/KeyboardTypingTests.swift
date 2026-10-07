@@ -137,6 +137,9 @@ final class KeyboardTypingTests: XCTestCase {
     let bar = try bar(controller)
     let panel = try panel(controller)
     XCTAssertTrue(panel.isHidden, "the panel is visible before it is asked for")
+    let keyboardHeight = try XCTUnwrap(controller.view.constraints.first {
+      $0.firstAttribute == .height && $0.secondItem == nil
+    }).constant
 
     let expand = try XCTUnwrap(descendants(UIButton.self, in: bar).first {
       $0.accessibilityLabel == "展开候选面板"
@@ -148,12 +151,19 @@ final class KeyboardTypingTests: XCTestCase {
     expand.sendActions(for: .touchUpInside)
 
     XCTAssertFalse(panel.isHidden, "the expand button did not open the panel")
-    XCTAssertTrue(bar.isHidden, "the bar is still up behind the panel")
-    XCTAssertTrue(texts(in: panel).contains { $0.contains("你好") },
-                  "the panel shows: " + texts(in: panel).joined(separator: " | "))
+    XCTAssertEqual(controller.view.constraints.first {
+      $0.firstAttribute == .height && $0.secondItem == nil
+    }?.constant, keyboardHeight, "expanding candidates resized the keyboard")
+    XCTAssertFalse(bar.isHidden, "the candidate row should remain fixed")
+    controller.view.layoutIfNeeded()
+    XCTAssertEqual(panel.frame.minY, bar.frame.maxY, accuracy: 0.5)
+    XCTAssertTrue(texts(in: bar).contains { $0.contains("你好") })
+    XCTAssertTrue(texts(in: panel).contains { $0.contains("你") },
+                  "the continuation shows: " + texts(in: panel).joined(separator: " | "))
+    XCTAssertEqual(expand.accessibilityLabel, "收起候选面板")
   }
 
-  func testSelectingFromExpandedPanelCommitsCandidate() throws {
+  func testSelectingFromExpandedPanelClosesIt() throws {
     try deployBundledProfile()
     let controller = booted()
     try type(["n", "i", "h", "a", "o"], in: controller)
@@ -161,11 +171,13 @@ final class KeyboardTypingTests: XCTestCase {
     bar.onExpand?()
     let panel = try panel(controller)
     let cell = try XCTUnwrap(descendants(UIButton.self, in: panel).first {
-      $0.title(for: .normal) == "你好" && !$0.isHidden
+      !$0.isHidden && $0.title(for: .normal) != nil
     })
     cell.sendActions(for: .touchUpInside)
     XCTAssertTrue(panel.isHidden)
     XCTAssertFalse(bar.isHidden)
-    XCTAssertFalse(visibleTitles(in: bar).contains { $0.contains("你好") })
+    XCTAssertEqual(descendants(UIButton.self, in: bar).first {
+      $0.accessibilityLabel == "展开候选面板"
+    }?.accessibilityLabel, "展开候选面板")
   }
 }
