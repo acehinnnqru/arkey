@@ -50,4 +50,23 @@ final class CandidateScrollTests: XCTestCase {
     candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     XCTAssertEqual(selection.label, expected)
   }
+
+  func testFastReverseDragInterruptsMomentum() throws {
+    let app = XCUIApplication()
+    app.launchArguments.append("--candidate-scroll-ui-test")
+    app.launch()
+
+    let scroll = app.scrollViews["candidate-scroll"]
+    let offsetLabel = app.staticTexts["candidate-offset"]
+    XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+    XCTAssertTrue(offsetLabel.waitForExistence(timeout: 10))
+
+    scroll.swipeUp(velocity: .fast)
+    let afterUp = try XCTUnwrap(Int(offsetLabel.label))
+    XCTAssertGreaterThan(afterUp, 50)
+    scroll.swipeDown(velocity: .fast)
+    let afterDown = try XCTUnwrap(Int(offsetLabel.label))
+    XCTAssertLessThan(afterDown, afterUp - 10,
+                      "a second drag should reverse the list without waiting for momentum to finish")
+  }
 }
