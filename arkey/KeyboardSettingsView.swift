@@ -3,27 +3,81 @@ import RimeEngine
 
 /// S3 §4's palette decision and §5's feedback switches, as a screen.
 ///
-/// Nothing here is written to a Rime patch: these are our settings, they need no deploy, and the
-/// keyboard reads them from the app group the next time it appears.
+/// The auxiliary prefix also updates the active Rime schema and deploys it. Other keyboard
+/// preferences are shared through the app group and take effect when the keyboard next appears.
 struct KeyboardSettingsView: View {
   @ObservedObject var model: RimeAppModel
+  @State private var auxiliaryPrefixDraft = ","
 
   var body: some View {
     List {
+      auxiliarySection
+      SettingsDeployFooter(model: model)
       compositionSection
       appearanceSection
       feedbackSection
       resetSection
-      // S2 §3's last row is our own settings rather than Rime's, so there is no patch and no deploy to
-      // wait for: the footer says the one thing that is true here.
+      // The auxiliary prefix deploys; the other keyboard preferences need no deploy.
       Section {
-        Label("无需部署：键盘下次出现时读取。", systemImage: "checkmark.circle")
+        Label("辅码前导键修改后会部署 Rime 方案；其他键盘设置下次出现时读取。", systemImage: "checkmark.circle")
           .font(.caption).foregroundStyle(.secondary)
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .navigationTitle("键盘")
-    .task { model.refreshPreferences() }
+    .task {
+      model.refreshPreferences()
+      auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
+    }
+  }
+
+  private var auxiliarySection: some View {
+    Section {
+      TextField("辅码前导键", text: Binding(
+        get: { auxiliaryPrefixDraft },
+        set: { value in
+          // Typing beside the existing one-character value is a common way to replace it.
+          // Treat that as a replacement instead of silently retaining an invalid two-character draft.
+          let candidate: String
+          if value.count == 2, value.hasPrefix(auxiliaryPrefixDraft) {
+            candidate = String(value.suffix(1))
+          } else if value.count == 2, value.hasSuffix(auxiliaryPrefixDraft) {
+            candidate = String(value.prefix(1))
+          } else {
+            candidate = value
+          }
+          auxiliaryPrefixDraft = candidate
+          if let prefix = RimeKeyboardPreferences.normalizedAuxiliaryPrefix(candidate) {
+            model.setAuxiliaryPrefix(prefix)
+            auxiliaryPrefixDraft = prefix
+          }
+        }))
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
+      if !auxiliaryPrefixDraft.isEmpty,
+         RimeKeyboardPreferences.normalizedAuxiliaryPrefix(auxiliaryPrefixDraft) == nil {
+        Text("请输入一个特殊符号")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
+      Picker("辅码拼写", selection: Binding(
+        get: { model.auxiliarySpelling },
+        set: { value in model.setAuxiliarySpelling(value) })) {
+        ForEach(RimeAuxiliarySpelling.allCases, id: \.self) { spelling in
+          Text(spelling.label).tag(spelling)
+        }
+      }
+      Picker("位置", selection: Binding(
+        get: { model.keyboardPreferences.auxiliaryKeySide },
+        set: { value in model.updatePreferences { $0.auxiliaryKeySide = value } })) {
+        Text("空格左侧").tag(RimeKeyboardPreferences.AuxiliaryKeySide.left)
+        Text("空格右侧").tag(RimeKeyboardPreferences.AuxiliaryKeySide.right)
+      }
+    } header: {
+      Text("辅码键")
+    } footer: {
+      Text("只能输入一个半角特殊符号；输入对应全角符号会自动转为半角。默认逗号，位于空格右侧。前导符和辅码拼写分别写入当前方案与 radical_pinyin，修改后自动部署。多个方案共用同一套拆字码型，请选择你实际使用的拼写。")
+    }
   }
 
   private var compositionSection: some View {
@@ -93,9 +147,12 @@ struct KeyboardSettingsView: View {
 
   private var resetSection: some View {
     Section {
-      Button("恢复默认") { model.resetPreferences() }
+      Button("恢复默认") {
+        model.resetPreferences()
+        auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
+      }
     } footer: {
-      Text("设置存在 App Group 里，键盘下次出现时生效，不需要部署。")
+      Text("恢复键盘外观与按键设置；Rime 方案中的辅码前导符和辅码拼写保持当前配置。")
     }
   }
 }

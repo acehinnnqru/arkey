@@ -61,6 +61,7 @@ final class RimeAppModel: ObservableObject {
   @Published var isSyncing = false
   @Published var syncMessage: String?
   @Published var keyboardPreferences: RimeKeyboardPreferences = .standard
+  @Published var auxiliarySpelling: RimeAuxiliarySpelling = .fullPinyin
   @Published var customPhrases: [RimeCustomPhrase] = []
   @Published var rejectedPhraseLines: [RimeCustomPhraseFile.RejectedLine] = []
   @Published var enabledKeyBindingOptions: [String] = []

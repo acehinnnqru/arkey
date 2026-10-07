@@ -22,6 +22,8 @@ enum RimeSettingsIntent: Sendable {
   case resetSetting(configID: String, key: String)
   /// 模糊音, composed into `speller/algebra` from the schema's own algebra, never appended (S2 §2.1).
   case fuzzyPresets(schemaID: String, enabled: [String])
+  case auxiliaryPrefix(schemaID: String, prefix: String)
+  case auxiliarySpelling(RimeAuxiliarySpelling)
 
   /// What the write addresses.
   ///
@@ -39,6 +41,10 @@ enum RimeSettingsIntent: Sendable {
       return configID + "/" + key
     case .fuzzyPresets(let schemaID, _):
       return schemaID + "/speller/algebra"
+    case .auxiliaryPrefix(let schemaID, _):
+      return schemaID + "/key_binder/search"
+    case .auxiliarySpelling:
+      return "radical_pinyin/speller/algebra"
     }
   }
 }
@@ -116,6 +122,7 @@ extension RimeAppModel {
       }
       // The engine's own answer, with whatever is still queued laid back over it.
       refreshSettings()
+      refreshPreferences()
     }
   }
 
@@ -140,6 +147,20 @@ extension RimeAppModel {
       }
     case .resetSetting(let configID, let key):
       return try RimePatch(engine: engine, configID: configID).remove(key: key)
+    case .auxiliaryPrefix(let schemaID, let prefix):
+      guard let current = try engine.schemaValue("key_binder/search", schemaID: schemaID)?.stringValue,
+            RimeKeyboardPreferences.normalizedAuxiliaryPrefix(current) != nil else {
+        throw AuxiliaryPrefixError.unsupportedSchema(schemaID)
+      }
+      let alphabet = try engine.schemaValue("speller/alphabet", schemaID: schemaID)?.stringValue ?? ""
+      return try RimePatch(engine: engine, configID: schemaID)
+        .setAuxiliaryPrefix(prefix, alphabet: alphabet)
+    case .auxiliarySpelling(let spelling):
+      guard try engine.schemaValue(spelling.algebraKey, schemaID: "radical_pinyin")?.listValue != nil else {
+        throw AuxiliaryPrefixError.unsupportedSpelling(spelling.label)
+      }
+      return try RimePatch(engine: engine, configID: "radical_pinyin")
+        .set(.map(["__include": .string(spelling.includePath)]), at: "speller/algebra")
     case .fuzzyPresets(let schemaID, let enabled):
       // The base is the schema's algebra as deployed, and `compose` drops anything it generated before it adds
       // what is enabled now, so switching a preset on twice cannot accumulate anything (S2 §2.1).
@@ -148,6 +169,22 @@ extension RimeAppModel {
       let composed = RimeFuzzyPinyin.compose(baseAlgebra: base, enabled: enabled)
       return try RimePatch(engine: engine, configID: schemaID)
         .set(.list(composed.map { .string($0) }), at: "speller/algebra")
+    }
+  }
+}
+
+private enum AuxiliaryPrefixError: LocalizedError, CustomStringConvertible {
+  case unsupportedSchema(String)
+  case unsupportedSpelling(String)
+
+  var description: String { errorDescription ?? "辅码配置失败" }
+
+  var errorDescription: String? {
+    switch self {
+    case .unsupportedSchema(let id):
+      return "方案 \(id) 没有 key_binder/search 辅码配置，无法自动联动。"
+    case .unsupportedSpelling(let name):
+      return "当前配置的 radical_pinyin 没有 \(name) 辅码规则。"
     }
   }
 }

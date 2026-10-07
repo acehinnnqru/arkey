@@ -77,6 +77,19 @@ final class S2PatchTests: XCTestCase {
 
   // MARK: The write path
 
+  func testAuxiliaryPrefixUpdatesSearchAndAlphabetTogether() throws {
+    let schemaPatch = RimePatch(engine: engine, configID: "tracer")
+    let alphabet = try XCTUnwrap(engine.schemaValue("speller/alphabet", schemaID: "tracer")?.stringValue)
+    try schemaPatch.set(.bool(true), at: "translator/enable_completion")
+    _ = try schemaPatch.setAuxiliaryPrefix("；", alphabet: alphabet)
+
+    XCTAssertEqual(try schemaPatch.userValue("key_binder/search")?.stringValue, ";")
+    XCTAssertEqual(try schemaPatch.userValue("speller/alphabet")?.stringValue, alphabet + ";")
+    XCTAssertEqual(try schemaPatch.userValue("translator/enable_completion")?.boolValue, true)
+    try redeploy()
+    XCTAssertEqual(try engine.schemaValue("key_binder/search", schemaID: "tracer")?.stringValue, ";")
+  }
+
   func testAPatchWriteTouchesOnlyTheCustomFile() throws {
     let sourceBefore = try Data(contentsOf: workspace.profile(profileID).source
       .appendingPathComponent("default.yaml"))

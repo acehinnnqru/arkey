@@ -72,6 +72,8 @@ extension RimeAppModel {
         descriptor = descriptor?.clearingSetting(key)
       case .fuzzyPresets(_, let enabled):
         fuzzy = enabled
+      case .auxiliaryPrefix, .auxiliarySpelling:
+        break
       }
     }
 

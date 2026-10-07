@@ -246,7 +246,9 @@ public enum RimeKeyboardLayoutEngine {
                             returnKey: RimeReturnKey = RimeReturnKey(),
                             language: RimeLanguageKey? = nil,
                             needsGlobeRow: Bool = false,
-                            style: RimeKeyboardStyle = .measured) -> RimeKeyboardLayout {
+                            style: RimeKeyboardStyle = .measured,
+                            auxiliaryPrefix: String? = nil,
+                            auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right) -> RimeKeyboardLayout {
     var y = style.candidateSlotHeight
     var rows: [RimeKeyboardRow] = []
 
@@ -260,7 +262,8 @@ public enum RimeKeyboardLayoutEngine {
       y += style.keyHeight + style.rowGap
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .numbers,
                                                           style: style, returnKey: returnKey,
-                                                          language: language)))
+                                                          language: language, auxiliaryPrefix: auxiliaryPrefix,
+                                                          auxiliaryKeySide: auxiliaryKeySide)))
     case .numbers, .symbols:
       let first = layer == .numbers
         ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
@@ -284,7 +287,8 @@ public enum RimeKeyboardLayoutEngine {
       y += style.keyHeight + style.rowGap
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .letters,
                                                           style: style, returnKey: returnKey,
-                                                          language: language)))
+                                                          language: language, auxiliaryPrefix: auxiliaryPrefix,
+                                                          auxiliaryKeySide: auxiliaryKeySide)))
     }
 
     y += style.keyHeight
@@ -417,7 +421,9 @@ public enum RimeKeyboardLayoutEngine {
   private static func bottomRow(width: CGFloat, layer: RimeKeyboardLayer,
                                 style: RimeKeyboardStyle,
                                 returnKey: RimeReturnKey,
-                                language: RimeLanguageKey?) -> [RimeKeyboardKey] {
+                                language: RimeLanguageKey?,
+                                auxiliaryPrefix: String?,
+                                auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide) -> [RimeKeyboardKey] {
     var keys: [RimeKeyboardKey] = []
     var x = style.sideMargin
     keys.append(RimeKeyboardKey(kind: .layer(layer),
@@ -439,11 +445,27 @@ public enum RimeKeyboardLayoutEngine {
                                   label: "☺", accessibilityLabel: "表情符号"))
     }
     x += style.emojiKeyWidth + style.horizontalGap
+    let prefix = auxiliaryPrefix.flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
+    let auxiliaryWidth = prefix == nil ? 0 : min(style.letterKeyWidth(for: width),
+                                                 max(1, style.spaceKeyWidth - style.horizontalGap - 1))
+    let spaceWidth = style.spaceKeyWidth - (prefix == nil ? 0 : auxiliaryWidth + style.horizontalGap)
+    if let prefix, auxiliaryKeySide == .left {
+      keys.append(RimeKeyboardKey(kind: .character(prefix),
+                                  frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
+                                  label: prefix, accessibilityLabel: "辅码前导键 \(prefix)"))
+      x += auxiliaryWidth + style.horizontalGap
+    }
     keys.append(RimeKeyboardKey(kind: .space,
-                                frame: CGRect(x: x, y: 0, width: style.spaceKeyWidth,
+                                frame: CGRect(x: x, y: 0, width: spaceWidth,
                                               height: style.keyHeight),
                                 label: "", accessibilityLabel: "空格"))
-    x += style.spaceKeyWidth + style.horizontalGap
+    x += spaceWidth + style.horizontalGap
+    if let prefix, auxiliaryKeySide == .right {
+      keys.append(RimeKeyboardKey(kind: .character(prefix),
+                                  frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
+                                  label: prefix, accessibilityLabel: "辅码前导键 \(prefix)"))
+      x += auxiliaryWidth + style.horizontalGap
+    }
     keys.append(RimeKeyboardKey(kind: .returnKey,
                                 frame: CGRect(x: x, y: 0, width: style.returnKeyWidth,
                                               height: style.keyHeight),

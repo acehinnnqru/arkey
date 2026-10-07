@@ -19,6 +19,23 @@ final class S3LayoutTests: XCTestCase {
                                     returnKey: returnKey, needsGlobeRow: globe, style: style)
   }
 
+  func testAuxiliaryKeyKeepsReturnPositionAndCanSwapSides() throws {
+    let baseline = layout().rows[3].keys
+    let originalReturn = try XCTUnwrap(baseline.last).frame
+    for side in RimeKeyboardPreferences.AuxiliaryKeySide.allCases {
+      let keys = RimeKeyboardLayoutEngine.layout(width: referenceWidth, style: style,
+                                                   auxiliaryPrefix: ";", auxiliaryKeySide: side).rows[3].keys
+      XCTAssertEqual(keys.count, baseline.count + 1)
+      let actionFrame = try XCTUnwrap(keys.last).frame
+      XCTAssertEqual(actionFrame.minX, originalReturn.minX, accuracy: 0.01)
+      XCTAssertEqual(actionFrame.width, originalReturn.width, accuracy: 0.01)
+      let spaceIndex = try XCTUnwrap(keys.firstIndex { if case .space = $0.kind { return true }; return false })
+      let auxiliaryIndex = try XCTUnwrap(keys.firstIndex { $0.accessibilityLabel == "辅码前导键 ;" })
+      XCTAssertEqual(auxiliaryIndex, spaceIndex + (side == .right ? 1 : -1))
+      XCTAssertEqual(keys[auxiliaryIndex].frame.width, style.letterKeyWidth(for: referenceWidth), accuracy: 0.01)
+    }
+  }
+
   // MARK: The measured reference
 
   func testTheMeasuredKeyWidthsComeBackAt430Points() throws {

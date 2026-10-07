@@ -1,5 +1,48 @@
 import Foundation
 
+/// The radical_pinyin schema compiles one spelling algebra at a time. Its bundled
+/// alternatives cover full pinyin and the double-pinyin schemas shipped by Rime Ice.
+public enum RimeAuxiliarySpelling: String, Sendable, Hashable, CaseIterable {
+  case fullPinyin
+  case doublePinyin
+  case flypy
+  case mspy
+  case sogou
+  case abc
+  case ziguang
+  case jiajia
+
+  public var algebraKey: String {
+    switch self {
+    case .fullPinyin: return "algebra_rime_ice"
+    case .doublePinyin: return "algebra_double_pinyin"
+    case .flypy: return "algebra_double_pinyin_flypy"
+    case .mspy: return "algebra_double_pinyin_mspy"
+    case .sogou: return "algebra_double_pinyin_sogou"
+    case .abc: return "algebra_double_pinyin_abc"
+    case .ziguang: return "algebra_double_pinyin_ziguang"
+    case .jiajia: return "algebra_double_pinyin_jiajia"
+    }
+  }
+
+  public var label: String {
+    switch self {
+    case .fullPinyin: return "全拼"
+    case .doublePinyin: return "自然码双拼"
+    case .flypy: return "小鹤双拼"
+    case .mspy: return "微软双拼"
+    case .sogou: return "搜狗双拼"
+    case .abc: return "智能 ABC 双拼"
+    case .ziguang: return "紫光双拼"
+    case .jiajia: return "拼音加加双拼"
+    }
+  }
+
+  public var includePath: String {
+    "radical_pinyin.schema.yaml:/" + algebraKey
+  }
+}
+
 // MARK: - Preferences
 
 /// The settings that are ours rather than Rime's (S2 §3's last row, S3 §4/§5's decisions).
@@ -20,6 +63,29 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     case preedit
   }
 
+  public enum AuxiliaryKeySide: String, Codable, Sendable, CaseIterable {
+    case left, right
+  }
+
+  /// Rime keysyms use ASCII punctuation. Normalize the corresponding fullwidth key cap
+  /// before storing it, so a Chinese keyboard's `；` configures the same `;` key.
+  public static func normalizedAuxiliaryPrefix(_ value: String) -> String? {
+    guard value.unicodeScalars.count == 1, let scalar = value.unicodeScalars.first else { return nil }
+    let code = scalar.value
+    let ascii = (0xFF01...0xFF5E).contains(code) ? code - 0xFEE0 : code
+    guard (33...126).contains(ascii),
+          let normalized = UnicodeScalar(ascii),
+          CharacterSet.punctuationCharacters.contains(normalized) || CharacterSet.symbols.contains(normalized)
+    else { return nil }
+    return String(normalized)
+  }
+
+  public static func isValidAuxiliaryPrefix(_ value: String) -> Bool {
+    normalizedAuxiliaryPrefix(value) != nil
+  }
+
+  public var auxiliaryPrefix: String
+  public var auxiliaryKeySide: AuxiliaryKeySide
   public var compositionDisplay: CompositionDisplay
   public var paletteMode: PaletteMode
   /// S3 §5: the click sound and the haptic fire only when the user enabled them.
@@ -31,7 +97,9 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public var deleteRepeatDelay: TimeInterval
   public var deleteRepeatInterval: TimeInterval
 
-  public init(paletteMode: PaletteMode = .followHost,
+  public init(auxiliaryPrefix: String = ",",
+              auxiliaryKeySide: AuxiliaryKeySide = .right,
+              paletteMode: PaletteMode = .followHost,
               compositionDisplay: CompositionDisplay = .rawInput,
               keyClickEnabled: Bool = true,
               hapticsEnabled: Bool = true,
@@ -39,6 +107,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
               capsLockEnabled: Bool = true,
               deleteRepeatDelay: TimeInterval = RimeKeyFeedback.standard.deleteRepeatDelay,
               deleteRepeatInterval: TimeInterval = RimeKeyFeedback.standard.deleteRepeatInterval) {
+    self.auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(auxiliaryPrefix) ?? ","
+    self.auxiliaryKeySide = auxiliaryKeySide
     self.compositionDisplay = compositionDisplay
     self.paletteMode = paletteMode
     self.keyClickEnabled = keyClickEnabled
@@ -57,6 +127,10 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let standard = RimeKeyboardPreferences()
+    let prefix = try container.decodeIfPresent(String.self, forKey: .auxiliaryPrefix) ?? standard.auxiliaryPrefix
+    auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(prefix) ?? standard.auxiliaryPrefix
+    auxiliaryKeySide = try container.decodeIfPresent(AuxiliaryKeySide.self, forKey: .auxiliaryKeySide)
+      ?? standard.auxiliaryKeySide
     compositionDisplay = try container.decodeIfPresent(CompositionDisplay.self, forKey: .compositionDisplay)
       ?? standard.compositionDisplay
     paletteMode = try container.decodeIfPresent(PaletteMode.self, forKey: .paletteMode)

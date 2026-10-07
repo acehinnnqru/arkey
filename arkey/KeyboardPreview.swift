@@ -8,11 +8,18 @@ import RimeEngine
 /// globe, which is precisely how a layout crash reached a device unnoticed. Rendering the same
 /// views here turns that class of bug into something a screenshot catches.
 struct KeyboardPreview: UIViewRepresentable {
+  var auxiliaryPrefix: String = ","
+  var auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right
+
   func makeUIView(context: Context) -> KeyboardPreviewView {
-    KeyboardPreviewView()
+    let view = KeyboardPreviewView()
+    view.configure(auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
+    return view
   }
 
-  func updateUIView(_ uiView: KeyboardPreviewView, context: Context) {}
+  func updateUIView(_ uiView: KeyboardPreviewView, context: Context) {
+    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
+  }
 }
 
 final class KeyboardPreviewView: UIView {
@@ -53,11 +60,17 @@ final class KeyboardPreviewView: UIView {
     ], highlightedIndex: 0, pageNumber: 1, pageSize: 5, isLastPage: false,
        selectLabels: ["1", "2", "3", "4"]))
 
-    keyGrid.configure(theme: theme,
+  }
+
+  func configure(auxiliaryPrefix: String,
+                 auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide) {
+    keyGrid.configure(theme: KeyboardTheme.current(for: .light),
                       layer: .letters,
                       asciiMode: false,
                       returnKeyLabel: "换行",
-                      showsGlobeRow: true)
+                      showsGlobeRow: true,
+                      auxiliaryPrefix: auxiliaryPrefix,
+                      auxiliaryKeySide: auxiliaryKeySide)
   }
 
   required init?(coder: NSCoder) {

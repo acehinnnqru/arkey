@@ -68,7 +68,7 @@ struct ContentView: View {
       .navigationTitle("Arkey")
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          NavigationLink("键盘") { KeyboardPreviewScreen() }
+          NavigationLink("键盘") { KeyboardPreviewScreen(model: model) }
         }
         ToolbarItem(placement: .topBarTrailing) {
           Menu {

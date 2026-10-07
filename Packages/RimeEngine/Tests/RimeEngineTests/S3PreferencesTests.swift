@@ -27,6 +27,17 @@ final class S3PreferencesTests: XCTestCase {
     XCTAssertEqual(store.value.deleteRepeatInterval, 0.1)
   }
 
+  func testFullwidthAuxiliaryPunctuationIsStoredAsASCII() throws {
+    XCTAssertEqual(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("；"), ";")
+    XCTAssertEqual(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("，"), ",")
+    XCTAssertNil(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("字"))
+    XCTAssertNil(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("ab"))
+    XCTAssertEqual(RimeKeyboardPreferences(auxiliaryPrefix: "；").auxiliaryPrefix, ";")
+    defaults.set(Data(#"{"auxiliaryPrefix":"；"}"#.utf8),
+                 forKey: RimeKeyboardPreferencesStore.storageKey)
+    XCTAssertEqual(store.value.auxiliaryPrefix, ";")
+  }
+
   func testAValueSurvivesARoundTrip() {
     var preferences = store.value
     preferences.compositionDisplay = .preedit

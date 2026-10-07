@@ -36,6 +36,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var asciiMode = false
   private var languageKey: RimeLanguageKey?
   private var languageSchemaID: String?
+  private var schemaAuxiliaryPrefix: String?
   private var hasResolvedLanguageSchema = false
   private var languageSwitchAvailable = false
   private var markedText: String?
@@ -329,6 +330,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         shiftController.consumeAfterCharacter()
         refreshLayout()
       }
+    case .auxiliary(let value):
+      typeAuxiliaryKey(value)
     case .space:
       send(RimeKey.space, fallback: " ")
     case .backspace:
@@ -388,12 +391,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// The fallback is not optional. The tracer schema has no punctuator, so librime refuses
   /// "." and "," outright, and without this the key did nothing at all — which users read as
   /// the keyboard dropping input.
-  private func typeLiteralKey(_ value: String) {
+  private func typeLiteralKey(_ value: String, allowsCandidateSelection: Bool = true) {
     // S4 §4.1's select-key row: while composing, a key whose label a candidate carries selects that candidate.
     // Measured in round 172: librime's own selector does not do this for us — with menu/select_keys and
     // menu/alternative_select_labels both set, the label press arrived unhandled — so the page's own labels are
     // matched here and the selection goes through the same call the bar's taps use.
-    if let index = currentPage?.selectIndex(matching: value) {
+    if allowsCandidateSelection, let index = currentPage?.selectIndex(matching: value) {
       selectCandidate(index)
       return
     }
@@ -413,6 +416,25 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     } catch {
       report("key.failed", error, userVisible: "按键出错：")
       textDocumentProxy.insertText(value)
+    }
+  }
+
+  /// This key must follow the same processor path as a physical Rime key. The active
+  /// schema's key_binder/search and speller/alphabet decide whether it is an auxiliary code.
+  private func typeAuxiliaryKey(_ value: String) {
+    guard let engine else {
+      textDocumentProxy.insertText(value)
+      return
+    }
+    guard let keysym = value.first.flatMap(RimeKey.ascii) else { return }
+    let start = DispatchTime.now().uptimeNanoseconds
+    do {
+      let output = try engine.processKey(keysym)
+      if output.needsLiteralFallback { textDocumentProxy.insertText(value) }
+      apply(output)
+      recordKeyLatency(since: start)
+    } catch {
+      report("auxiliary.failed", error, userVisible: "辅码输入出错：")
     }
   }
 
@@ -609,7 +631,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                       showsGlobeRow: needsInputModeSwitchKey,
                       shift: shiftController.state,
                       language: languageKey,
-                      feedback: preferences.feedback)
+                      feedback: preferences.feedback,
+                      auxiliaryPrefix: schemaAuxiliaryPrefix ?? preferences.auxiliaryPrefix,
+                      auxiliaryKeySide: preferences.auxiliaryKeySide)
   }
 
   /// The switch declaration belongs to the schema, not to each keystroke. Reading its
@@ -618,6 +642,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     guard let engine else { return }
     if !hasResolvedLanguageSchema || schemaID != languageSchemaID {
       languageSchemaID = schemaID
+      schemaAuxiliaryPrefix = schemaID.flatMap { id in
+        (try? engine.schemaValue("key_binder/search", schemaID: id)?.stringValue)
+          .flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
+      }
       hasResolvedLanguageSchema = true
       languageSwitchAvailable = engine.schemaDeclaresSwitch("ascii_mode")
       languageKey = nil

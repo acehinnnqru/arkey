@@ -3,6 +3,7 @@ import RimeEngine
 
 enum KeyboardKey: Hashable {
   case character(String)
+  case auxiliary(String)
   case shift
   case backspace
   case space
@@ -74,12 +75,15 @@ final class KeyboardKeyGrid: UIView {
   private var spaceKeyLabel = "空格"
   private var showsGlobeRow = false
   private var feedback = RimeKeyFeedback.standard
+  private var auxiliaryPrefix = ","
+  private var auxiliaryKeySide = RimeKeyboardPreferences.AuxiliaryKeySide.right
 
   /// Last configuration actually applied. Restyling the whole grid on every keystroke (fonts,
   /// SF Symbol lookups, colours) was a measurable part of the input latency.
   private var applied: (keyLayer: KeyLayer, shift: RimeShiftState, asciiMode: Bool,
                         returnKeyLabel: String, spaceKeyLabel: String, showsGlobeRow: Bool,
-                        appearance: UIKeyboardAppearance, language: RimeLanguageKey?)?
+                        appearance: UIKeyboardAppearance, language: RimeLanguageKey?,
+                        auxiliaryPrefix: String, auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide)?
   private var laidOutWidth: CGFloat = 0
 
   /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
@@ -108,13 +112,17 @@ final class KeyboardKeyGrid: UIView {
                  showsGlobeRow: Bool,
                  shift: RimeShiftState = .off,
                  language: RimeLanguageKey? = nil,
-                 feedback: RimeKeyFeedback = .standard) {
+                 feedback: RimeKeyFeedback = .standard,
+                 auxiliaryPrefix: String = ",",
+                 auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right) {
     // The 中/英 label is part of the *key*, not a style applied to it, so a label that changes on its own
     // needs new keys rather than a restyle — and it is the one applied field the comparison below did not
     // look at, which kept the old word on the cap (found by KeyboardLayerTests, round 148).
     let previousLanguage = applied?.language
     let previousShift = applied?.shift
     let previousLayer = applied?.keyLayer
+    let previousAuxiliaryPrefix = applied?.auxiliaryPrefix
+    let previousAuxiliaryKeySide = applied?.auxiliaryKeySide
     if let applied,
        applied.keyLayer == layer,
        applied.shift == shift,
@@ -123,10 +131,12 @@ final class KeyboardKeyGrid: UIView {
        applied.spaceKeyLabel == spaceKeyLabel,
        applied.showsGlobeRow == showsGlobeRow,
        applied.appearance == theme.appearance,
-       applied.language == language {
+       applied.language == language,
+       applied.auxiliaryPrefix == auxiliaryPrefix,
+       applied.auxiliaryKeySide == auxiliaryKeySide {
       return
     }
-    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language)
+    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language, auxiliaryPrefix, auxiliaryKeySide)
 
     self.theme = theme
     self.currentLayer = layer
@@ -137,6 +147,8 @@ final class KeyboardKeyGrid: UIView {
     self.showsGlobeRow = showsGlobeRow
     self.language = language
     self.feedback = feedback
+    self.auxiliaryPrefix = auxiliaryPrefix
+    self.auxiliaryKeySide = auxiliaryKeySide
 
     // A different key set has to be rebuilt; a different colour does not.
     // A shift change rebuilds rather than restyles: the label a character key reports is the layout's, and
@@ -148,6 +160,8 @@ final class KeyboardKeyGrid: UIView {
       || previousLayer != layer
       || previousLanguage != language
       || previousShift != shift
+      || previousAuxiliaryPrefix != auxiliaryPrefix
+      || previousAuxiliaryKeySide != auxiliaryKeySide
     if needsRebuild {
       rebuild()
     } else {
@@ -188,7 +202,8 @@ final class KeyboardKeyGrid: UIView {
       returnKey: RimeReturnKey(label: returnKeyLabel),
       language: language,
       needsGlobeRow: showsGlobeRow,
-      style: Self.rowStyle(width: width))
+      style: Self.rowStyle(width: width),
+      auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
   }
 
   private func rebuild() {
@@ -252,7 +267,8 @@ final class KeyboardKeyGrid: UIView {
   /// and there are none: every kind the engine emits is handled.
   private func key(for key: RimeKeyboardKey) -> KeyboardKey? {
     switch key.kind {
-    case .character(let text): return .character(text)
+    case .character(let text):
+      return key.accessibilityLabel.hasPrefix("辅码前导键 ") ? .auxiliary(text) : .character(text)
     case .shift: return .shift
     case .delete: return .backspace
     case .space: return .space
@@ -293,7 +309,7 @@ final class KeyboardKeyGrid: UIView {
   /// the return key is disabled — UIKit does not say — so the enabled colour is what it paints.
   private func role(for key: KeyboardKey) -> RimeKeyCapRole {
     switch key {
-    case .character: return .letter
+    case .character, .auxiliary: return .letter
     case .space: return .wide
     case .shift: return shift != .off ? .pressedLetter : .wide
     case .returnKey: return .actionEnabled
@@ -304,7 +320,7 @@ final class KeyboardKeyGrid: UIView {
 
   private func style(for key: KeyboardKey) -> KeyButton.Style {
     switch key {
-    case .character, .space:
+    case .character, .auxiliary, .space:
       return .letter
     case .shift:
       return shift != .off ? .active : .special
@@ -319,7 +335,7 @@ final class KeyboardKeyGrid: UIView {
 
   private func applyContent(for key: KeyboardKey, to button: KeyButton) {
     switch key {
-    case .character(let value):
+    case .character(let value), .auxiliary(let value):
       let uppercase = !value.isEmpty
         && value.rangeOfCharacter(from: .letters) != nil
         && shift.isUppercase

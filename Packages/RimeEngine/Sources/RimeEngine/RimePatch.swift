@@ -131,6 +131,24 @@ public struct RimePatch {
     return RimeConfigChange(configID: configID, key: key, oldValue: before, newValue: value)
   }
 
+  /// Updates the schema's auxiliary search key and accepted spelling alphabet in one patch write.
+  /// Existing alphabet characters are kept because another translator may still use them.
+  @discardableResult
+  public func setAuxiliaryPrefix(_ prefix: String, alphabet: String) throws -> RimeConfigChange {
+    guard let normalized = RimeKeyboardPreferences.normalizedAuxiliaryPrefix(prefix) else {
+      throw RimePatchError.writeFailed("key_binder/search")
+    }
+    var table = try entries()
+    let before = table["key_binder/search"]
+    table["key_binder/search"] = .string(normalized)
+    if !alphabet.contains(normalized) {
+      table["speller/alphabet"] = .string(alphabet + normalized)
+    }
+    try write(table)
+    return RimeConfigChange(configID: configID, key: "key_binder/search",
+                            oldValue: before, newValue: .string(normalized))
+  }
+
   /// Sets a whole list or map from a YAML fragment, which is what the list-valued settings need.
   @discardableResult
   public func setItem(fromYAML yaml: String, sourceKey: String, at key: String) throws -> RimeConfigChange {
