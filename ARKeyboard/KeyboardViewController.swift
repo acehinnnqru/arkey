@@ -34,6 +34,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// One-shot, caps lock and consumption live in the model, so the states are testable off-device.
   private var shiftController = RimeShiftController()
   private var asciiMode = false
+  private var languageKey: RimeLanguageKey?
+  private var languageSchemaID: String?
+  private var hasResolvedLanguageSchema = false
+  private var languageSwitchAvailable = false
   private var markedText: String?
   /// The page the bar is showing, whose labels decide which keys select (S4 §4.1).
   private var currentPage: RimePage?
@@ -145,6 +149,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
       candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
     }
+    refreshLanguageKeyFromEngine()
+    refreshLayout()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -198,6 +204,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
+        refreshLanguageKeyFromEngine()
+        refreshLayout()
         var detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
         if let age = RimeProbe.processAgeSeconds() {
           detail += " ageMs=" + String(format: "%.0f", age * 1000)
@@ -300,6 +308,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     asciiMode = output.status?.isAsciiMode ?? asciiMode
+    if let status = output.status {
+      refreshLanguageKey(schemaID: status.schemaID, isASCII: status.isAsciiMode)
+    }
     // The page the bar is showing, kept so a select key can be matched against its labels: a commit clears it,
     // and then no key is a select key any more.
     currentPage = output.page
@@ -590,19 +601,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let preferences = preferencesStore?.value ?? .standard
     feedbackPreferences = preferences
 
-    // The 中/英 key's label is the schema's word for the state the keyboard is in, never ours.
-    let languageKey: RimeLanguageKey?
-    if let engine, engine.schemaDeclaresSwitch("ascii_mode") {
-      let isASCII = (try? engine.getOption("ascii_mode")) ?? false
-      // The schema's own word for the state, and the two words the measured keyboard shows when the
-      // schema (or a session-less read) has none. The fallback belongs on this line only: the extra
-      // `??` that used to be here was dead code, and the compiler said so once warnings were visible.
-      let label = (try? engine.stateLabel(option: "ascii_mode", state: isASCII)) ?? (isASCII ? "英" : "中")
-      languageKey = RimeLanguageKey(label: label, isASCII: isASCII)
-    } else {
-      languageKey = nil
-    }
-
     keyGrid.configure(theme: theme,
                       layer: keyLayer,
                       asciiMode: asciiMode,
@@ -612,6 +610,35 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                       shift: shiftController.state,
                       language: languageKey,
                       feedback: preferences.feedback)
+  }
+
+  /// The switch declaration belongs to the schema, not to each keystroke. Reading its
+  /// configuration on every layout pass blocks the main thread while a finger is on a key.
+  private func refreshLanguageKey(schemaID: String?, isASCII: Bool) {
+    guard let engine else { return }
+    if !hasResolvedLanguageSchema || schemaID != languageSchemaID {
+      languageSchemaID = schemaID
+      hasResolvedLanguageSchema = true
+      languageSwitchAvailable = engine.schemaDeclaresSwitch("ascii_mode")
+      languageKey = nil
+    }
+    guard languageSwitchAvailable else {
+      languageKey = nil
+      return
+    }
+    if languageKey?.isASCII == isASCII { return }
+    let label = (try? engine.stateLabel(option: "ascii_mode", state: isASCII)) ?? (isASCII ? "英" : "中")
+    languageKey = RimeLanguageKey(label: label, isASCII: isASCII)
+  }
+
+  private func refreshLanguageKeyFromEngine() {
+    guard let engine else { return }
+    let schemaID = (try? engine.currentSchema()) ?? nil
+    let isASCII = (try? engine.getOption("ascii_mode")) ?? false
+    // A profile may replace the same schema ID with new switch labels between appearances.
+    hasResolvedLanguageSchema = false
+    languageKey = nil
+    refreshLanguageKey(schemaID: schemaID, isASCII: isASCII)
   }
 
   private var preferencesStore: RimeKeyboardPreferencesStore? {

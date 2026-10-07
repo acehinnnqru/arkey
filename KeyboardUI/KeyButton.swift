@@ -33,6 +33,7 @@ final class KeyButton: UIControl {
 
   private var repeatTimer: Timer?
   private var repeatDelayWorkItem: DispatchWorkItem?
+  private var isPressed = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -60,13 +61,6 @@ final class KeyButton: UIControl {
       imageView.widthAnchor.constraint(equalToConstant: 24),
       imageView.heightAnchor.constraint(equalToConstant: 24),
     ])
-
-    // A pan recogniser rather than touch overrides: UIControl already consumes the touches, and a
-    // recogniser reports the finger's position without cancelling the tap.
-    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-    pan.cancelsTouchesInView = false
-    pan.minimumNumberOfTouches = 1
-    addGestureRecognizer(pan)
 
     addTarget(self, action: #selector(handleTouchDown), for: [.touchDown, .touchDragEnter])
     addTarget(self, action: #selector(handleTouchUp), for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
@@ -125,19 +119,30 @@ final class KeyButton: UIControl {
     style == .active ? theme.activeKeyText : theme.keyText
   }
 
-  @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-    let point = recognizer.location(in: self)
-    switch recognizer.state {
-    case .changed:
-      onTouchMove?(point)
-    case .ended, .cancelled, .failed:
-      onTouchEnded?()
-    default:
-      break
-    }
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    if let touch = touches.first { onTouchMove?(touch.location(in: self)) }
+    super.touchesMoved(touches, with: event)
+  }
+
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    super.touchesEnded(touches, with: event)
+    // UIKit normally sends touchUpInside/Outside. Also clear a press if the control was
+    // interrupted while the finger was moving, so neither the cap nor delete repeat sticks.
+    if isPressed { handleTouchUp() }
+  }
+
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    super.touchesCancelled(touches, with: event)
+    if isPressed { handleTouchUp() }
+  }
+
+  override func willMove(toSuperview newSuperview: UIView?) {
+    if newSuperview == nil && isPressed { handleTouchUp() }
+    super.willMove(toSuperview: newSuperview)
   }
 
   @objc private func handleTouchDown() {
+    isPressed = true
     onTouchDown?(CGPoint(x: bounds.midX, y: bounds.midY))
     // S3 §5: the cap shifts to its pressed fill and nothing else moves. The fill is the palette's,
     // so it moves in the direction the measured appearance says it moves.
@@ -161,6 +166,7 @@ final class KeyButton: UIControl {
   }
 
   @objc private func handleTouchUp() {
+    isPressed = false
     onTouchEnded?()
     backgroundColor = theme.fill(for: role)
     repeatDelayWorkItem?.cancel()

@@ -28,7 +28,7 @@ final class CandidateBar: UIView {
   private var cellButtons: [UIButton] = []
   private var theme = KeyboardTheme.current(for: .default)
 
-  private static let chevronWidth: CGFloat = 44
+  private static let chevronWidth: CGFloat = 52
   var visibleCandidateCount: Int { cellButtons.filter { !$0.isHidden }.count }
 
   func setExpanded(_ expanded: Bool) {
@@ -43,6 +43,8 @@ final class CandidateBar: UIView {
                                       (UISwipeGestureRecognizer.Direction.right, false)] {
       let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
       swipe.direction = direction
+      swipe.delaysTouchesBegan = false
+      swipe.delaysTouchesEnded = false
       swipe.accessibilityLabel = pagesForward ? "下一页" : "上一页"
       addGestureRecognizer(swipe)
     }
@@ -67,10 +69,8 @@ final class CandidateBar: UIView {
     outerStack.addArrangedSubview(expandButton)
     addSubview(outerStack)
 
-    for chevron in [expandButton] {
-      chevron.translatesAutoresizingMaskIntoConstraints = false
-      chevron.tintColor = .secondaryLabel
-    }
+    expandButton.translatesAutoresizingMaskIntoConstraints = false
+    expandButton.tintColor = .secondaryLabel
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
     expandButton.accessibilityLabel = "展开候选面板"
     expandButton.addTarget(self, action: #selector(handleExpand), for: .touchUpInside)
@@ -244,8 +244,10 @@ final class CandidateBar: UIView {
       button.titleLabel?.lineBreakMode = .byTruncatingTail
       button.tag = cellButtons.count
       button.addTarget(self, action: #selector(handleTap(_:)), for: .touchUpInside)
-    button.addGestureRecognizer(UILongPressGestureRecognizer(target: self,
-                                                             action: #selector(handleForget(_:))))
+      let forget = UILongPressGestureRecognizer(target: self, action: #selector(handleForget(_:)))
+      forget.delaysTouchesBegan = false
+      forget.delaysTouchesEnded = false
+      button.addGestureRecognizer(forget)
       if !cellButtons.isEmpty {
         addSeparator(to: button)
       }
