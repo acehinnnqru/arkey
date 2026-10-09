@@ -6,6 +6,66 @@ import RimeEngine
 /// and index". The engine's macOS tests pin the model's labels; this pins what the **buttons** carry
 /// after the view has applied that model, which is what VoiceOver actually reads.
 final class CandidateBarAccessibilityTests: XCTestCase {
+  func testExpansionKeepsFirstCandidateTextAnchorAndBaseline() throws {
+    for width: CGFloat in [320, 430] {
+      for word in ["你", "你好", "A longer candidate"] {
+        let collapsed = bar(RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: word)]))
+        collapsed.frame.size.width = width
+        collapsed.layoutIfNeeded()
+        let expanded = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: width, height: 254))
+        expanded.applyContinuation([word, "B", "Other", "你"].map { RimeCandidateItem(text: $0) }, startingAt: 0)
+        expanded.layoutIfNeeded()
+        let stripButton = try XCTUnwrap(allButtons(in: collapsed).first { $0.attributedTitle(for: .normal) != nil })
+        let gridButton = try XCTUnwrap(allButtons(in: expanded).first { $0.title(for: .normal) == word })
+        stripButton.layoutIfNeeded()
+        gridButton.superview?.superview?.layoutIfNeeded()
+        gridButton.layoutIfNeeded()
+        let stripLabel = try XCTUnwrap(stripButton.titleLabel)
+        let gridLabel = try XCTUnwrap(gridButton.titleLabel)
+        let stripFrame = stripLabel.convert(stripLabel.bounds, to: collapsed)
+        let gridFrame = gridLabel.convert(gridLabel.bounds, to: expanded)
+        XCTAssertEqual(gridFrame.minX, KeyboardMetrics.candidateTextLeading, accuracy: 0.01)
+        XCTAssertEqual(gridFrame.minX, stripFrame.minX, accuracy: 0.01, word)
+        XCTAssertEqual(gridFrame.minY, stripFrame.minY, accuracy: 0.01, word)
+        XCTAssertEqual(gridFrame.height, stripFrame.height, accuracy: 0.01, word)
+        let stripInk = try inkBounds(of: stripButton).offsetBy(
+          dx: stripButton.convert(.zero, to: collapsed).x, dy: stripButton.convert(.zero, to: collapsed).y)
+        let gridInk = try inkBounds(of: gridButton).offsetBy(
+          dx: gridButton.convert(.zero, to: expanded).x, dy: gridButton.convert(.zero, to: expanded).y)
+        XCTAssertEqual(gridInk.minX, stripInk.minX, accuracy: 1.0 / 3, word)
+        XCTAssertEqual(gridInk.minY, stripInk.minY, accuracy: 1.0 / 3, word)
+        XCTAssertEqual(gridInk.height, stripInk.height, accuracy: 1.0 / 3, word)
+      }
+    }
+  }
+
+  private func inkBounds(of button: UIButton) throws -> CGRect {
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 3
+    let image = UIGraphicsImageRenderer(size: button.bounds.size, format: format).image { renderer in
+      UIColor.white.setFill()
+      renderer.fill(button.bounds)
+      button.layer.render(in: renderer.cgContext)
+    }
+    let cgImage = try XCTUnwrap(image.cgImage)
+    let context = try XCTUnwrap(CGContext(data: nil, width: cgImage.width, height: cgImage.height,
+      bitsPerComponent: 8, bytesPerRow: cgImage.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+    let bytes = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+    var bounds = CGRect.null
+    for y in 0..<cgImage.height {
+      for x in 0..<cgImage.width {
+        let index = (y * cgImage.width + x) * 4
+        if bytes[index] < 100 && bytes[index + 1] < 100 && bytes[index + 2] < 100 {
+          bounds = bounds.union(CGRect(x: x, y: y, width: 1, height: 1))
+        }
+      }
+    }
+    XCTAssertFalse(bounds.isNull)
+    return CGRect(x: bounds.minX / 3, y: bounds.minY / 3, width: bounds.width / 3, height: bounds.height / 3)
+  }
+
   private func allButtons(in view: UIView) -> [UIButton] {
     view.subviews.flatMap { subview -> [UIButton] in
       var found = allButtons(in: subview)

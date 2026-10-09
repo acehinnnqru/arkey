@@ -23,6 +23,14 @@ private final class CandidateCollectionCell: UICollectionViewCell {
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+  override func layoutSubviews() {
+    // The first row keeps the collapsed strip's text baseline; later rows only add row pitch.
+    button.titleEdgeInsets = UIEdgeInsets(
+      top: 2 * (KeyboardMetrics.candidateTextCenterY - bounds.height / 2),
+      left: 0, bottom: 0, right: 0)
+    super.layoutSubviews()
+  }
 }
 
 /// Natural-width rows; UIKit owns cell reuse and the complete scrolling lifecycle.
@@ -167,6 +175,8 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     leadingButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
     trailingButton.setImage(UIImage(systemName: "chevron.right"), for: .normal)
     collapseButton.setImage(UIImage(systemName: "chevron.up"), for: .normal)
+    collapseButton.imageEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset,
+                                                left: 0, bottom: 0, right: 0)
     leadingButton.accessibilityLabel = "上一页"
     trailingButton.accessibilityLabel = "下一页"
     collapseButton.accessibilityLabel = "收起候选面板"
@@ -323,6 +333,11 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
       as! CandidateCollectionCell
     let entry = entries[indexPath.item]
     let button = cell.button
+    let isAnchor = indexPath.item == 0
+    button.contentHorizontalAlignment = isAnchor ? .left : .center
+    button.contentEdgeInsets = UIEdgeInsets(
+      top: 0, left: isAnchor ? KeyboardMetrics.candidateTextLeading - KeyboardMetrics.sideMargin : 6,
+      bottom: 0, right: 6)
     button.tag = entry.index
     button.accessibilityLabel = entry.label.map { $0 + ". " + entry.text } ?? entry.text
     button.accessibilityValue = entry.comment

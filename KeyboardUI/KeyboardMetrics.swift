@@ -10,6 +10,9 @@ enum KeyboardMetrics {
   static var rowGap: CGFloat { style.rowGap }
   static var keyHeight: CGFloat { style.keyHeight }
   static var candidateBarHeight: CGFloat { extensionStyle.candidateSlotHeight }
+  static let candidateTextLeading: CGFloat = 12
+  static let candidateTextOffset: CGFloat = -8
+  static var candidateTextCenterY: CGFloat { candidateBarHeight / 2 + candidateTextOffset }
   static var keyBottomPadding: CGFloat { extensionStyle.bottomInset }
   static var globeRowHeight: CGFloat { style.globeRowHeight }
   static var bottomInset: CGFloat { style.bottomInset }

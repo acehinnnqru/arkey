@@ -85,7 +85,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
 
     expandButton.translatesAutoresizingMaskIntoConstraints = false
     // The host already supplies the upper portion of the visible candidate band.
-    expandButton.imageEdgeInsets = UIEdgeInsets(top: -16, left: 0, bottom: 0, right: 0)
+    expandButton.imageEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset, left: 0, bottom: 0, right: 0)
     expandButton.tintColor = .secondaryLabel
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
     expandButton.accessibilityLabel = "展开候选面板"
@@ -270,8 +270,8 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
       let button = UIButton(type: .custom)
       button.titleLabel?.adjustsFontSizeToFitWidth = false
       button.contentHorizontalAlignment = .left
-      button.titleEdgeInsets = UIEdgeInsets(top: -16, left: 0, bottom: 0, right: 0)
-      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+      button.titleEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset, left: 0, bottom: 0, right: 0)
+      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: KeyboardMetrics.candidateTextLeading, bottom: 0, right: 12)
       button.clipsToBounds = true
       button.titleLabel?.lineBreakMode = .byTruncatingTail
       button.tag = cellButtons.count
