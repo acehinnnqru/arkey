@@ -13,7 +13,7 @@ private final class CandidateCollectionCell: UICollectionViewCell {
     super.init(frame: frame)
     button.titleLabel?.font = .systemFont(ofSize: 20)
     button.titleLabel?.lineBreakMode = .byTruncatingTail
-    button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+    button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
     button.clipsToBounds = true
     button.layer.cornerRadius = 8
     button.layer.cornerCurve = .continuous
@@ -47,20 +47,33 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
     measuredWidth = available
     needsMeasurement = false
     attributes.removeAll(keepingCapacity: true)
-    var x: CGFloat = 0
     var y: CGFloat = 0
-    for (index, preferredWidth) in widths.enumerated() {
-      let width = min(available, preferredWidth)
-      if x > 0 && x + width > available {
-        x = 0
-        y += rowPitch
+    var index = 0
+    while index < widths.count {
+      let start = index
+      var used: CGFloat = 0
+      while index < widths.count && index - start < RimeCandidatePanelModel.columns {
+        let width = min(available, widths[index])
+        if index > start && used + width > available { break }
+        used += width
+        index += 1
       }
-      let item = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: index, section: 0))
-      item.frame = CGRect(x: x, y: y, width: width, height: rowPitch)
-      attributes.append(item)
-      x += width
+      let count = index - start
+      let isUniform = widths[start..<index].allSatisfy { $0 == widths[start] }
+      let capacity = min(RimeCandidatePanelModel.columns, max(1, Int(available / widths[start])))
+      let extra = isUniform ? max(0, available / CGFloat(capacity) - widths[start])
+        : (index < widths.count ? (available - used) / CGFloat(count) : 0)
+      var x: CGFloat = 0
+      for itemIndex in start..<index {
+        let width = min(available, widths[itemIndex]) + extra
+        let item = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: itemIndex, section: 0))
+        item.frame = CGRect(x: x, y: y, width: width, height: rowPitch)
+        attributes.append(item)
+        x += width
+      }
+      y += rowPitch
     }
-    contentSize = CGSize(width: available, height: widths.isEmpty ? 0 : y + rowPitch)
+    contentSize = CGSize(width: available, height: y)
   }
 
   override var collectionViewContentSize: CGSize { contentSize }
@@ -141,8 +154,9 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     syllableRow.addArrangedSubview(syllables)
     syllableRow.addArrangedSubview(headerSpacer)
     syllableRow.addArrangedSubview(trailingButton)
-    syllableRow.addArrangedSubview(collapseButton)
     addSubview(syllableRow)
+    collapseButton.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(collapseButton)
 
     headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
     headerSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -152,7 +166,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     syllables.lineBreakMode = .byTruncatingMiddle
     leadingButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
     trailingButton.setImage(UIImage(systemName: "chevron.right"), for: .normal)
-    collapseButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
+    collapseButton.setImage(UIImage(systemName: "chevron.up"), for: .normal)
     leadingButton.accessibilityLabel = "上一页"
     trailingButton.accessibilityLabel = "下一页"
     collapseButton.accessibilityLabel = "收起候选面板"
@@ -178,16 +192,18 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     headerHeightConstraint = syllableRow.heightAnchor.constraint(equalToConstant: syllableHeight)
     NSLayoutConstraint.activate([
       syllableRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: KeyboardMetrics.sideMargin),
-      syllableRow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -KeyboardMetrics.sideMargin),
+      syllableRow.trailingAnchor.constraint(equalTo: collapseButton.leadingAnchor),
       syllableRow.topAnchor.constraint(equalTo: topAnchor),
       headerHeightConstraint,
       leadingButton.widthAnchor.constraint(equalToConstant: 32),
       trailingButton.widthAnchor.constraint(equalToConstant: 32),
-      collapseButton.widthAnchor.constraint(equalToConstant: 32),
+      collapseButton.trailingAnchor.constraint(equalTo: trailingAnchor),
+      collapseButton.topAnchor.constraint(equalTo: topAnchor),
+      collapseButton.widthAnchor.constraint(equalToConstant: CandidateBar.accessoryWidth),
+      collapseButton.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
       gridStack.leadingAnchor.constraint(equalTo: leadingAnchor,
                                          constant: KeyboardMetrics.sideMargin),
-      gridStack.trailingAnchor.constraint(equalTo: trailingAnchor,
-                                          constant: -KeyboardMetrics.sideMargin),
+      gridStack.trailingAnchor.constraint(equalTo: collapseButton.leadingAnchor),
       gridStack.topAnchor.constraint(equalTo: syllableRow.bottomAnchor),
       gridStack.bottomAnchor.constraint(equalTo: bottomAnchor),
       loadingIndicator.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -244,7 +260,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     setNeedsLayout()
   }
 
-  /// The collapsed candidate row stays in place; this view draws only the rows below it.
+  /// Reflow the complete candidate list, including its first row, beside the reserved accessory rail.
   func applyContinuation(_ candidates: [RimeCandidateItem], startingAt start: Int,
                          resetScroll: Bool = false) {
     loadingIndicator.stopAnimating()
@@ -275,7 +291,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     guard resetScroll || updated != entries else { return }
     let newWidths = (appending ? Array(updated.dropFirst(oldCount)) : updated).map { entry in
       let measured = (entry.text as NSString).size(withAttributes: [.font: candidateFont]).width
-      return max(44, ceil(measured) + 24)
+      return max(44, ceil(measured) + 12)
     }
     // Complete the old layout before changing the data source for inserted items.
     gridStack.layoutIfNeeded()

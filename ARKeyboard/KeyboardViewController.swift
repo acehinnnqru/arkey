@@ -126,9 +126,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
       keyGrid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       keyGrid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      // The system's own strip is below this frame, so the grid ends where the frame does (round 189: adding
-      // the measured system inset here put a band of empty backing under the last row).
-      keyGrid.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      // The host owns the system strip; this small gap aligns the last key row with the reference.
+      keyGrid.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -KeyboardMetrics.keyBottomPadding),
     ])
 
     candidatePanel.translatesAutoresizingMaskIntoConstraints = false
@@ -136,7 +135,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     NSLayoutConstraint.activate([
       candidatePanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       candidatePanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      candidatePanel.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
+      candidatePanel.topAnchor.constraint(equalTo: view.topAnchor),
       candidatePanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
     callout.isHidden = true
@@ -587,6 +586,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     // Both presentations share the same candidate list and in-flight request.
     isPanelExpanded = true
     candidateBar.setExpanded(true)
+    candidateBar.isHidden = true
     candidatePanel.isHidden = false
     keyGrid.isHidden = true
     applyPanelModel(resetScroll: true)
@@ -653,6 +653,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     guard isPanelExpanded else { return }
     isPanelExpanded = false
     candidateBar.setExpanded(false)
+    candidateBar.isHidden = false
     candidatePanel.isHidden = true
     keyGrid.isHidden = false
     candidateBar.requestMoreCandidatesIfNeeded()
@@ -676,9 +677,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func applyPanelModel(resetScroll: Bool = false) {
     candidatePanel.apply(theme: theme)
-    let barCount = currentPage?.pageNumber == 0 ? candidateBar.visibleCandidateCount : 0
-    let start = loadedCandidates.count > barCount ? barCount : 0
-    candidatePanel.applyContinuation(loadedCandidates, startingAt: start, resetScroll: resetScroll)
+    candidatePanel.applyContinuation(loadedCandidates, startingAt: 0, resetScroll: resetScroll)
   }
 
   /// A candidate tapped in the panel commits and collapses (S4 §6).

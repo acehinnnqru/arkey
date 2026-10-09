@@ -128,10 +128,11 @@ final class CandidateBarAccessibilityTests: XCTestCase {
         })
         let frame = collapse.convert(collapse.bounds, to: view)
         XCTAssertEqual(frame.minY, 0, accuracy: 0.5)
-        XCTAssertEqual(frame.maxX, view.bounds.width - KeyboardMetrics.sideMargin, accuracy: 0.5)
-        XCTAssertEqual(frame.width, 32, accuracy: 0.5)
+        XCTAssertEqual(frame.maxX, view.bounds.width, accuracy: 0.5)
+        XCTAssertEqual(frame.width, CandidateBar.accessoryWidth, accuracy: 0.5)
         let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
-        XCTAssertEqual(scroll.frame.minY, frame.maxY, accuracy: 0.5)
+        XCTAssertEqual(scroll.frame.minY, RimeCandidatePanelModel.syllableRowHeight, accuracy: 0.5)
+        XCTAssertEqual(scroll.frame.maxX, frame.minX, accuracy: 0.5)
         XCTAssertEqual(scroll.frame.maxY, view.bounds.height, accuracy: 0.5)
         XCTAssertEqual(scroll.frame.height, 270, accuracy: 0.5)
       }
@@ -163,6 +164,51 @@ final class CandidateBarAccessibilityTests: XCTestCase {
       XCTAssertEqual(selected, button.tag)
     }
     XCTAssertFalse(try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "收起候选面板" }).superview!.isHidden)
+  }
+
+  func testExpandedUniformCandidatesAlignAndKeepAccessoryRailEmpty() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 430, height: 265))
+    view.applyContinuation((0..<40).map { _ in RimeCandidateItem(text: "A") }, startingAt: 0)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    let collapse = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "收起候选面板" })
+    XCTAssertEqual(scroll.frame.minY, 0)
+    XCTAssertEqual(scroll.frame.maxX, collapse.frame.minX, accuracy: 0.01)
+    for index in 0..<40 {
+      let frame = try XCTUnwrap(scroll.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))).frame
+      let column = index % 6
+      XCTAssertEqual(frame.minX, CGFloat(column) * scroll.bounds.width / 6, accuracy: 0.01)
+      XCTAssertLessThanOrEqual(frame.maxX, scroll.bounds.width + 0.01)
+    }
+    let safePoint = CGPoint(x: collapse.frame.midX, y: view.bounds.height - 10)
+    XCTAssertFalse(view.hitTest(safePoint, with: nil) is UIButton)
+    scroll.contentOffset.y = 90
+    view.layoutIfNeeded()
+    XCTAssertFalse(view.hitTest(safePoint, with: nil) is UIButton)
+    XCTAssertEqual(collapse.frame.minY, 0)
+  }
+
+  func testExpandedMixedCandidatesReflowTheCompleteListWithoutOverlap() throws {
+    let words = ["Alpha", "B", "C", "A much longer phrase", "D", "Echo", "F", "Golf"]
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 265))
+    view.applyContinuation(words.map { RimeCandidateItem(text: $0) }, startingAt: 0)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    XCTAssertEqual(scroll.numberOfItems(inSection: 0), words.count)
+    let frames = try (0..<words.count).map {
+      try XCTUnwrap(scroll.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: $0, section: 0))).frame
+    }
+    XCTAssertEqual(frames[0].minY, 0)
+    XCTAssertGreaterThan(frames[3].minY, frames[0].minY)
+    XCTAssertGreaterThan(frames[3].width, frames[1].width)
+    for (index, frame) in frames.enumerated() {
+      XCTAssertLessThanOrEqual(frame.maxX, scroll.bounds.width + 0.01)
+      for other in frames.dropFirst(index + 1) {
+        XCTAssertFalse(frame.insetBy(dx: 0.1, dy: 0.1).intersects(other))
+      }
+    }
+    let first = try XCTUnwrap(allButtons(in: scroll).first { $0.tag == 0 })
+    XCTAssertEqual(first.title(for: .normal), words[0])
   }
 
   func testExpandedCandidatesCanScrollWhenDragStartsOnAButton() throws {

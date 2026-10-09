@@ -112,7 +112,8 @@ final class KeyboardGeometryTests: XCTestCase {
   func testTheViewMetricsAreTheEnginesMeasuredStyle() {
     XCTAssertEqual(KeyboardMetrics.style, RimeKeyboardStyle.systemAligned)
     XCTAssertEqual(KeyboardMetrics.keyHeight, 45, accuracy: 0.01)
-    XCTAssertEqual(KeyboardMetrics.candidateBarHeight, 52, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.candidateBarHeight, 36, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.keyGap, 6, accuracy: 0.01)
     XCTAssertEqual(KeyboardMetrics.sideMargin, 6.5, accuracy: 0.01)
   }
 
@@ -124,9 +125,18 @@ final class KeyboardGeometryTests: XCTestCase {
     for globe in [false, true] {
       let stack = KeyboardMetrics.candidateBarHeight
         + KeyboardKeyGrid.rowsHeight(width: 430, needsGlobeRow: globe)
+        + KeyboardMetrics.keyBottomPadding
       XCTAssertEqual(stack, KeyboardMetrics.totalHeight(needsGlobeRow: globe), accuracy: 0.01,
                      "the bar plus the grid is not what the extension asks for, globe row "
                        + (globe ? "shown" : "hidden"))
     }
+  }
+
+  func testExtensionGeometryMatchesTheDeviceReferenceAfterHostInsets() {
+    XCTAssertEqual(KeyboardMetrics.totalHeight(needsGlobeRow: false), 254, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.keyBottomPadding, 5)
+    let reference = RimeKeyboardLayoutEngine.layout(width: 430, style: KeyboardMetrics.style)
+    XCTAssertEqual(reference.rows[0].keys[0].frame.width, 36.3, accuracy: 0.01)
+    XCTAssertEqual(KeyboardKeyGrid.rowsHeight(width: 430, needsGlobeRow: false), 213)
   }
 }

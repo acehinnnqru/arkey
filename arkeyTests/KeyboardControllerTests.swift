@@ -195,5 +195,6 @@ final class KeyboardControllerTests: XCTestCase {
     XCTAssertEqual(rows, grid.bounds.height, accuracy: 0.5,
                    "the rows do not fill the grid: " + String(format: "%.1f", rows) + " pt of keys in "
                      + String(format: "%.1f", grid.bounds.height) + " pt of grid")
+    XCTAssertEqual(grid.frame.maxY, controller.view.bounds.maxY - 5, accuracy: 0.5)
   }
 }

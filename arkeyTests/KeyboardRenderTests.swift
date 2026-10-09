@@ -8,13 +8,13 @@ import UIKit
 /// bitmap and written as a PNG, and then read back through RimeKeyboardCapture.load: the same decoder and the
 /// same comparison a device screenshot goes through. Two questions are asked of the picture. Do the rendered
 /// rectangles sit where the layout model says the keys are? And does every key's fill follow its **role** in
-/// the palette — the return key the action colour, the space bar the wide cap, the globe no cap at all?
+/// the palette — the plain return and space bar the wide cap, the globe no cap at all?
 ///
 /// The palette's own *values* are not this test's subject: they are measured numbers, and the engine's
 /// S3AppearanceTests compare them with the hexes the captures recorded. What no test on the Mac can see is
 /// whether the views paint from them with the right role, in a real render, and that is what this covers.
 /// (A mutation made the distinction plain: moving a palette value changes both the paint and this test's
-/// expectation, so it proves nothing; remapping the return key to the wide cap fails it at once.)
+/// expectation, so it proves nothing; remapping a plain return to the action cap fails it at once.)
 ///
 /// It does not pretend to be a screenshot either. The material path — a UIInputView styled for the keyboard,
 /// under a real system material — still needs a device, and no golden bitmap is kept: that would pin the
@@ -22,6 +22,37 @@ import UIKit
 /// defect in the reader it drives: a glyph's antialiased edge can match the material's luminance and split
 /// its cap into three rectangles, which is fixed in RimeKeyboardCapture.keyRects (one key, one rectangle).
 final class KeyboardRenderTests: XCTestCase {
+  func testLetterTypographyMatchesDeviceReference() throws {
+    let reference = ["q": CGSize(width: 33, height: 52), "w": CGSize(width: 51, height: 38),
+                     "e": CGSize(width: 31, height: 39), "t": CGSize(width: 20, height: 48),
+                     "p": CGSize(width: 32, height: 52)]
+    let grid = KeyboardKeyGrid(frame: CGRect(x: 0, y: 0, width: 430, height: 213))
+    grid.configure(theme: .current(for: .dark), layer: .letters, asciiMode: false,
+                   returnKeyLabel: "Return", showsGlobeRow: false)
+    grid.layoutIfNeeded()
+    for (letter, expected) in reference {
+      let button = try XCTUnwrap(grid.subviews.compactMap { $0 as? KeyButton }.first { $0.title == letter })
+      button.layoutIfNeeded()
+      let format = UIGraphicsImageRendererFormat.default()
+      format.scale = 3
+      let image = UIGraphicsImageRenderer(size: button.bounds.size, format: format).image { button.layer.render(in: $0.cgContext) }
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("arkey-letter-reference.png")
+      try XCTUnwrap(image.pngData()).write(to: url)
+      let capture = try RimeKeyboardCapture.load(contentsOf: url)
+      try FileManager.default.removeItem(at: url)
+      var xs: [Int] = []; var ys: [Int] = []
+      for y in 0..<capture.height { for x in 0..<capture.width where capture.luminance[y * capture.width + x] > 180.0 / 255 {
+        xs.append(x); ys.append(y)
+      } }
+      let glyphWidth = try XCTUnwrap(xs.max()) - XCTUnwrap(xs.min()) + 1
+      let glyphHeight = try XCTUnwrap(ys.max()) - XCTUnwrap(ys.min()) + 1
+      XCTAssertEqual(CGFloat(glyphWidth), expected.width, accuracy: 2, letter)
+      XCTAssertEqual(CGFloat(glyphHeight), expected.height, accuracy: 2, letter)
+      let expectedTop: CGFloat = letter == "t" ? 39 : 48
+      XCTAssertEqual(CGFloat(try XCTUnwrap(ys.min())), expectedTop, accuracy: 2, letter)
+    }
+  }
+
   func testMissingClientAppearancePreservesKeyColoursDuringNavigation() {
     for appearance in [UIKeyboardAppearance.light, .dark] {
       let before = KeyboardTheme.current(for: appearance)
@@ -73,9 +104,11 @@ final class KeyboardRenderTests: XCTestCase {
     // material, and the capture reader's rectangle detector is built for that composition — its background
     // is the material the keys sit on, which a tight crop of the rows does not contain enough of. The grid
     // lays its own rows out from its own origin, so it is placed below the slot.
-    let style = KeyboardMetrics.style
+    var style = KeyboardMetrics.style
+    style.spaceKeyWidth = width - 2 * style.sideMargin - 3 * style.horizontalGap
+      - style.layerKeyWidth - style.emojiKeyWidth - style.returnKeyWidth
     let layout = RimeKeyboardLayoutEngine.layout(width: width, layer: .letters, needsGlobeRow: globe,
-                                                 style: style)
+                                                 style: style, auxiliaryPrefix: ",")
     let size = layout.size
 
     let container = UIView(frame: CGRect(origin: .zero, size: size))
@@ -180,7 +213,7 @@ final class KeyboardRenderTests: XCTestCase {
       let palette = render.palette
       assertFill(render, of: try key(render, .character("a")), is: palette.keyCap)
       assertFill(render, of: try key(render, .space), is: palette.wideKeyCap)
-      assertFill(render, of: try key(render, .returnKey), is: palette.actionEnabled)
+      assertFill(render, of: try key(render, .returnKey), is: palette.wideKeyCap)
       // The material between the keys: the side margin, which no key covers.
       let margin = colour(render, at: CGPoint(x: 2, y: render.layout.rows[0].frame.midY))
       XCTAssertLessThanOrEqual(delta(margin, palette.backing), 0.03,

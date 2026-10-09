@@ -156,13 +156,19 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
       XCTFail("the keyboard never came up")
       return
     }
-    let enter = keyboardKey(app, "换行")
+    let enter = app.keys.matching(NSPredicate(format: "label IN %@", ["换行", "return", "Return"])).firstMatch
+    XCTAssertTrue(enter.waitForExistence(timeout: 5))
     let window = app.windows.firstMatch
     let capture = XCTAttachment(screenshot: app.screenshot())
     capture.name = "Keyboard host background"
     capture.lifetime = .keepAlways
     add(capture)
     let gap = window.frame.maxY - enter.frame.maxY
+    XCTAssertEqual(gap, 80, accuracy: 2,
+                   "the final key row must match the native keyboard's bottom strip")
+    let first = app.keys["q"].firstMatch
+    XCTAssertEqual(first.frame.minY, window.frame.maxY - 80 - 213, accuracy: 2,
+                   "the letter rows must match the native reference's vertical position")
     XCTAssertLessThan(gap, 90,
                       "the last key row stops " + String(format: "%.0f", gap) + " pt above the window, more than "
                         + "the system's own strip (key ends at " + String(format: "%.0f", enter.frame.maxY)

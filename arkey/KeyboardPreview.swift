@@ -47,7 +47,7 @@ final class KeyboardPreviewView: UIView {
       keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
       keyGrid.leadingAnchor.constraint(equalTo: leadingAnchor),
       keyGrid.trailingAnchor.constraint(equalTo: trailingAnchor),
-      keyGrid.bottomAnchor.constraint(equalTo: bottomAnchor),
+      keyGrid.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -KeyboardMetrics.keyBottomPadding),
     ])
 
     // The same model the keyboard renders, so the preview cannot drift from the real bar: labels,
@@ -82,13 +82,14 @@ final class KeyboardPreviewView: UIView {
 /// A deterministic surface for gesture tests; it is shown only with the UI-test launch argument.
 struct CandidateScrollTestScreen: View {
   var body: some View {
-    CandidateScrollTestFixture()
+    CandidateScrollTestFixture(reflow: ProcessInfo.processInfo.arguments.contains("--candidate-reflow-ui-test"))
       .frame(height: 350)
       .padding()
   }
 }
 
 private struct CandidateScrollTestFixture: UIViewRepresentable {
+  var reflow: Bool
   func makeUIView(context: Context) -> UIView {
     let container = UIView()
     let offset = UILabel()
@@ -104,6 +105,7 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
     barOffset.text = "0"
     barOffset.translatesAutoresizingMaskIntoConstraints = false
     let bar = CandidateBar()
+    let panel = CandidatePanelView()
     bar.translatesAutoresizingMaskIntoConstraints = false
     bar.onScroll = { [weak barOffset] value in barOffset?.text = String(Int(value)) }
     bar.onSelect = { [weak selection] value in selection?.text = "bar-\(value)" }
@@ -111,16 +113,18 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
     var loadedCount = 5
     var loading = false
     bar.applyContinuation(Array(candidates.prefix(loadedCount)))
-    bar.onNeedsMoreCandidates = { [weak bar] in
+    bar.onNeedsMoreCandidates = { [weak bar, weak panel] in
       guard !loading, loadedCount < candidates.count else { return }
       loading = true
       DispatchQueue.main.async {
         loadedCount = min(loadedCount + 24, candidates.count)
         bar?.applyContinuation(Array(candidates.prefix(loadedCount)))
+        if reflow {
+          panel?.applyContinuation(Array(candidates.prefix(loadedCount)), startingAt: 0)
+        }
         loading = false
       }
     }
-    let panel = CandidatePanelView()
     panel.translatesAutoresizingMaskIntoConstraints = false
     panel.onScroll = { [weak offset] value in offset?.text = String(Int(value)) }
     panel.onSelect = { [weak selection] value in selection?.text = String(value) }
@@ -140,12 +144,27 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
       bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       bar.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
-      panel.topAnchor.constraint(equalTo: bar.bottomAnchor),
+      panel.topAnchor.constraint(equalTo: reflow ? offset.bottomAnchor : bar.bottomAnchor),
       panel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       panel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       panel.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
     panel.applyContinuation((0..<500).map { RimeCandidateItem(text: "候选词\($0)") }, startingAt: 0)
+    if reflow {
+      panel.isHidden = true
+      panel.applyContinuation(Array(candidates.prefix(loadedCount)), startingAt: 0)
+      bar.onExpand = { [weak bar, weak panel] in
+        bar?.isHidden = true
+        panel?.isHidden = false
+        panel?.applyContinuation(Array(candidates.prefix(loadedCount)), startingAt: 0, resetScroll: true)
+        panel?.requestMoreCandidatesIfNeeded()
+      }
+      panel.onCollapse = { [weak bar, weak panel] in
+        panel?.isHidden = true
+        bar?.isHidden = false
+      }
+      panel.onNeedsMoreCandidates = bar.onNeedsMoreCandidates
+    }
     return container
   }
 

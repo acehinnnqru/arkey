@@ -1,6 +1,34 @@
 import XCTest
 
 final class CandidateScrollTests: XCTestCase {
+  func testExpansionReflowsFromFirstCandidateAndReservesTheAccessoryRail() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["--candidate-scroll-ui-test", "--candidate-reflow-ui-test"]
+    app.launch()
+    let bar = app.scrollViews["candidate-bar-scroll"]
+    XCTAssertTrue(bar.waitForExistence(timeout: 10))
+    bar.swipeLeft()
+    let before = try XCTUnwrap(Int(app.staticTexts["candidate-bar-offset"].label))
+    XCTAssertGreaterThan(before, 0)
+    app.buttons["展开候选面板"].tap()
+    let grid = app.collectionViews["candidate-scroll"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    let first = grid.buttons["Candidate 0"]
+    XCTAssertTrue(first.isHittable)
+    let collapse = app.buttons["收起候选面板"]
+    XCTAssertLessThanOrEqual(grid.frame.maxX, collapse.frame.minX + 1)
+    XCTAssertLessThanOrEqual(abs(grid.frame.minY - collapse.frame.minY), 1)
+    grid.swipeUp()
+    XCTAssertLessThanOrEqual(grid.frame.maxX, collapse.frame.minX + 1)
+    collapse.tap()
+    XCTAssertTrue(bar.isHittable)
+    XCTAssertEqual(try XCTUnwrap(Int(app.staticTexts["candidate-bar-offset"].label)), before)
+    app.buttons["展开候选面板"].tap()
+    XCTAssertTrue(first.isHittable)
+    first.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    XCTAssertEqual(app.staticTexts["candidate-selection"].label, "0")
+  }
+
   func testCollapsedRowDragsOverButtonsAndSelectsAfterScrolling() throws {
     let app = XCUIApplication()
     app.launchArguments.append("--candidate-scroll-ui-test")

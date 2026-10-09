@@ -14,6 +14,7 @@ final class KeyButton: UIControl {
 
   private let titleLabel = UILabel()
   private let imageView = UIImageView()
+  private var titleCenterY: NSLayoutConstraint!
   private var style: Style = .letter
   /// The cap role, which comes from the engine's rule (S3 §4) through the grid's translation of its own
   /// vocabulary of keys.
@@ -52,9 +53,10 @@ final class KeyButton: UIControl {
     imageView.translatesAutoresizingMaskIntoConstraints = false
     addSubview(imageView)
 
+    titleCenterY = titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor)
     NSLayoutConstraint.activate([
       titleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
-      titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+      titleCenterY,
       titleLabel.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.86),
       imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
       imageView.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -92,9 +94,10 @@ final class KeyButton: UIControl {
   /// (and anything else that needs to read a key back) can see.
   var title: String? { titleLabel.text }
 
-  func setTitle(_ title: String, pointSize: CGFloat = 22) {
+  func setTitle(_ title: String, pointSize: CGFloat = 22, verticalOffset: CGFloat = 0) {
     titleLabel.text = title
     titleLabel.font = .systemFont(ofSize: pointSize, weight: .regular)
+    titleCenterY.constant = verticalOffset
     imageView.image = nil
   }
 

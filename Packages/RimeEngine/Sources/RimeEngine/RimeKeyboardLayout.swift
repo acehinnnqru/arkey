@@ -79,12 +79,12 @@ public struct RimeKeyboardStyle: Sendable, Equatable {
     // The reference candidate strip includes the breathing room above the first key row.
     style.candidateSlotHeight = 52
     style.sideMargin = 6.5
-    style.horizontalGap = 6.5
+    style.horizontalGap = 6
     style.cornerRadius = 8.5
     style.shiftWidth = 48.5
     style.deleteWidth = 48.5
     style.sideKeyGap = 15
-    style.layerKeyWidth = 46
+    style.layerKeyWidth = 46.5
     style.emojiKeyWidth = 47
     style.spaceKeyWidth = 205
     style.returnKeyWidth = 99.5

@@ -37,7 +37,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
   private var theme = KeyboardTheme.current(for: .default)
   private var currentModel: RimeCandidateBarModel?
 
-  private static let chevronWidth: CGFloat = 64
+  static let accessoryWidth: CGFloat = 64
   /// Only omit a prefix from the expanded panel when that entire prefix remains visible.
   var visibleCandidateCount: Int {
     guard scrollView.contentOffset.x <= 0 else { return 0 }
@@ -84,6 +84,8 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     addSubview(outerStack)
 
     expandButton.translatesAutoresizingMaskIntoConstraints = false
+    // The host already supplies the upper portion of the visible candidate band.
+    expandButton.imageEdgeInsets = UIEdgeInsets(top: -16, left: 0, bottom: 0, right: 0)
     expandButton.tintColor = .secondaryLabel
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
     expandButton.accessibilityLabel = "展开候选面板"
@@ -100,7 +102,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
       outerStack.trailingAnchor.constraint(equalTo: trailingAnchor),
       outerStack.topAnchor.constraint(equalTo: topAnchor),
       outerStack.bottomAnchor.constraint(equalTo: bottomAnchor),
-      expandButton.widthAnchor.constraint(equalToConstant: Self.chevronWidth),
+      expandButton.widthAnchor.constraint(equalToConstant: Self.accessoryWidth),
       messageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
       messageLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
       messageLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -268,6 +270,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
       let button = UIButton(type: .custom)
       button.titleLabel?.adjustsFontSizeToFitWidth = false
       button.contentHorizontalAlignment = .left
+      button.titleEdgeInsets = UIEdgeInsets(top: -16, left: 0, bottom: 0, right: 0)
       button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
       button.clipsToBounds = true
       button.titleLabel?.lineBreakMode = .byTruncatingTail

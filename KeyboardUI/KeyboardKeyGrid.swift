@@ -319,16 +319,13 @@ final class KeyboardKeyGrid: UIView {
   /// key with no cap has none); this is only the translation from the keyboard's own vocabulary, which is the
   /// one thing a view knows and the model cannot.
   ///
-  /// Two divergences were found here and are fixed: the space bar is a **wide** cap (it used to take the
-  /// letter colour, which is a different colour in dark mode), and the return key is the **action** colour
-  /// (it used to take the wide cap, so the measured blue was never painted). The keyboard never learns that
-  /// the return key is disabled — UIKit does not say — so the enabled colour is what it paints.
+  /// A plain return has the native arrow and a wide cap. Named actions retain their blue action cap.
   private func role(for key: KeyboardKey) -> RimeKeyCapRole {
     switch key {
     case .character, .auxiliary: return .letter
     case .space: return .wide
     case .shift: return shift != .off ? .pressedLetter : .wide
-    case .returnKey: return .actionEnabled
+    case .returnKey: return usesReturnSymbol ? .wide : .actionEnabled
     case .globe: return .plain
     default: return .wide
     }
@@ -355,11 +352,13 @@ final class KeyboardKeyGrid: UIView {
       let uppercase = !value.isEmpty
         && value.rangeOfCharacter(from: .letters) != nil
         && shift.isUppercase
-      button.setTitle(uppercase ? value.uppercased() : value, pointSize: 24)
+      button.setTitle(uppercase ? value.uppercased() : value, pointSize: 25, verticalOffset: -2)
     case .space:
       button.setTitle(currentLayer == .numbers ? "" : spaceKeyLabel, pointSize: 16)
     case .returnKey:
-      if returnKeyLabel == "搜索" || returnKeyLabel == "Search" {
+      if usesReturnSymbol {
+        button.setSymbol("return", pointSize: 22)
+      } else if returnKeyLabel == "搜索" || returnKeyLabel == "Search" {
         button.setSymbol("magnifyingglass", pointSize: 22)
       } else {
         button.setTitle(returnKeyLabel, pointSize: 16)
@@ -382,5 +381,9 @@ final class KeyboardKeyGrid: UIView {
     case .globe:
       button.setSymbol("globe", pointSize: 20)
     }
+  }
+
+  private var usesReturnSymbol: Bool {
+    returnKeyLabel == "换行" || returnKeyLabel.lowercased() == "return"
   }
 }

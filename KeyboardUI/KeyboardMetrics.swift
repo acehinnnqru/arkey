@@ -9,7 +9,8 @@ enum KeyboardMetrics {
   static var keyGap: CGFloat { style.horizontalGap }
   static var rowGap: CGFloat { style.rowGap }
   static var keyHeight: CGFloat { style.keyHeight }
-  static var candidateBarHeight: CGFloat { style.candidateSlotHeight }
+  static var candidateBarHeight: CGFloat { extensionStyle.candidateSlotHeight }
+  static var keyBottomPadding: CGFloat { extensionStyle.bottomInset }
   static var globeRowHeight: CGFloat { style.globeRowHeight }
   static var bottomInset: CGFloat { style.bottomInset }
   static var cornerRadius: CGFloat { style.cornerRadius }
@@ -17,13 +18,14 @@ enum KeyboardMetrics {
   /// The height the extension asks the system for. It is the layout engine's answer, so the frame the
   /// system animates and the frames the keys are drawn in cannot disagree — the class of bug that
   /// killed the tracer's extension.
-  /// The style the *extension* lays out with. The system draws its own strip below the keyboard — its bottom
-  /// row with the globe key, and the home-indicator area — so the measured system-keyboard bottom inset must
-  /// not be counted a second time inside the extension's frame. Measured in round 189 on an iPhone 17 Pro: the
-  /// band under the last row was 144.3 pt, of which 80.3 was this inset and the rest the system's own strip.
+  /// Device captures show an additional host band above the extension and a bottom strip
+  /// five points shorter than the native keyboard's. Keep the key rows at the native positions:
+  /// the extension supplies 36 points of candidate content and five points below the last row.
+  /// The full native bottom inset belongs to the host and must never be counted here again.
   static var extensionStyle: RimeKeyboardStyle {
     var style = self.style
-    style.bottomInset = 0
+    style.candidateSlotHeight = 36
+    style.bottomInset = 5
     return style
   }
 
