@@ -10,7 +10,7 @@ import Foundation
 /// arrives while a composition is in progress is *deferred*, not dropped, and the next appearance (no
 /// composition) rebinds.
 public enum RimeProfileAdoption: Sendable, Equatable {
-  /// The directories are the ones already bound: nothing to do.
+  /// The profile, generation, build path and engine directories are already bound: nothing to do.
   case unchanged
   /// A different profile is available, but a composition is in progress. The caller keeps its current binding
   /// and asks again at the next appearance.
@@ -21,7 +21,12 @@ public enum RimeProfileAdoption: Sendable, Equatable {
   public static func decide(resolved: RimeResolvedProfile,
                             current: RimeResolvedProfile,
                             isComposing: Bool) -> RimeProfileAdoption {
-    guard resolved.directories != current.directories else { return .unchanged }
+    // A redeploy replaces the build at the same path. Its generation must still force a rebind
+    // so librime discards the old session and cached configuration.
+    guard resolved.profileID != current.profileID
+      || resolved.generation != current.generation
+      || resolved.buildDirectory != current.buildDirectory
+      || resolved.directories != current.directories else { return .unchanged }
     return isComposing ? .deferred : .rebind(resolved)
   }
 }

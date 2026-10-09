@@ -552,6 +552,15 @@ public enum RimeWorkspaceResolver {
                                    + " is newer than this build understands")
     }
 
+    // Compiled tables from a different librime version cannot be bound safely, including
+    // build.previous. Reject the pointer before considering either build directory.
+    guard active.engineVersion == RimeEngineVersion.pinned else {
+      return RimeResolvedProfile(origin: .bundled, profileID: nil, generation: nil,
+                                 buildDirectory: bundledSharedData, directories: fallback,
+                                 fallbackReason: "active.json engineVersion " + active.engineVersion
+                                   + " is incompatible with this engine " + RimeEngineVersion.pinned)
+    }
+
     let layout = workspace.profile(active.profileID)
     let origin: RimeResolvedProfile.Origin = workspace.writableRoot == .appGroup ? .appGroup : .container
 

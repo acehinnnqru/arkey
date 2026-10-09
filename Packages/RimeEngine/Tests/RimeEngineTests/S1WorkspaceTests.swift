@@ -138,6 +138,26 @@ final class S1WorkspaceTests: XCTestCase {
 
   // MARK: Resolution
 
+  func testResolverRejectsAnIncompatibleEngineBeforeUsingEitherBuild() throws {
+    let workspace = try makeWorkspace()
+    let layout = try installProfile(workspace, id: "tracer-1", withPrevious: true)
+    let compatible = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: tracerData)
+    try workspace.writeActiveProfile(RimeActiveProfile(profileID: "tracer-1", generation: 1,
+                                                       engineVersion: "1.16.0"))
+
+    for usePrevious in [false, true] {
+      if usePrevious { try FileManager.default.removeItem(at: layout.build) }
+      let resolved = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: tracerData)
+      XCTAssertEqual(resolved.origin, .bundled)
+      XCTAssertNil(resolved.profileID)
+      XCTAssertNil(resolved.generation)
+      XCTAssertEqual(resolved.directories, compatible.directories)
+      XCTAssertEqual(resolved.fallbackReason,
+                     "active.json engineVersion 1.16.0 is incompatible with this engine "
+                       + RimeEngineVersion.pinned)
+    }
+  }
+
   func testResolverFallsBackThroughEveryState() throws {
     let workspace = try makeWorkspace()
     let layout = try installProfile(workspace, id: "tracer-1", generation: 2)

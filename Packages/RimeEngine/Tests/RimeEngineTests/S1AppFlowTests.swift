@@ -82,6 +82,16 @@ final class S1AppFlowTests: XCTestCase {
       .set(.bool(true), at: "translator/enable_completion")
     let redeployed = try coordinator.deploySync(profileID: id)
     XCTAssertTrue(redeployed.report.succeeded, redeployed.report.failureReason ?? "")
+    let updated = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: tracerData)
+    XCTAssertEqual(updated.profileID, next.profileID)
+    XCTAssertEqual(updated.directories, next.directories)
+    XCTAssertEqual(updated.buildDirectory, next.buildDirectory)
+    XCTAssertEqual(updated.generation, (next.generation ?? 0) + 1)
+    XCTAssertEqual(RimeProfileAdoption.decide(resolved: updated, current: next, isComposing: true),
+                   .deferred)
+    XCTAssertEqual(RimeProfileAdoption.decide(resolved: updated, current: next, isComposing: false),
+                   .rebind(updated))
+    _ = try engine.rebind(to: updated.directories)
     XCTAssertEqual(try engine.withSchemaConfig("tracer") { $0.bool("translator/enable_completion") },
                    true, "the patch reached the deployed schema")
 
