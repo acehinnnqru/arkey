@@ -13,7 +13,7 @@ private final class CandidateCollectionCell: UICollectionViewCell {
     super.init(frame: frame)
     button.titleLabel?.font = .systemFont(ofSize: 20)
     button.titleLabel?.lineBreakMode = .byTruncatingTail
-    button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
+    button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
     button.clipsToBounds = true
     button.layer.cornerRadius = 8
     button.layer.cornerCurve = .continuous
@@ -33,7 +33,7 @@ private final class CandidateCollectionCell: UICollectionViewCell {
   }
 }
 
-/// Natural-width rows; UIKit owns cell reuse and the complete scrolling lifecycle.
+/// Fixed column tracks keep mixed candidate lengths aligned across rows.
 private final class CandidateCollectionLayout: UICollectionViewLayout {
   var widths: [CGFloat] = []
   var rowPitch: CGFloat = RimeCandidatePanelModel.rowPitch
@@ -55,33 +55,25 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
     measuredWidth = available
     needsMeasurement = false
     attributes.removeAll(keepingCapacity: true)
-    var y: CGFloat = 0
-    var index = 0
-    while index < widths.count {
-      let start = index
-      var used: CGFloat = 0
-      while index < widths.count && index - start < RimeCandidatePanelModel.columns {
-        let width = min(available, widths[index])
-        if index > start && used + width > available { break }
-        used += width
-        index += 1
+    // Narrow keyboards use fewer tracks so each candidate retains a 44-point touch target.
+    let columns = min(RimeCandidatePanelModel.columns, max(1, Int(available / 44)))
+    let columnWidth = available / CGFloat(columns)
+    var row = 0
+    var column = 0
+    for (index, width) in widths.enumerated() {
+      // Longer phrases occupy whole tracks, preserving the same grid for following rows.
+      let span = min(columns, max(1, Int(ceil(min(available, width) / columnWidth))))
+      if column + span > columns {
+        row += 1
+        column = 0
       }
-      let count = index - start
-      let isUniform = widths[start..<index].allSatisfy { $0 == widths[start] }
-      let capacity = min(RimeCandidatePanelModel.columns, max(1, Int(available / widths[start])))
-      let extra = isUniform ? max(0, available / CGFloat(capacity) - widths[start])
-        : (index < widths.count ? (available - used) / CGFloat(count) : 0)
-      var x: CGFloat = 0
-      for itemIndex in start..<index {
-        let width = min(available, widths[itemIndex]) + extra
-        let item = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: itemIndex, section: 0))
-        item.frame = CGRect(x: x, y: y, width: width, height: rowPitch)
-        attributes.append(item)
-        x += width
-      }
-      y += rowPitch
+      let item = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: index, section: 0))
+      item.frame = CGRect(x: CGFloat(column) * columnWidth, y: CGFloat(row) * rowPitch,
+                          width: CGFloat(span) * columnWidth, height: rowPitch)
+      attributes.append(item)
+      column += span
     }
-    contentSize = CGSize(width: available, height: y)
+    contentSize = CGSize(width: available, height: widths.isEmpty ? 0 : CGFloat(row + 1) * rowPitch)
   }
 
   override var collectionViewContentSize: CGSize { contentSize }
@@ -111,7 +103,7 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
   }
 }
 
-/// Expanded candidates wrap at their natural text width and scroll within the keyboard.
+/// Expanded candidates use up to six aligned columns and scroll within the keyboard.
 final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
   /// A cell was tapped: the argument is librime's own candidate index, not the cell's position.
   var onSelect: ((Int) -> Void)?
@@ -301,7 +293,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     guard resetScroll || updated != entries else { return }
     let newWidths = (appending ? Array(updated.dropFirst(oldCount)) : updated).map { entry in
       let measured = (entry.text as NSString).size(withAttributes: [.font: candidateFont]).width
-      return max(44, ceil(measured) + 12)
+      return max(44, ceil(measured) + 4)
     }
     // Complete the old layout before changing the data source for inserted items.
     gridStack.layoutIfNeeded()
@@ -333,11 +325,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
       as! CandidateCollectionCell
     let entry = entries[indexPath.item]
     let button = cell.button
-    let isAnchor = indexPath.item == 0
-    button.contentHorizontalAlignment = isAnchor ? .left : .center
-    button.contentEdgeInsets = UIEdgeInsets(
-      top: 0, left: isAnchor ? KeyboardMetrics.candidateTextLeading - KeyboardMetrics.sideMargin : 6,
-      bottom: 0, right: 6)
+    button.contentHorizontalAlignment = .center
     button.tag = entry.index
     button.accessibilityLabel = entry.label.map { $0 + ". " + entry.text } ?? entry.text
     button.accessibilityValue = entry.comment

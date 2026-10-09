@@ -6,7 +6,7 @@ import RimeEngine
 /// and index". The engine's macOS tests pin the model's labels; this pins what the **buttons** carry
 /// after the view has applied that model, which is what VoiceOver actually reads.
 final class CandidateBarAccessibilityTests: XCTestCase {
-  func testExpansionKeepsFirstCandidateTextAnchorAndBaseline() throws {
+  func testExpansionCentersFirstCandidateAndKeepsBaseline() throws {
     for width: CGFloat in [320, 430] {
       for word in ["你", "你好", "A longer candidate"] {
         let collapsed = bar(RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: word)]))
@@ -24,15 +24,14 @@ final class CandidateBarAccessibilityTests: XCTestCase {
         let gridLabel = try XCTUnwrap(gridButton.titleLabel)
         let stripFrame = stripLabel.convert(stripLabel.bounds, to: collapsed)
         let gridFrame = gridLabel.convert(gridLabel.bounds, to: expanded)
-        XCTAssertEqual(gridFrame.minX, KeyboardMetrics.candidateTextLeading, accuracy: 0.01)
-        XCTAssertEqual(gridFrame.minX, stripFrame.minX, accuracy: 0.01, word)
+        let cellFrame = gridButton.convert(gridButton.bounds, to: expanded)
+        XCTAssertEqual(gridFrame.midX, cellFrame.midX, accuracy: 0.01, word)
         XCTAssertEqual(gridFrame.minY, stripFrame.minY, accuracy: 0.01, word)
         XCTAssertEqual(gridFrame.height, stripFrame.height, accuracy: 0.01, word)
         let stripInk = try inkBounds(of: stripButton).offsetBy(
           dx: stripButton.convert(.zero, to: collapsed).x, dy: stripButton.convert(.zero, to: collapsed).y)
         let gridInk = try inkBounds(of: gridButton).offsetBy(
           dx: gridButton.convert(.zero, to: expanded).x, dy: gridButton.convert(.zero, to: expanded).y)
-        XCTAssertEqual(gridInk.minX, stripInk.minX, accuracy: 1.0 / 3, word)
         XCTAssertEqual(gridInk.minY, stripInk.minY, accuracy: 1.0 / 3, word)
         XCTAssertEqual(gridInk.height, stripInk.height, accuracy: 1.0 / 3, word)
       }
@@ -224,6 +223,39 @@ final class CandidateBarAccessibilityTests: XCTestCase {
       XCTAssertEqual(selected, button.tag)
     }
     XCTAssertFalse(try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "收起候选面板" }).superview!.isHidden)
+  }
+
+  func testExpandedMixedShortCandidatesKeepColumnCenters() throws {
+    let words = ["你好", "👋", "你会", "你回", "你还", "你和",
+                 "霓凰", "倪鸿", "你", "尼", "泥", "逆", "拟"]
+    for width: CGFloat in [320, 430] {
+      let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: width, height: 265))
+      view.applyContinuation(words.map { RimeCandidateItem(text: $0) }, startingAt: 0)
+      view.layoutIfNeeded()
+      let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+      let columns = width == 320 ? 5 : 6
+      let trackWidth = scroll.bounds.width / CGFloat(columns)
+      for index in words.indices {
+        let path = IndexPath(item: index, section: 0)
+        let frame = try XCTUnwrap(scroll.collectionViewLayout.layoutAttributesForItem(at: path)).frame
+        XCTAssertEqual(frame.midX, (CGFloat(index % columns) + 0.5) * trackWidth, accuracy: 0.01)
+        XCTAssertEqual(frame.minY, CGFloat(index / columns) * RimeCandidatePanelModel.rowPitch, accuracy: 0.01)
+        let button = try XCTUnwrap(scroll.cellForItem(at: path).flatMap { allButtons(in: $0).first })
+        button.layoutIfNeeded()
+        let label = try XCTUnwrap(button.titleLabel)
+        let labelFrame = label.convert(label.bounds, to: button)
+        XCTAssertEqual(labelFrame.midX, button.bounds.midX, accuracy: 0.01)
+        let font = try XCTUnwrap(label.font)
+        XCTAssertGreaterThanOrEqual(labelFrame.width + 0.5,
+          (words[index] as NSString).size(withAttributes: [.font: font]).width)
+      }
+      // Appending candidates must not redistribute the incomplete final row.
+      let lastPath = IndexPath(item: words.count - 1, section: 0)
+      let before = try XCTUnwrap(scroll.collectionViewLayout.layoutAttributesForItem(at: lastPath)).frame
+      view.applyContinuation((words + ["妮", "泥河"]).map { RimeCandidateItem(text: $0) }, startingAt: 0)
+      view.layoutIfNeeded()
+      XCTAssertEqual(scroll.collectionViewLayout.layoutAttributesForItem(at: lastPath)?.frame, before)
+    }
   }
 
   func testExpandedUniformCandidatesAlignAndKeepAccessoryRailEmpty() throws {
