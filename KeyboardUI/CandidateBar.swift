@@ -14,13 +14,11 @@ private final class CandidateBarScrollView: UIScrollView {
 ///  - buttons are pooled and updated in place to keep keystrokes inexpensive;
 ///  - a keystroke that changes nothing visible must not restyle anything.
 final class CandidateBar: UIView, UIScrollViewDelegate {
-  /// Called with the index of the tapped candidate on the current page.
+  /// Called with the global index of the tapped candidate.
   var onSelect: ((Int) -> Void)?
-  /// A long press forgets the word (S4 §8, S5-AC5). The index is the cell's position on the page the bar is
-  /// showing, which is the numbering librime's `delete_candidate` expects.
+  /// A long press forgets the word using its global candidate index.
   var onForget: ((Int) -> Void)?
-  /// Called with `backward` for a page turn. Page keys never commit (S3 §5).
-  var onPage: ((Bool) -> Void)?
+  var onNeedsMoreCandidates: (() -> Void)?
   /// The expand control: S4 §6's panel replaces the keyboard area, so the bar has to offer it.
   var onExpand: (() -> Void)?
   #if DEBUG
@@ -31,6 +29,8 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
   private let cellsStack = UIView()
   private let scrollView = CandidateBarScrollView()
   private var preferredWidths: [CGFloat] = []
+  private var origins: [CGFloat] = []
+  private var contentWidth: CGFloat = 0
   private let outerStack = UIStackView()
   private let messageLabel = UILabel()
   private var cellButtons: [UIButton] = []
@@ -41,7 +41,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
   /// Only omit a prefix from the expanded panel when that entire prefix remains visible.
   var visibleCandidateCount: Int {
     guard scrollView.contentOffset.x <= 0 else { return 0 }
-    return cellButtons.prefix { !$0.isHidden && $0.frame.maxX <= scrollView.bounds.width }.count
+    return zip(origins, preferredWidths).prefix { $0 + $1 <= scrollView.bounds.width }.count
   }
 
   func setExpanded(_ expanded: Bool) {
@@ -49,18 +49,15 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     expandButton.accessibilityLabel = expanded ? "收起候选面板" : "展开候选面板"
   }
 
-  /// Turn pages only after dragging beyond an edge of the current page.
-  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-    guard let model = currentModel else { return }
-    let end = max(0, scrollView.contentSize.width - scrollView.bounds.width)
-    if scrollView.contentOffset.x < -44 && model.pageNumber > 0 {
-      onPage?(true)
-    } else if scrollView.contentOffset.x > end + 44 && !model.isLastPage {
-      onPage?(false)
-    }
+  func requestMoreCandidatesIfNeeded() {
+    guard !outerStack.isHidden, scrollView.bounds.width > 0,
+          contentWidth - scrollView.bounds.maxX < scrollView.bounds.width * 2 else { return }
+    onNeedsMoreCandidates?()
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    setNeedsLayout()
+    requestMoreCandidatesIfNeeded()
     #if DEBUG
     onScroll?(scrollView.contentOffset.x)
     #endif
@@ -121,18 +118,29 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     for chevron in [expandButton] {
       chevron.tintColor = theme.candidateText.withAlphaComponent(0.6)
     }
-    for button in cellButtons {
-      button.setTitleColor(theme.candidateText, for: .normal)
-    }
+    setNeedsLayout()
   }
 
   // MARK: - The model
 
   func apply(model: RimeCandidateBarModel) {
-    let changed = currentModel != model
+    guard model != currentModel else { return }
+    let previous = currentModel?.cells ?? []
+    let appending = !previous.isEmpty && model.cells.count >= previous.count
+      && model.cells.prefix(previous.count).elementsEqual(previous)
     currentModel = model
-    if changed {
+    if !appending {
       scrollView.setContentOffset(.zero, animated: false)
+      preferredWidths.removeAll(keepingCapacity: true)
+      origins.removeAll(keepingCapacity: true)
+      contentWidth = 0
+    }
+    let additions = appending ? model.cells.dropFirst(previous.count) : model.cells[...]
+    for cell in additions {
+      let width = max(44, ceil(Self.title(for: cell, theme: theme).size().width) + 24)
+      origins.append(contentWidth)
+      preferredWidths.append(width)
+      contentWidth += width
     }
     guard !model.isEmpty else {
       showMessage(model.message ?? "")
@@ -141,46 +149,51 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     hideMessage()
     expandButton.isHidden = false
 
-    let count = model.cells.count
-    ensureCells(count: count)
-
-    preferredWidths = model.cells.prefix(count).map { max(44, ceil(Self.title(for: $0, theme: theme).size().width) + 24) }
-    for (index, button) in cellButtons.enumerated() {
-      let visible = index < count
-      button.isHidden = !visible
-      guard visible else { continue }
-      let cell = model.cells[index]
-      button.tag = cell.index
-      button.accessibilityLabel = cell.label.map { $0 + ". " + cell.text } ?? cell.text
-      button.accessibilityValue = cell.comment
-      let title = Self.title(for: cell, theme: theme)
-      if button.attributedTitle(for: .normal) != title {
-        button.setAttributedTitle(title, for: .normal)
-      }
-      button.setTitleColor(theme.candidateText, for: .normal)
-      let fill = UIColor.clear
-      if button.backgroundColor != fill {
-        button.backgroundColor = fill
-      }
-    }
     setNeedsLayout()
+  }
+
+  func applyContinuation(_ candidates: [RimeCandidateItem], selectLabels: [String] = []) {
+    apply(model: .init(cells: candidates.enumerated().map { index, candidate in
+      RimeCandidateCell(index: index, text: candidate.text, comment: candidate.comment,
+                        label: selectLabels.indices.contains(index) ? selectLabels[index] : nil)
+    }))
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
     outerStack.layoutIfNeeded()
     let available = scrollView.bounds.width
-    guard available > 0, !preferredWidths.isEmpty else { return }
-    var x: CGFloat = 0
-    for (index, button) in cellButtons.enumerated() {
-      button.isHidden = index >= preferredWidths.count
-      guard index < preferredWidths.count else { continue }
-      let width = preferredWidths[index]
-      button.frame = CGRect(x: x, y: 0, width: width, height: scrollView.bounds.height)
-      x += width
-    }
-    cellsStack.frame = CGRect(x: 0, y: 0, width: max(available, x), height: scrollView.bounds.height)
+    guard available > 0, let model = currentModel else { return }
+    cellsStack.frame = CGRect(x: 0, y: 0, width: max(available, contentWidth), height: scrollView.bounds.height)
     scrollView.contentSize = cellsStack.bounds.size
+    // Reuse controls within one viewport of the visible strip, however long the list becomes.
+    let start = max(0, scrollView.bounds.minX - available)
+    let end = scrollView.bounds.maxX + available
+    var low = 0
+    var high = origins.count
+    while low < high {
+      let middle = (low + high) / 2
+      if origins[middle] + preferredWidths[middle] < start { low = middle + 1 }
+      else { high = middle }
+    }
+    var last = low
+    while last < origins.count && origins[last] < end { last += 1 }
+    ensureCells(count: last - low)
+    for (slot, button) in cellButtons.enumerated() {
+      let index = low + slot
+      button.isHidden = index >= last
+      guard index < last else { continue }
+      let cell = model.cells[index]
+      button.tag = cell.index
+      button.accessibilityLabel = cell.label.map { $0 + ". " + cell.text } ?? cell.text
+      button.accessibilityValue = cell.comment
+      let title = Self.title(for: cell, theme: theme)
+      if button.attributedTitle(for: .normal) != title { button.setAttributedTitle(title, for: .normal) }
+      button.setTitleColor(theme.candidateText, for: .normal)
+      button.backgroundColor = .clear
+      button.frame = CGRect(x: origins[index], y: 0, width: preferredWidths[index], height: scrollView.bounds.height)
+    }
+    requestMoreCandidatesIfNeeded()
   }
 
   /// The convenience the controller uses: a whole page from the engine.
@@ -242,9 +255,8 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
   /// not forget twice.
   @objc private func handleForget(_ recognizer: UILongPressGestureRecognizer) {
     guard recognizer.state == .began,
-          let button = recognizer.view as? UIButton,
-          let index = cellButtons.firstIndex(of: button) else { return }
-    onForget?(index)
+          let button = recognizer.view as? UIButton else { return }
+    onForget?(button.tag)
   }
 
   @objc private func handleExpand() {

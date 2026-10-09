@@ -251,10 +251,6 @@ public enum RimeSettingsModel {
                             scope: .schema(schemaID), engine: engine, patch: schemaPatch, note: nil))
     settings.append(integer("spellingHints", "逐键提示数", "translator/spelling_hints",
                             scope: .schema(schemaID), engine: engine, patch: schemaPatch, note: nil))
-    settings.append(integer("pageSize", "每页候选数", "menu/page_size",
-                            scope: .defaultConfig, engine: engine,
-                            patch: RimePatch(engine: engine, configID: "default"),
-                            note: "写入 default.custom.yaml"))
 
     return RimeSchemaDescriptor(schemaID: schemaID, name: name, translatorKind: kind,
                                 translatorNames: translatorNames, dictionary: dictionary,
@@ -296,25 +292,10 @@ public enum RimeSettingsModel {
     return try patch.set(.list(updated), at: "switches")
   }
 
-  /// The settings that belong to no single schema: what the 配置库 screen writes to
-  /// `default.custom.yaml`.
+  /// Global user-facing settings. Engine pagination does not limit candidate browsing.
   public static func globalSettings(engine: RimeEngine) throws -> [RimeSettingDescriptor] {
-    let patch = RimePatch(engine: engine, configID: "default")
-    let merged = try engine.withConfig("default") { config -> [RimeSettingDescriptor] in
-      let pageSize = config.int("menu/page_size")
-      let page = RimeSettingDescriptor(id: "pageSize", title: "每页候选数", key: "menu/page_size",
-                                       scope: .defaultConfig,
-                                       effective: pageSize.map { .integer($0) },
-                                       userValue: nil, note: nil)
-      return [page]
-    }
-    // The user's own value is read from the patch file, which is what "reset" acts on.
-    return try merged.map { descriptor in
-      RimeSettingDescriptor(id: descriptor.id, title: descriptor.title, key: descriptor.key,
-                            scope: descriptor.scope, effective: descriptor.effective,
-                            userValue: try patch.userValue(descriptor.key).flatMap(Self.value(from:)),
-                            note: descriptor.note)
-    }
+    // Engine pagination is an internal detail of the continuously scrolling candidate list.
+    return []
   }
 
   // MARK: Helpers

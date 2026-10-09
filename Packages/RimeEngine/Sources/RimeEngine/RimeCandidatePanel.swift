@@ -5,7 +5,7 @@ import Foundation
 
 /// One candidate as the bar and the panel draw it.
 public struct RimeCandidateCell: Sendable, Hashable {
-  /// The index passed to the view: page-relative in the bar, global in the expanded panel.
+  /// Global in continuous candidate views, page-relative in the page convenience models.
   public let index: Int
   public let text: String
   public let comment: String?

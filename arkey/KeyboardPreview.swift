@@ -107,7 +107,19 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
     bar.translatesAutoresizingMaskIntoConstraints = false
     bar.onScroll = { [weak barOffset] value in barOffset?.text = String(Int(value)) }
     bar.onSelect = { [weak selection] value in selection?.text = "bar-\(value)" }
-    bar.apply(model: .init(cells: (0..<12).map { RimeCandidateCell(index: $0, text: "Candidate \($0)") }))
+    let candidates = (0..<500).map { RimeCandidateItem(text: "Candidate \($0)") }
+    var loadedCount = 5
+    var loading = false
+    bar.applyContinuation(Array(candidates.prefix(loadedCount)))
+    bar.onNeedsMoreCandidates = { [weak bar] in
+      guard !loading, loadedCount < candidates.count else { return }
+      loading = true
+      DispatchQueue.main.async {
+        loadedCount = min(loadedCount + 24, candidates.count)
+        bar?.applyContinuation(Array(candidates.prefix(loadedCount)))
+        loading = false
+      }
+    }
     let panel = CandidatePanelView()
     panel.translatesAutoresizingMaskIntoConstraints = false
     panel.onScroll = { [weak offset] value in offset?.text = String(Int(value)) }

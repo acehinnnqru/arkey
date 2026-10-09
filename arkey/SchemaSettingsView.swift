@@ -112,7 +112,7 @@ struct SchemaSettingsView: View {
   /// 逐码提示 and ignores 整句输入, and the model decides that, not this view.
   private func inputSection(_ descriptor: RimeSchemaDescriptor) -> some View {
     Section {
-      ForEach(descriptor.settings.filter { $0.id != "pageSize" }, id: \.id) { setting in
+      ForEach(descriptor.settings, id: \.id) { setting in
         settingRow(setting)
       }
     } header: {

@@ -19,6 +19,8 @@ final class CandidateScrollTests: XCTestCase {
       $0.isHittable && bounds.contains($0.frame)
     })
     let index = String(candidate.label.dropFirst("Candidate ".count))
+    XCTAssertGreaterThan(try XCTUnwrap(Int(index)), 4,
+                         "the strip must reach candidates beyond the initial engine page")
     candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     XCTAssertEqual(app.staticTexts["candidate-selection"].label, "bar-" + index)
     let before = try position()

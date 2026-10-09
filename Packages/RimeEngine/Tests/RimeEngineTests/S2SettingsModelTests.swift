@@ -212,19 +212,15 @@ final class S2SettingsModelTests: XCTestCase {
     XCTAssertEqual(before.switches.first { $0.name == "ascii_mode" }?.reset, 0,
                    "the descriptor is a value: the one it came from is unchanged")
 
-    // A setting, both ways: chosen, then cleared by 重置.
-    let pageSize = try XCTUnwrap(before.setting("pageSize"))
-    XCTAssertEqual(pageSize.effective, .integer(5))
-    XCTAssertFalse(pageSize.isUserSet)
-    let chosenPage = before.replacingSetting(.integer(8), forKey: "menu/page_size")
-    XCTAssertEqual(chosenPage.settings.count, before.settings.count, "no row is invented")
-    XCTAssertEqual(chosenPage.setting("pageSize")?.effective, .integer(8))
-    XCTAssertTrue(try XCTUnwrap(chosenPage.setting("pageSize")).isUserSet,
-                  "the row offers 重置 as soon as the user has chosen")
-    let cleared = chosenPage.clearingSetting("menu/page_size")
-    XCTAssertFalse(try XCTUnwrap(cleared.setting("pageSize")).isUserSet, "the 重置 button goes on the tap")
-    XCTAssertEqual(cleared.setting("pageSize")?.effective, .integer(8),
-                   "the value in force is the deploy's to change, not this one's")
+    let completion = try XCTUnwrap(before.setting("completion"))
+    XCTAssertFalse(completion.isUserSet)
+    let chosenSetting = before.replacingSetting(.boolean(false), forKey: "translator/enable_completion")
+    XCTAssertEqual(chosenSetting.settings.count, before.settings.count)
+    XCTAssertEqual(chosenSetting.setting("completion")?.effective, .boolean(false))
+    XCTAssertTrue(try XCTUnwrap(chosenSetting.setting("completion")).isUserSet)
+    let cleared = chosenSetting.clearingSetting("translator/enable_completion")
+    XCTAssertFalse(try XCTUnwrap(cleared.setting("completion")).isUserSet)
+    XCTAssertEqual(cleared.setting("completion")?.effective, .boolean(false))
 
     // A key the schema does not declare leaves the descriptor alone rather than inventing a row for it.
     XCTAssertEqual(before.replacingSetting(.integer(9), forKey: "ghost/key").settings.count,
@@ -255,24 +251,6 @@ final class S2SettingsModelTests: XCTestCase {
 
   func testTheEffectiveValueAndTheUsersOverrideAreDifferentThings() throws {
     try engine.openSession()
-    var descriptor = try RimeSettingsModel.describeSchema("tracer", engine: engine)
-    let inherited = try XCTUnwrap(descriptor.setting("pageSize"))
-    XCTAssertEqual(inherited.effective, .integer(5), "the schema's own page size")
-    XCTAssertFalse(inherited.isUserSet)
-    XCTAssertNil(inherited.userValue)
-
-    let patch = RimePatch(engine: engine, configID: "default")
-    try patch.set(.int(7), at: "menu/page_size")
-    try redeploy()
-    try engine.openSession()
-
-    descriptor = try RimeSettingsModel.describeSchema("tracer", engine: engine)
-    let patched = try XCTUnwrap(descriptor.setting("pageSize"))
-    XCTAssertEqual(patched.effective, .integer(7))
-    XCTAssertEqual(patched.userValue, .integer(7), "the screen shows both, and reset acts on this one")
-    XCTAssertTrue(patched.isUserSet)
-    XCTAssertEqual(patched.scope, .defaultConfig, "the page size is a default-config setting")
-
     // A schema-level setting, patched in the schema's own file.
     let schemaPatch = RimePatch(engine: engine, configID: "tracer")
     try schemaPatch.set(.bool(true), at: "translator/enable_completion")
@@ -288,20 +266,11 @@ final class S2SettingsModelTests: XCTestCase {
   func testGlobalSettingsReadTheDefaultConfig() throws {
     let patch = RimePatch(engine: engine, configID: "default")
     try patch.set(.int(9), at: "menu/page_size")
-
-    // Before a deploy, S2 §4's two sources disagree — which is the whole reason the screen shows
-    // both: the deployed engine still uses 5, and the user's file already says 9.
-    var settings = try RimeSettingsModel.globalSettings(engine: engine)
-    var pageSize = try XCTUnwrap(settings.first { $0.id == "pageSize" })
-    XCTAssertEqual(pageSize.effective, .integer(5), "the deployed value, pending the deploy")
-    XCTAssertEqual(pageSize.userValue, .integer(9), "the user's choice, already written")
-    XCTAssertTrue(pageSize.isUserSet)
-    XCTAssertEqual(pageSize.scope, .defaultConfig)
-
+    XCTAssertTrue(try RimeSettingsModel.globalSettings(engine: engine).isEmpty)
+    XCTAssertNil(try RimeSettingsModel.describeSchema("tracer", engine: engine).setting("pageSize"))
     try redeploy()
-    settings = try RimeSettingsModel.globalSettings(engine: engine)
-    pageSize = try XCTUnwrap(settings.first { $0.id == "pageSize" })
-    XCTAssertEqual(pageSize.effective, .integer(9), "and after the deploy the two agree")
+    XCTAssertTrue(try RimeSettingsModel.globalSettings(engine: engine).isEmpty)
+    XCTAssertNil(try RimeSettingsModel.describeSchema("tracer", engine: engine).setting("pageSize"))
   }
 
   /// The helper the keyboard's 中/英 key asks: does this schema have an 中英 state at all?

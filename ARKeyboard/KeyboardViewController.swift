@@ -41,12 +41,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// Prepared on touch down so the impact lands with the key rather than after the first use.
   private lazy var haptic = UIImpactFeedbackGenerator(style: .light)
   private var isPanelExpanded = false
-  private var panelCandidates: [RimeCandidateItem] = []
-  private var panelLoadGeneration = 0
-  private var panelLoadCancellation: CandidateLoadCancellation?
-  private var panelNextIndex = 0
-  private var panelHasMoreCandidates = false
-  private static let panelBatchSize = 96
+  private var loadedCandidates: [RimeCandidateItem] = []
+  private var candidateLoadGeneration = 0
+  private var candidateLoadCancellation: CandidateLoadCancellation?
+  private var nextCandidateIndex = 0
+  private var hasMoreCandidates = false
+  private static let candidateBatchSize = 96
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
   private var engine: RimeEngine?
@@ -64,8 +64,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var hasResolvedLanguageSchema = false
   private var languageSwitchAvailable = false
   private var markedText: String?
-  /// The page the bar is showing, whose labels decide which keys select (S4 §4.1).
+  /// The engine's current page, whose labels decide which physical keys select.
   private var currentPage: RimePage?
+  private var candidatePreedit: String?
 
   // Input latency evidence, flushed to the probe log every 25 keys.
   /// The per-key samples of the current batch. The input path cannot write a record per key (S3-AC5), so the
@@ -74,7 +75,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var keyLatency = RimeKeyLatencyWindow()
 
   deinit {
-    panelLoadCancellation?.cancel()
+    candidateLoadCancellation?.cancel()
     engine?.closeSession()
   }
 
@@ -144,14 +145,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     candidatePanel.isHidden = true
     candidatePanel.onSelect = { [weak self] index in self?.selectFromPanel(index) }
     candidatePanel.onCollapse = { [weak self] in self?.collapsePanel() }
-    candidatePanel.onNeedsMoreCandidates = { [weak self] in self?.loadMorePanelCandidates() }
+    candidatePanel.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
 
     candidateBar.onSelect = { [weak self] index in
       guard let self else { return }
       self.selectCandidate(index)
       if self.isPanelExpanded { self.collapsePanel() }
     }
-    candidateBar.onPage = { [weak self] backward in self?.changePage(backward: backward) }
+    candidateBar.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
     candidateBar.onExpand = { [weak self] in
       guard let self else { return }
       if self.isPanelExpanded { self.collapsePanel() } else { self.expandPanel() }
@@ -188,7 +189,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     super.viewWillDisappear(animated)
     if isPanelExpanded { collapsePanel() }
     flushKeyStatistics()
-    panelLoadCancellation?.cancel()
+    candidateLoadCancellation?.cancel()
     engine?.closeSession()
     engine = nil
     markedText = nil
@@ -269,37 +270,25 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func selectCandidate(_ index: Int) {
     guard let engine else { return }
-    panelLoadCancellation?.cancel()
+    candidateLoadCancellation?.cancel()
     do {
-      apply(try engine.selectCandidateOnCurrentPage(at: index))
+      apply(try engine.selectCandidate(at: index))
     } catch {
       report("select.failed", error, userVisible: "选词出错：")
     }
   }
 
-  /// S4 §8 / S5-AC5: a long press on a candidate forgets the word. The bar's index is the one on the page it
-  /// is showing, which is librime's numbering; librime answers false when the candidate did not come from the
-  /// user dictionary, and the bar says so rather than pretending it forgot something.
+  /// A long press forgets the candidate by its global index, even beyond the engine's current page.
   private func forgetCandidate(_ index: Int) {
     guard let engine else { return }
     if isPanelExpanded { collapsePanel() }
     do {
-      let forgotten = try engine.deleteCandidateOnCurrentPage(at: index)
+      candidateLoadCancellation?.cancel()
+      let forgotten = try engine.deleteCandidate(at: index)
       apply(try engine.refresh())
       candidateBar.setMessage(forgotten ? "已忘记这个词" : "这个词不在用户词典里")
     } catch {
       report("forget.failed", error, userVisible: "忘记失败：")
-    }
-  }
-
-  /// S3 §5: a page chevron pages the candidate list and never commits, so this only re-renders.
-  private func changePage(backward: Bool) {
-    guard let engine else { return }
-    if isPanelExpanded { collapsePanel() }
-    do {
-      apply(try engine.changePage(backward: backward))
-    } catch {
-      report("page.failed", error, userVisible: "翻页出错：")
     }
   }
 
@@ -350,9 +339,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     // The page the bar is showing, kept so a select key can be matched against its labels: a commit clears it,
     // and then no key is a select key any more.
-    if currentPage != output.page || output.page == nil {
+    if currentPage != output.page || output.page == nil || candidatePreedit != output.preedit {
       currentPage = output.page
-      candidateBar.setPage(output.page)
+      candidatePreedit = output.preedit
+      resetCandidateList()
     }
     if previousAsciiMode != asciiMode || previousLanguageKey != languageKey {
       refreshLayout()
@@ -437,7 +427,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     // menu/alternative_select_labels both set, the label press arrived unhandled — so the page's own labels are
     // matched here and the selection goes through the same call the bar's taps use.
     if allowsCandidateSelection, let index = currentPage?.selectIndex(matching: value) {
-      selectCandidate(index)
+      let offset = (currentPage?.pageNumber ?? 0) * (currentPage?.pageSize ?? 0)
+      selectCandidate(offset + index)
       return
     }
     guard let engine, let keysym = RimeKey.ascii(Character(value)) else {
@@ -593,53 +584,66 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func expandPanel() {
     guard engine != nil, let page = currentPage, !page.candidates.isEmpty else { return }
     candidateBar.layoutIfNeeded()
-    panelLoadCancellation?.cancel()
-    panelLoadCancellation = nil
-    panelLoadGeneration += 1
-    // Show the available page immediately, then read bounded slices as the viewport
-    // approaches the end. Never enumerate an entire dictionary for an expansion.
-    panelCandidates = page.pageNumber == 0 ? page.candidates : []
-    panelNextIndex = 0
-    panelHasMoreCandidates = true
+    // Both presentations share the same candidate list and in-flight request.
     isPanelExpanded = true
     candidateBar.setExpanded(true)
     candidatePanel.isHidden = false
     keyGrid.isHidden = true
     applyPanelModel(resetScroll: true)
-    candidatePanel.setLoading(panelCandidates.isEmpty)
+    candidatePanel.setLoading(loadedCandidates.isEmpty)
     animatePanelAppearance(candidatePanel)
-    loadMorePanelCandidates()
+    candidatePanel.requestMoreCandidatesIfNeeded()
   }
 
-  private func loadMorePanelCandidates() {
-    guard isPanelExpanded, panelHasMoreCandidates, panelLoadCancellation == nil,
+  private func resetCandidateList() {
+    candidateLoadCancellation?.cancel()
+    candidateLoadCancellation = nil
+    candidateLoadGeneration += 1
+    loadedCandidates = currentPage?.pageNumber == 0 ? currentPage?.candidates ?? [] : []
+    nextCandidateIndex = loadedCandidates.count
+    // A later engine page can still be enumerated from global index zero.
+    hasMoreCandidates = currentPage.map { !$0.candidates.isEmpty && ($0.pageNumber > 0 || !$0.isLastPage) } ?? false
+    candidateBar.setPage(nil)
+    candidateBar.applyContinuation(loadedCandidates, selectLabels: currentPage?.pageNumber == 0 ? currentPage?.selectLabels ?? [] : [])
+    if isPanelExpanded { applyPanelModel(resetScroll: true) }
+    loadMoreCandidates()
+  }
+
+  private func loadMoreCandidates() {
+    guard hasMoreCandidates, candidateLoadCancellation == nil,
           let engine else { return }
     let cancellation = CandidateLoadCancellation()
-    panelLoadCancellation = cancellation
-    let generation = panelLoadGeneration
-    let start = panelNextIndex
+    candidateLoadCancellation = cancellation
+    let generation = candidateLoadGeneration
+    let start = nextCandidateIndex
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-      let candidates = try? engine.candidateList(startingAt: start, limit: Self.panelBatchSize) {
+      let candidates = try? engine.candidateList(startingAt: start, limit: Self.candidateBatchSize) {
         !cancellation.isCancelled
       }
       DispatchQueue.main.async { [weak self] in
-        guard let self, self.isPanelExpanded, self.panelLoadGeneration == generation,
+        guard let self, self.candidateLoadGeneration == generation,
               !cancellation.isCancelled else { return }
         guard let candidates else {
-          self.panelLoadCancellation = nil
-          self.panelHasMoreCandidates = false
+          self.candidateLoadCancellation = nil
+          self.hasMoreCandidates = false
           self.candidatePanel.setLoading(false)
           return
         }
-        self.panelCandidates = Array(self.panelCandidates.prefix(start)) + candidates
-        self.panelNextIndex = start + candidates.count
-        self.panelHasMoreCandidates = candidates.count == Self.panelBatchSize
-        self.applyPanelModel()
-        self.candidatePanel.layoutIfNeeded()
-        self.panelLoadCancellation = nil
+        self.loadedCandidates = Array(self.loadedCandidates.prefix(start)) + candidates
+        self.nextCandidateIndex = start + candidates.count
+        self.hasMoreCandidates = candidates.count == Self.candidateBatchSize
+        self.candidateBar.applyContinuation(self.loadedCandidates,
+          selectLabels: self.currentPage?.pageNumber == 0 ? self.currentPage?.selectLabels ?? [] : [])
+        self.candidateBar.layoutIfNeeded()
+        if self.isPanelExpanded {
+          self.applyPanelModel()
+          self.candidatePanel.layoutIfNeeded()
+        }
+        self.candidateLoadCancellation = nil
         // Defer the next request until the collection update has completed.
         DispatchQueue.main.async { [weak self] in
-          self?.candidatePanel.requestMoreCandidatesIfNeeded()
+          self?.candidateBar.requestMoreCandidatesIfNeeded()
+          if self?.isPanelExpanded == true { self?.candidatePanel.requestMoreCandidatesIfNeeded() }
         }
       }
     }
@@ -647,15 +651,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func collapsePanel() {
     guard isPanelExpanded else { return }
-    panelLoadCancellation?.cancel()
-    panelLoadCancellation = nil
-    panelLoadGeneration += 1
     isPanelExpanded = false
-    panelCandidates.removeAll(keepingCapacity: true)
-    panelHasMoreCandidates = false
     candidateBar.setExpanded(false)
     candidatePanel.isHidden = true
     keyGrid.isHidden = false
+    candidateBar.requestMoreCandidatesIfNeeded()
     animatePanelAppearance(keyGrid)
   }
 
@@ -677,19 +677,18 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func applyPanelModel(resetScroll: Bool = false) {
     candidatePanel.apply(theme: theme)
     let barCount = currentPage?.pageNumber == 0 ? candidateBar.visibleCandidateCount : 0
-    let start = panelCandidates.count > barCount ? barCount : 0
-    candidatePanel.applyContinuation(panelCandidates, startingAt: start, resetScroll: resetScroll)
+    let start = loadedCandidates.count > barCount ? barCount : 0
+    candidatePanel.applyContinuation(loadedCandidates, startingAt: start, resetScroll: resetScroll)
   }
 
   /// A candidate tapped in the panel commits and collapses (S4 §6).
   ///
-  /// The panel's index is global. librime's select_candidate accepts that index directly;
-  /// select_candidate_on_current_page is reserved for the collapsed bar's page-relative index.
+  /// Both candidate presentations use librime's global candidate index.
   private func selectFromPanel(_ index: Int) {
     defer { collapsePanel() }
     guard let engine else { return }
-    panelLoadCancellation?.cancel()
-    guard panelCandidates.indices.contains(index) else { return }
+    candidateLoadCancellation?.cancel()
+    guard loadedCandidates.indices.contains(index) else { return }
     do {
       apply(try engine.selectCandidate(at: index))
     } catch {

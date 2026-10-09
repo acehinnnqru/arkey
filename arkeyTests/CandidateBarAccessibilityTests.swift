@@ -84,7 +84,8 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     func candidates() -> [UIButton] {
       allButtons(in: view).filter { !$0.isHidden && $0.attributedTitle(for: .normal) != nil }
     }
-    XCTAssertEqual(candidates().count, 9)
+    let narrowCount = candidates().count
+    XCTAssertLessThan(narrowCount, 9)
     let button = try XCTUnwrap(candidates().first)
     XCTAssertFalse(try XCTUnwrap(button.titleLabel).adjustsFontSizeToFitWidth)
     let font = try XCTUnwrap(button.attributedTitle(for: .normal)?.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
@@ -92,7 +93,7 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     view.frame.size.width = 900
     view.setNeedsLayout()
     view.layoutIfNeeded()
-    XCTAssertEqual(candidates().count, 9)
+    XCTAssertGreaterThan(candidates().count, narrowCount)
   }
 
   func testWholeCandidateCellsAreTappableIncludingPadding() throws {
@@ -301,9 +302,10 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     }?.superview?.superview as? UIScrollView)
     XCTAssertGreaterThan(scroll.contentSize.width, scroll.bounds.width)
     XCTAssertTrue(scroll.canCancelContentTouches)
-    let last = try XCTUnwrap(allButtons(in: scroll).first { $0.tag == 11 })
-    XCTAssertTrue(scroll.touchesShouldCancel(in: last))
     scroll.setContentOffset(CGPoint(x: scroll.contentSize.width - scroll.bounds.width, y: 0), animated: false)
+    view.layoutIfNeeded()
+    let last = try XCTUnwrap(allButtons(in: scroll).first { !$0.isHidden && $0.tag == 11 })
+    XCTAssertTrue(scroll.touchesShouldCancel(in: last))
     var selected: Int?
     view.onSelect = { selected = $0 }
     let point = last.convert(CGPoint(x: last.bounds.midX, y: last.bounds.midY), to: view)
@@ -317,23 +319,32 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertEqual(scroll.contentOffset.x, 0)
   }
 
-  func testPagingRequiresDraggingBeyondTheCurrentPageEdge() throws {
-    let view = bar(.init(cells: (0..<9).map { RimeCandidateCell(index: $0, text: "Candidate \($0)") },
-                         pageNumber: 1, isLastPage: false))
+  func testCollapsedListLoadsNearTheEndAndAppendKeepsPosition() throws {
+    let cells = (0..<100).map { RimeCandidateCell(index: $0, text: "Candidate \($0)") }
+    let view = bar(.init(cells: Array(cells.prefix(50))))
     let scroll = try XCTUnwrap(allButtons(in: view).first {
       $0.attributedTitle(for: .normal) != nil
     }?.superview?.superview as? UIScrollView)
-    var pages: [Bool] = []
-    view.onPage = { pages.append($0) }
-    scroll.contentOffset.x = 80
-    view.scrollViewDidEndDragging(scroll, willDecelerate: false)
-    XCTAssertTrue(pages.isEmpty)
-    scroll.contentOffset.x = scroll.contentSize.width - scroll.bounds.width + 50
-    view.scrollViewDidEndDragging(scroll, willDecelerate: false)
-    XCTAssertEqual(pages, [false])
-    scroll.contentOffset.x = -50
-    view.scrollViewDidEndDragging(scroll, willDecelerate: false)
-    XCTAssertEqual(pages, [false, true])
+    var requests = 0
+    view.onNeedsMoreCandidates = { requests += 1 }
+    view.requestMoreCandidatesIfNeeded()
+    XCTAssertEqual(requests, 0)
+    scroll.contentOffset.x = scroll.contentSize.width - scroll.bounds.width
+    view.layoutIfNeeded()
+    XCTAssertGreaterThan(requests, 0)
+    let previousOffset = scroll.contentOffset.x
+    view.apply(model: .init(cells: cells))
+    view.layoutIfNeeded()
+    XCTAssertEqual(scroll.contentOffset.x, previousOffset)
+    XCTAssertEqual(view.visibleCandidateCount, 0)
+    XCTAssertLessThan(allButtons(in: scroll).count, 30)
+    scroll.contentOffset.x = scroll.contentSize.width - scroll.bounds.width
+    view.layoutIfNeeded()
+    let last = try XCTUnwrap(allButtons(in: scroll).first { !$0.isHidden && $0.tag == 99 })
+    var selected: Int?
+    view.onSelect = { selected = $0 }
+    last.sendActions(for: .touchUpInside)
+    XCTAssertEqual(selected, 99)
   }
 
   func testMoreCandidatesAreRequestedOnlyNearTheEnd() throws {

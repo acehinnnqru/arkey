@@ -373,6 +373,32 @@ final class S1EngineAPITests: XCTestCase {
     XCTAssertEqual(try engine.selectCandidate(at: 0).commit, all[0].text)
   }
 
+  func testContinuousCandidatesCanSelectBeyondASingleItemEnginePage() throws {
+    let scratch = try Scratch()
+    let directories = try scratch.directories(shared: tracerData)
+    let patch = URL(fileURLWithPath: directories.userDataDir).appendingPathComponent("tracer.custom.yaml")
+    try "patch:\n  menu/page_size: 1\n".write(to: patch, atomically: true, encoding: .utf8)
+    let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
+    _ = try engine.deploySync(binding: directories, fullCheck: true)
+    try engine.openSession()
+    defer { engine.shutdown() }
+    let output = try engine.processKeys("nihao")
+    XCTAssertEqual(output.page?.pageSize, 1)
+    XCTAssertEqual(output.page?.candidates.count, 1)
+    let next = try XCTUnwrap(engine.candidateList(startingAt: 1, limit: 1).first)
+    XCTAssertEqual(try engine.refresh().page?.pageNumber, 0)
+    let selected = try engine.selectCandidate(at: 1)
+    XCTAssertNotEqual(selected.preedit, output.preedit)
+    try engine.clearComposition()
+    _ = try engine.processKeys("nihao")
+    let secondPage = try engine.changePage(backward: false)
+    XCTAssertEqual(secondPage.page?.candidates.first?.text, next.text)
+    let expected = try engine.selectCandidateOnCurrentPage(at: 0)
+    // A prefix candidate can advance composition without committing the complete sentence.
+    XCTAssertEqual(selected.commit, expected.commit)
+    XCTAssertEqual(selected.preedit, expected.preedit)
+  }
+
   /// Two measured corrections to S4 §8, both of which the candidate UI has to design around.
   ///
   /// 1. `highlight_candidate` returns true only when the highlight actually *moves*. Index 0 when
