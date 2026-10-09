@@ -243,11 +243,11 @@ public struct RimeSyncService {
 
     let started = Date()
     engine.clearNotifications()
-    let hadSession = engine.isSessionOpen
     let names = try dictionariesToSync()
     var backedUp: [String] = []
     var refused: [String] = []
 
+    var scheduled = false
     try access.perform {
       for name in names {
         // S5 §4: the snapshot about to be overwritten is archived first, so a sync that brings in
@@ -260,15 +260,9 @@ public struct RimeSyncService {
           refused.append(name)
         }
       }
-    }
-    // Best effort: librime's own sync, for the YAML config copies that travel beside the
-    // dictionaries. Its result is recorded, never depended on.
-    let scheduled = (try? engine.syncUserData()) ?? false
-    engine.joinMaintenance()
-    // Measured: running librime's maintenance drops the session it was holding, so the caller's
-    // session is restored here rather than left for the next keystroke to discover as missing.
-    if hadSession, !engine.isSessionOpen {
-      try? engine.openSession()
+      // Maintenance also accesses dictionaries, and must finish before ownership is released.
+      scheduled = (try? engine.syncUserData()) ?? false
+      engine.joinMaintenance()
     }
 
     var failure: String?
@@ -315,12 +309,13 @@ public struct RimeSyncService {
       throw RimeSyncError.notASnapshot(url.path)
     }
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
-    try access.requireExclusiveAccess()
-    if let name = snapshot.dictionary {
-      _ = try? backup(dictionary: name)
+    return try access.perform {
+      if let name = snapshot.dictionary {
+        _ = try? backup(dictionary: name)
+      }
+      _ = try engine.restoreUserDictionary(snapshotFile: url)
+      return snapshot
     }
-    _ = try engine.restoreUserDictionary(snapshotFile: url)
-    return snapshot
   }
 
   /// S5 §4's backup: `<dict>.userdb.<timestamp>.txt`, **beside** this device's snapshots and
@@ -333,23 +328,26 @@ public struct RimeSyncService {
   /// unreadable at the worst moment.
   @discardableResult
   public func backup(dictionary: String, now: Date = Date(), keeping: Int = 3) throws -> URL? {
-    guard let deviceDirectory else { return nil }
-    let live = deviceDirectory.appendingPathComponent(dictionary + ".userdb.txt")
-    if !fileManager.fileExists(atPath: live.path) {
-      // The sync folder has never seen this dictionary. Write the current state first: it is exactly
-      // the state the caller is about to change.
-      guard (try? engine.backupUserDictionary(dictionary)) == true else { return nil }
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    return try access.perform {
+      guard let deviceDirectory else { return nil }
+      let live = deviceDirectory.appendingPathComponent(dictionary + ".userdb.txt")
+      if !fileManager.fileExists(atPath: live.path) {
+        // The sync folder has never seen this dictionary. Write the current state first: it is exactly
+        // the state the caller is about to change.
+        guard (try? engine.backupUserDictionary(dictionary)) == true else { return nil }
+      }
+      guard fileManager.fileExists(atPath: live.path) else { return nil }
+      try fileManager.createDirectory(at: deviceDirectory, withIntermediateDirectories: true)
+      let target = deviceDirectory
+        .appendingPathComponent(dictionary + ".userdb." + stamp(now) + ".txt")
+      if fileManager.fileExists(atPath: target.path) {
+        try fileManager.removeItem(at: target)
+      }
+      try fileManager.copyItem(at: live, to: target)
+      try pruneBackups(dictionary: dictionary, keeping: keeping)
+      return target
     }
-    guard fileManager.fileExists(atPath: live.path) else { return nil }
-    try fileManager.createDirectory(at: deviceDirectory, withIntermediateDirectories: true)
-    let target = deviceDirectory
-      .appendingPathComponent(dictionary + ".userdb." + stamp(now) + ".txt")
-    if fileManager.fileExists(atPath: target.path) {
-      try fileManager.removeItem(at: target)
-    }
-    try fileManager.copyItem(at: live, to: target)
-    try pruneBackups(dictionary: dictionary, keeping: keeping)
-    return target
   }
 
   /// This device's backups for one dictionary, newest first. The live snapshot is not one of them.

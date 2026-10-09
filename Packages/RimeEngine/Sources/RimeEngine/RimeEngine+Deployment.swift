@@ -108,7 +108,11 @@ extension RimeEngine {
   /// directories underneath a live session.
   @discardableResult
   public func rebind(to directories: RimeDirectories) throws -> RimeProbeRecord {
-    try perform { try rebindLocked(to: directories) }
+    try perform {
+      try withDictionaryOwnership(store: dictionaryLeaseStore, host: dictionaryHost) {
+        try rebindLocked(to: directories)
+      }
+    }
   }
 
   func rebindLocked(to directories: RimeDirectories) throws -> RimeProbeRecord {
@@ -121,6 +125,11 @@ extension RimeEngine {
   /// Tears librime down without leaving the engine unusable: the next `start()` or
   /// `rebind(to:)` reinitialises it.
   func teardownLocked() {
+    dictionaryOwnershipDepth += 1
+    defer {
+      dictionaryOwnershipDepth -= 1
+      releaseDictionaryOwnershipIfIdle()
+    }
     closeSessionLocked()
     detachNotificationHandlerLocked()
     removeLogSinkLocked()
@@ -258,62 +267,64 @@ extension RimeEngine {
                          progress: (@Sendable (RimeDeploymentProgress) -> Void)? = nil) throws -> RimeDeploymentReport {
     progress?(RimeDeploymentProgress(phase: .binding, message: directories.sharedDataDir))
     return try perform {
-      let started = Date()
-      logs.removeAll()
-      notificationRelay.removeAll()
+      try withDictionaryOwnership(store: dictionaryLeaseStore, host: dictionaryHost) {
+        let started = Date()
+        logs.removeAll()
+        notificationRelay.removeAll()
 
-      _ = try rebindLocked(to: directories)
+        _ = try rebindLocked(to: directories)
 
-      guard let api, let startMaintenance = api.pointee.start_maintenance else {
-        throw RimeEngineError.deploymentFailed
-      }
-      progress?(RimeDeploymentProgress(phase: .running,
-                                       message: "start_maintenance(full_check: " + String(fullCheck) + ")"))
-      // Snapshot taken after the caller seeded staging and before librime runs: whatever moves from
-      // here on is this deploy's own work.
-      let before = RimeEngine.fingerprints(in: directories.prebuiltDataDir)
-      let scheduled = startMaintenance(fullCheck)
-      if scheduled, let join = api.pointee.join_maintenance_thread {
-        join()
-      }
+        guard let api, let startMaintenance = api.pointee.start_maintenance else {
+          throw RimeEngineError.deploymentFailed
+        }
+        progress?(RimeDeploymentProgress(phase: .running,
+                                         message: "start_maintenance(full_check: " + String(fullCheck) + ")"))
+        // Snapshot taken after the caller seeded staging and before librime runs: whatever moves from
+        // here on is this deploy's own work.
+        let before = RimeEngine.fingerprints(in: directories.prebuiltDataDir)
+        let scheduled = startMaintenance(fullCheck)
+        if scheduled, let join = api.pointee.join_maintenance_thread {
+          join()
+        }
 
-      let notifications = notificationRelay.snapshot()
-      let didFail = notifications.contains { notification in
-        if case .deploy(.failure) = notification { return true }
-        return false
+        let notifications = notificationRelay.snapshot()
+        let didFail = notifications.contains { notification in
+          if case .deploy(.failure) = notification { return true }
+          return false
+        }
+        let files = RimeEngine.buildFiles(in: directories.prebuiltDataDir)
+        let changes = RimeEngine.changes(before: before,
+                                         after: RimeEngine.fingerprints(in: directories.prebuiltDataDir))
+        var failureReason: String?
+        if didFail {
+          failureReason = "librime reported a deploy failure"
+        } else if files.isEmpty {
+          failureReason = "the deploy produced no files in " + directories.prebuiltDataDir
+        }
+        let succeeded = failureReason == nil
+        let report = RimeDeploymentReport(directories: directories,
+                                          fullCheck: fullCheck,
+                                          succeeded: succeeded,
+                                          duration: Date().timeIntervalSince(started),
+                                          files: files,
+                                          changes: changes,
+                                          notifications: notifications,
+                                          logs: logs.snapshot(),
+                                          failureReason: failureReason)
+        let phases: [RimeDeploymentProgress.Phase] = [succeeded ? .succeeded : .failed]
+        for phase in phases {
+          progress?(RimeDeploymentProgress(phase: phase,
+                                           message: failureReason ?? String(files.count) + " files"))
+        }
+        _ = record(phase: "engine.deploy",
+                   start: 0,
+                   message: (succeeded ? "ok " : "failed ") + String(format: "%.0f ms", report.duration * 1000)
+                     + " files=" + String(files.count))
+        if !succeeded {
+          throw RimeDeploymentError(report: report)
+        }
+        return report
       }
-      let files = RimeEngine.buildFiles(in: directories.prebuiltDataDir)
-      let changes = RimeEngine.changes(before: before,
-                                       after: RimeEngine.fingerprints(in: directories.prebuiltDataDir))
-      var failureReason: String?
-      if didFail {
-        failureReason = "librime reported a deploy failure"
-      } else if files.isEmpty {
-        failureReason = "the deploy produced no files in " + directories.prebuiltDataDir
-      }
-      let succeeded = failureReason == nil
-      let report = RimeDeploymentReport(directories: directories,
-                                        fullCheck: fullCheck,
-                                        succeeded: succeeded,
-                                        duration: Date().timeIntervalSince(started),
-                                        files: files,
-                                        changes: changes,
-                                        notifications: notifications,
-                                        logs: logs.snapshot(),
-                                        failureReason: failureReason)
-      let phases: [RimeDeploymentProgress.Phase] = [succeeded ? .succeeded : .failed]
-      for phase in phases {
-        progress?(RimeDeploymentProgress(phase: phase,
-                                         message: failureReason ?? String(files.count) + " files"))
-      }
-      _ = record(phase: "engine.deploy",
-                 start: 0,
-                 message: (succeeded ? "ok " : "failed ") + String(format: "%.0f ms", report.duration * 1000)
-                   + " files=" + String(files.count))
-      if !succeeded {
-        throw RimeDeploymentError(report: report)
-      }
-      return report
     }
   }
 

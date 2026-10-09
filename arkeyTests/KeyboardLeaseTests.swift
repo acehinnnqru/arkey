@@ -22,15 +22,19 @@ final class KeyboardLeaseTests: XCTestCase {
     }
     let store = RimeLeaseStore(workspace: setup.workspace)
 
+    XCTAssertTrue(setup.engine.isSessionOpen)
     let held = try XCTUnwrap(store.current(), "the keyboard claims no lease at appearance")
     XCTAssertEqual(held.pid, getpid(), "the lease is not this process's")
     XCTAssertFalse(store.isCold(), "the lease is stale the moment it is claimed")
     // blocker() is the app's gate, and it is the user-visible half of the lease: while the keyboard holds it,
     // the dictionary screen says the keyboard is using the dictionary.
-    let access = RimeDictionaryAccess(workspace: setup.workspace, engine: setup.engine, leaseStore: store)
+    let appEngine = RimeEngine(configuration: RimeConfiguration(directories: setup.engine.directories))
+    let access = RimeDictionaryAccess(workspace: setup.workspace, engine: appEngine, leaseStore: store)
     XCTAssertNotNil(access.blocker(), "the app is not told the dictionary is in use")
 
     controller.viewWillDisappear(false)
+
+    XCTAssertFalse(setup.engine.isSessionOpen, "dismissal closes the session before releasing ownership")
 
     // Released, not merely stale: the app has to be usable again the moment the keyboard goes away, which is
     // what S5 §3.2 asks for and what the staleness rule alone cannot give it.
@@ -39,5 +43,15 @@ final class KeyboardLeaseTests: XCTestCase {
       XCTAssertTrue(store.isCold(), "the lease is still live after dismissal: " + String(describing: after))
     }
     XCTAssertNil(access.blocker(), "the app still reports the dictionary as in use after dismissal")
+
+    controller.viewWillAppear(false)
+    XCTAssertTrue(setup.engine.isSessionOpen, "the same controller reopens its session")
+    XCTAssertNotNil(store.current(), "the same controller reclaims its lease")
+    let competingEngine = RimeEngine(configuration: RimeConfiguration(directories: setup.engine.directories))
+    let competingAccess = RimeDictionaryAccess(workspace: setup.workspace, engine: competingEngine)
+    XCTAssertThrowsError(try competingAccess.perform { XCTFail("the app entered during reappearance") })
+    controller.viewWillDisappear(false)
+    XCTAssertFalse(setup.engine.isSessionOpen)
+    XCTAssertNil(store.current())
   }
 }

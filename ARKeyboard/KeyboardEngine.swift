@@ -53,7 +53,9 @@ enum KeyboardEngine {
       // captured text is a failure nobody can diagnose.
       let engine = RimeEngine(configuration: RimeConfiguration(directories: resolved.directories,
                                                                minLogLevel: 0),
-                              probeLog: probe)
+                              probeLog: probe,
+                              dictionaryLeaseStore: RimeLeaseStore(workspace: workspace),
+                              dictionaryHost: "keyboard")
       return .success(Setup(engine: engine, probe: probe, workspace: workspace,
                             bundledSharedData: shared,
                             lease: RimeLeaseStore(workspace: workspace),
@@ -63,35 +65,12 @@ enum KeyboardEngine {
     }
   }
 
-  /// Writes the dictionary lease and keeps its heartbeat fresh (S5 §3.2).
-  ///
-  /// Without Full Access the extension cannot write the app group at all, so the claim fails
-  /// silently; that is the same degraded mode that stops learning from working, and the app's own
-  /// read of the lease is what tells it which of the two states it is in.
-  static func holdDictionaryLease(_ setup: Setup) {
-    _ = try? setup.lease.claim(pid: getpid(), host: "keyboard")
-  }
-
-  static func touchDictionaryLease(_ setup: Setup) {
-    setup.lease.heartbeat(pid: getpid())
-  }
-
-  /// S5 §3.2: the keyboard releases at dismissal. `release` is an optimisation rather than the safety
-  /// mechanism — a crashed extension leaves the file behind, and the staleness rule covers that — but
-  /// without the call the file lingers for a whole staleness window after the user closed the keyboard,
-  /// and the app refuses dictionary work for no visible reason. A late heartbeat cannot bring it back:
-  /// `heartbeat` only updates a lease that exists for this pid.
-  static func releaseDictionaryLease(_ setup: Setup) {
-    setup.lease.release(pid: getpid())
-  }
-
   /// Reads `active.json` and rebinds when the profile or the generation changed.
   ///
   /// The order is S1 §8's: never mid-composition, one rebind, and if the rebind fails fall back to
   /// the bundle rather than leaving the keyboard with no engine at all.
   @discardableResult
   static func adoptProfileIfNeeded(_ setup: Setup, isComposing: Bool) -> RimeResolvedProfile {
-    touchDictionaryLease(setup)
     let resolved = RimeWorkspaceResolver.resolve(workspace: setup.workspace,
                                                 bundledSharedData: setup.bundledSharedData)
 

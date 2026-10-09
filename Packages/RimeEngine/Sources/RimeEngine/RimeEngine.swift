@@ -49,6 +49,12 @@ public final class RimeEngine: @unchecked Sendable {
   var api: UnsafeMutablePointer<rime_api_t>?
   var session: RimeSessionId?
   var isStarted = false
+  let dictionaryLeaseStore: RimeLeaseStore?
+  let dictionaryHost: String
+  var dictionaryLock: RimeDictionaryLock?
+  var heldLeaseStore: RimeLeaseStore?
+  var dictionaryOwnershipDepth = 0
+  var leaseHeartbeatTimer: DispatchSourceTimer?
 
   /// librime's own log text, captured through the logsink module (§S1). Shared with the keyboard
   /// extension's diagnostics screen and the app's deploy-failure screen.
@@ -58,7 +64,12 @@ public final class RimeEngine: @unchecked Sendable {
   var logSinkAPI: UnsafeMutablePointer<RimeLogSinkApi>?
   var logSinkContext: UnsafeMutableRawPointer?
 
-  public init(configuration: RimeConfiguration, probeLog: RimeProbeLog? = nil) {
+  /// Pass the same workspace lease store in every process that opens shared dictionaries.
+  /// Ownership is acquired before startup/session creation and retained until the session closes.
+  public init(configuration: RimeConfiguration, probeLog: RimeProbeLog? = nil,
+              dictionaryLeaseStore: RimeLeaseStore? = nil, dictionaryHost: String = "app") {
+    self.dictionaryLeaseStore = dictionaryLeaseStore
+    self.dictionaryHost = dictionaryHost
     self.configuration = configuration
     self.probeLog = probeLog
     queue.setSpecific(key: RimeEngine.queueKey, value: 1)
@@ -88,13 +99,21 @@ public final class RimeEngine: @unchecked Sendable {
 
   @discardableResult
   public func start() throws -> RimeProbeRecord {
-    try perform { try startLocked() }
+    try perform {
+      try withDictionaryOwnership(store: dictionaryLeaseStore, host: dictionaryHost) {
+        try startLocked()
+      }
+    }
   }
 
   /// Runs the deployer. Only the app should do this; the extension must find prebuilt tables.
   @discardableResult
   public func runMaintenance(fullCheck: Bool = true) throws -> RimeProbeRecord {
-    try perform { try runMaintenanceLocked(fullCheck: fullCheck) }
+    try perform {
+      try withDictionaryOwnership(store: dictionaryLeaseStore, host: dictionaryHost) {
+        try runMaintenanceLocked(fullCheck: fullCheck)
+      }
+    }
   }
 
   public func openSession() throws {
@@ -115,9 +134,12 @@ public final class RimeEngine: @unchecked Sendable {
   /// engine's, any level — is a SIGSEGV inside librime's logging. Found by the app-model test on iOS
   /// (round 150), where the crash sat in glog's flush calling back into a buffer that was already gone.
   ///
-  /// Only the sink is removed here; librime's own state is process-global and another engine may be using it.
+  /// Close this engine's session and release its ownership before removing the sink. librime's
+  /// global state is left intact because another engine may be using it.
   deinit {
-    queue.sync {
+    perform {
+      closeSessionLocked()
+      releaseDictionaryOwnershipIfIdle()
       removeLogSinkLocked()
     }
   }
@@ -240,6 +262,8 @@ public final class RimeEngine: @unchecked Sendable {
   }
 
   private func openSessionLocked() throws {
+    try acquireDictionaryOwnership(store: dictionaryLeaseStore, host: dictionaryHost)
+    defer { releaseDictionaryOwnershipIfIdle() }
     let api = try requireAPI()
     if let existing = session, let find = api.pointee.find_session, find(existing) { return }
     guard let create = api.pointee.create_session else { throw RimeEngineError.apiUnavailable }
@@ -248,7 +272,50 @@ public final class RimeEngine: @unchecked Sendable {
     session = created
   }
 
+  /// Idle -> owned -> session/operation -> closed -> idle, all on the engine queue.
+  /// A scope keeps ownership across close/reopen and rebind; no heartbeat can release the lock.
+  func withDictionaryOwnership<T>(store: RimeLeaseStore?, host: String,
+                                  _ body: () throws -> T) throws -> T {
+    try acquireDictionaryOwnership(store: store, host: host)
+    dictionaryOwnershipDepth += 1
+    defer {
+      dictionaryOwnershipDepth -= 1
+      releaseDictionaryOwnershipIfIdle()
+    }
+    return try body()
+  }
+
+  private func acquireDictionaryOwnership(store: RimeLeaseStore?, host: String) throws {
+    guard let store else { return }
+    if let dictionaryLock {
+      guard dictionaryLock.url == store.lockURL else {
+        throw RimeDictionaryAccessError.dictionaryBusy
+      }
+      return
+    }
+    let ownership = try store.acquireLock()
+    // Claim failure must fail closed: never open a shared session without ownership.
+    try store.claim(host: host)
+    dictionaryLock = ownership
+    heldLeaseStore = store
+    let timer = DispatchSource.makeTimerSource(queue: queue)
+    timer.schedule(deadline: .now() + 5, repeating: 5)
+    timer.setEventHandler { [weak self] in self?.heldLeaseStore?.heartbeat() }
+    leaseHeartbeatTimer = timer
+    timer.resume()
+  }
+
+  func releaseDictionaryOwnershipIfIdle() {
+    guard session == nil, dictionaryOwnershipDepth == 0 else { return }
+    leaseHeartbeatTimer?.cancel()
+    leaseHeartbeatTimer = nil
+    heldLeaseStore?.release()
+    heldLeaseStore = nil
+    dictionaryLock = nil
+  }
+
   func closeSessionLocked() {
+    defer { releaseDictionaryOwnershipIfIdle() }
     guard let api, let session, let destroy = api.pointee.destroy_session else { return }
     _ = destroy(session)
     self.session = nil

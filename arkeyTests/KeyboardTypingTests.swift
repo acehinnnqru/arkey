@@ -14,17 +14,22 @@ import RimeEngine
 /// yet") true, and before the deploy test, which uses a workspace of its own.
 final class KeyboardTypingTests: XCTestCase {
   private var installed: String?
+  private var controllers: [KeyboardViewController] = []
 
   override func tearDownWithError() throws {
+    for controller in controllers { controller.viewWillDisappear(false) }
+    controllers.removeAll()
     guard let installed, case .success(let setup) = KeyboardEngine.setup else { return }
     try? RimeDeploymentCoordinator(workspace: setup.workspace, engine: setup.engine)
       .delete(profileID: installed)
     try? FileManager.default.removeItem(at: setup.workspace.activeRecord)
+    setup.engine.shutdown()
     self.installed = nil
   }
 
   private func booted() -> KeyboardViewController {
     let controller = KeyboardViewController()
+    controllers.append(controller)
     controller.loadViewIfNeeded()
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
     controller.viewWillAppear(false)

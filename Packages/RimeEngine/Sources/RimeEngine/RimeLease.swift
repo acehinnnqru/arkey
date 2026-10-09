@@ -3,14 +3,35 @@ import Foundation
 import Darwin
 #endif
 
+/// An open descriptor owns the kernel lock. The lock file is permanent: replacing or deleting it
+/// would let two processes lock different inodes. Process exit closes the descriptor automatically.
+final class RimeDictionaryLock {
+  let url: URL
+  private let descriptor: Int32
+
+  init(url: URL) throws {
+    self.url = url
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                            withIntermediateDirectories: true)
+    descriptor = open(url.path, O_CREAT | O_RDWR | O_CLOEXEC, mode_t(0o600))
+    guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+      let code = errno
+      close(descriptor)
+      if code == EWOULDBLOCK || code == EAGAIN {
+        throw RimeDictionaryAccessError.dictionaryBusy
+      }
+      throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+    }
+  }
+
+  deinit { close(descriptor) }
+}
+
 // MARK: - The lease
 
-/// One writer at a time (S5 §3.2).
-///
-/// librime's leveldb user dictionaries take a per-process lock, so a second opener is not told: it
-/// is handed a dictionary that is silently not loaded, and the user loses both learning and recall
-/// with no message. The extension therefore writes a lease — pid plus a heartbeat — while it holds
-/// a session, and the app takes user-dictionary operations only when that lease is cold.
+/// Diagnostic metadata for the holder of the shared kernel lock. Heartbeat expiry never releases
+/// ownership: a suspended process can still have an open librime session.
 public struct RimeKeyboardLease: Codable, Sendable, Hashable {
   public static let currentSchemaVersion = 1
 
@@ -28,8 +49,7 @@ public struct RimeKeyboardLease: Codable, Sendable, Hashable {
     self.host = host
   }
 
-  /// A heartbeat older than this is not evidence that anyone is typing: an extension that was
-  /// suspended, or killed, stops touching the file without ever removing it.
+  /// Diagnostic freshness only. A suspended holder keeps its kernel lock regardless of this age.
   public static let staleAfter: TimeInterval = 15
 }
 
@@ -61,6 +81,7 @@ public struct RimeLeaseStore: @unchecked Sendable {
 
   // MARK: Holder side
 
+  /// Writes metadata only. Production callers must hold the dictionary lock throughout this call.
   @discardableResult
   public func claim(pid: Int32 = getpid(), host: String? = nil, now: Date = Date()) throws -> RimeKeyboardLease {
     let existing = current()
@@ -80,12 +101,15 @@ public struct RimeLeaseStore: @unchecked Sendable {
     try? RimeJSON.encode(lease, pretty: false).write(to: url, options: .atomic)
   }
 
-  /// Called when the keyboard disappears. It is an optimisation, not the safety mechanism: a
-  /// crashed extension leaves the file behind, which is what the staleness rule is for.
+  /// Removes diagnostic metadata after closing the session, while the kernel lock is still held.
   public func release(pid: Int32 = getpid()) {
     guard let lease = current(), lease.pid == pid else { return }
     try? fileManager.removeItem(at: url)
   }
+
+  var lockURL: URL { url.deletingLastPathComponent().appendingPathComponent("dictionary.lock") }
+
+  func acquireLock() throws -> RimeDictionaryLock { try RimeDictionaryLock(url: lockURL) }
 
   // MARK: Reader side
 
@@ -98,21 +122,29 @@ public struct RimeLeaseStore: @unchecked Sendable {
 
   /// What the lease file says, without collapsing "nobody is typing" into "we cannot tell".
   public enum State: Sendable, Equatable {
-    /// No file, a stale heartbeat, or a process that is gone: the dictionaries are free.
+    /// No kernel holder and no fresh diagnostic warning. Access still requires atomic acquisition.
     case cold
     /// A live process holds them.
     case held(RimeKeyboardLease)
     /// A file is there and cannot be read: a corrupt write, or one whose schema version we do not know.
     ///
-    /// **Unknown is not "nobody is typing".** The leveldb lock this file protects does not care why we
-    /// are wrong, so an unreadable lease counts as held while it is *fresh* — and since there is no
-    /// heartbeat to read, the file's modification date stands in for one. A garbage file that is also
-    /// old therefore ages out like any other, instead of wedging the app forever.
+    /// An owned kernel lock always blocks, including when metadata is missing or corrupt. With no
+    /// kernel holder, fresh unreadable metadata is a conservative warning that can age out.
     case unreadable(modifiedAt: Date, reason: String)
   }
 
   public func state(now: Date = Date(),
                     staleAfter: TimeInterval = RimeKeyboardLease.staleAfter) -> State {
+    // Probe the kernel first. A stale, missing, or corrupt heartbeat cannot hide a lock holder.
+    do {
+      let lock = try acquireLock()
+      withExtendedLifetime(lock) {}
+    } catch RimeDictionaryAccessError.dictionaryBusy {
+      if let lease = current() { return .held(lease) }
+      return .unreadable(modifiedAt: .distantPast, reason: "the dictionary lock is held without readable metadata")
+    } catch {
+      return .unreadable(modifiedAt: .distantPast, reason: String(describing: error))
+    }
     guard fileManager.fileExists(atPath: url.path) else { return .cold }
     guard let lease = current() else {
       let attributes = try? fileManager.attributesOfItem(atPath: url.path)
@@ -125,7 +157,7 @@ public struct RimeLeaseStore: @unchecked Sendable {
     return .held(lease)
   }
 
-  /// The lease a caller must respect, or nil when it is safe to take the dictionaries.
+  /// Diagnostic holder metadata. A nil result never grants dictionary access.
   public func liveHolder(now: Date = Date(), staleAfter: TimeInterval = RimeKeyboardLease.staleAfter)
     -> RimeKeyboardLease? {
     if case .held(let lease) = state(now: now, staleAfter: staleAfter) { return lease }
@@ -143,8 +175,16 @@ public struct RimeLeaseStore: @unchecked Sendable {
   /// unreadable file once it has aged out — the case the old version of this method never reached,
   /// because it required the file to decode.
   public func prune(now: Date = Date()) {
+    guard let lock = try? acquireLock() else { return }
+    defer { withExtendedLifetime(lock) {} }
     guard fileManager.fileExists(atPath: url.path) else { return }
-    guard isCold(now: now) else { return }
+    // No holder can claim or renew while pruning. Only diagnostic age/liveness is relevant here.
+    if let lease = current(), liveness(lease.pid),
+       now.timeIntervalSince(lease.heartbeat) < RimeKeyboardLease.staleAfter { return }
+    if current() == nil,
+       let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+       let modified = attributes[.modificationDate] as? Date,
+       now.timeIntervalSince(modified) < RimeKeyboardLease.staleAfter { return }
     try? fileManager.removeItem(at: url)
   }
 
@@ -165,12 +205,15 @@ public struct RimeLeaseStore: @unchecked Sendable {
 // MARK: - The app's gate
 
 public enum RimeDictionaryAccessError: Error, CustomStringConvertible, Sendable {
+  case dictionaryBusy
   case keyboardIsUsingIt(pid: Int32, since: Date)
   /// A lease file that cannot be read. Refused while fresh, for the same reason a live holder is.
   case leaseUnreadable(modifiedAt: Date, reason: String)
 
   public var description: String {
     switch self {
+    case .dictionaryBusy:
+      return "The dictionaries are in use by another session or operation. Try again after it finishes."
     case .keyboardIsUsingIt(let pid, let since):
       return "键盘正在使用用户词库（pid " + String(pid) + "，自 "
         + ISO8601DateFormatter().string(from: since) + "）。关闭键盘后再试，或稍候片刻。"
@@ -182,8 +225,8 @@ public enum RimeDictionaryAccessError: Error, CustomStringConvertible, Sendable 
   }
 }
 
-/// The app's side of the protocol: refuse with an explanation while the keyboard holds the lease,
-/// and let go of the app's own session while a dictionary operation runs.
+/// Atomically owns the same kernel lock as shared sessions for the whole dictionary operation,
+/// including closing and restoring the app's session. Lease metadata only helps explain refusal.
 ///
 /// It refuses rather than stealing: S1 measured that librime does not report the second opener, so
 /// "try anyway" is how a dictionary ends up silently not loaded.
@@ -216,6 +259,8 @@ public struct RimeDictionaryAccess {
   }
 
   public func blocker(now: Date = Date()) -> Blocker? {
+    let ownsLock = engine.perform { engine.dictionaryLock?.url == leaseStore.lockURL }
+    if ownsLock { return nil }
     switch leaseStore.state(now: now) {
     case .cold:
       return nil
@@ -226,6 +271,7 @@ public struct RimeDictionaryAccess {
     }
   }
 
+  /// Advisory check for presentation only. `perform` atomically acquires ownership before accessing data.
   public func requireExclusiveAccess(now: Date = Date()) throws {
     if let blocker = blocker(now: now) {
       throw blocker.error
@@ -237,19 +283,24 @@ public struct RimeDictionaryAccess {
   /// measured precondition for `export_user_dict` to succeed at all.
   @discardableResult
   public func perform<T>(now: Date = Date(), _ body: () throws -> T) throws -> T {
-    try requireExclusiveAccess(now: now)
-    let hadSession = engine.isSessionOpen
-    engine.closeSession()
-    defer {
-      if hadSession { try? engine.openSession() }
+    try engine.perform {
+      // Reuse this engine's ownership so its session can be closed and restored without a gap.
+      if engine.dictionaryLock == nil { try requireExclusiveAccess(now: now) }
+      return try engine.withDictionaryOwnership(store: leaseStore, host: "app") {
+        let hadSession = engine.isSessionOpen
+        engine.closeSession()
+        defer {
+          if hadSession { try? engine.openSession() }
+        }
+        return try body()
+      }
     }
-    return try body()
   }
 }
 
 extension RimeEngine {
-  /// True while this engine holds a librime session. The lease is only meaningful together with
-  /// one: an engine with no session is not using the dictionaries.
+  /// True while this engine holds a librime session. Dictionary operations can also hold ownership
+  /// with no session, so this value alone never grants access to another caller.
   public var isSessionOpen: Bool {
     perform {
       guard let session else { return false }

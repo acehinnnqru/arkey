@@ -85,9 +85,11 @@ public struct RimeDictionaryEditor {
       throw RimeSyncError.refused(blocker.description)
     }
     let database = workspace.userData.appendingPathComponent(name + ".userdb", isDirectory: true)
-    guard fileManager.fileExists(atPath: database.path) else { return false }
-    try fileManager.removeItem(at: database)
-    return true
+    return try access.perform {
+      guard fileManager.fileExists(atPath: database.path) else { return false }
+      try fileManager.removeItem(at: database)
+      return true
+    }
   }
 
   /// Adds an entry with the weight the user asked for, or replaces the weight of one that is there.

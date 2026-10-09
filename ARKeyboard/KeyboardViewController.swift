@@ -70,7 +70,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   /// number S4-AC6 is about.
   private var keyLatency = RimeKeyLatencyWindow()
 
-  deinit { panelLoadCancellation?.cancel() }
+  deinit {
+    panelLoadCancellation?.cancel()
+    engine?.closeSession()
+  }
 
   // MARK: - Lifecycle
 
@@ -156,8 +159,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     keyGrid.onKeyTouchMove = { [weak self] key, point in self?.moveCallout(for: key, at: point) }
     keyGrid.onKeyTouchEnded = { [weak self] in self?.hideCallout() }
-
-    prepareEngine()
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -166,11 +167,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     applyCurrentTheme()
     refreshLayout()
     updateHeight()
+    prepareEngine()
     // A profile the app activated is adopted here, before the first keystroke of this appearance,
     // and only because the composition was just cleared: S1 §8 forbids switching mid-sentence.
     markedText = nil
     try? engine?.clearComposition()
-    if let setup = engineSetup {
+    if engine != nil, let setup = engineSetup {
       KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
       candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
     }
@@ -182,11 +184,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     super.viewWillDisappear(animated)
     if isPanelExpanded { collapsePanel() }
     flushKeyStatistics()
-    // S5 §3.2: the dictionary lease is released when the keyboard goes away. The engine-side safety net
-    // is the staleness rule, but a released lease is what makes the app usable again immediately.
-    if case .success(let setup) = KeyboardEngine.setup {
-      KeyboardEngine.releaseDictionaryLease(setup)
-    }
+    panelLoadCancellation?.cancel()
+    engine?.closeSession()
+    engine = nil
+    markedText = nil
+    currentPage = nil
+    candidateBar.setPage(nil)
   }
 
   override func textDidChange(_ textInput: UITextInput?) {
@@ -223,13 +226,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       KeyboardLog.error("setup failed: " + reason)
       candidateBar.setMessage("Arkey 启动失败：" + reason)
     case .success(let setup):
-      engine = setup.engine
       engineSetup = setup
-      // The app stays away from the user dictionaries while this lease is fresh (S5 §3.2).
-      KeyboardEngine.holdDictionaryLease(setup)
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
+        engine = setup.engine
         refreshLanguageKeyFromEngine()
         refreshLayout()
         var detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
@@ -242,6 +243,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                                             message: detail))
         candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
       } catch {
+        setup.engine.closeSession()
+        engine = nil
         let reason = String(describing: error)
         KeyboardLog.error("boot failed: " + reason)
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot.failed", message: reason))

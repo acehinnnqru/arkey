@@ -115,7 +115,8 @@ final class RimeAppModel: ObservableObject {
     workspace = RimeWorkspace.locate(appGroupID: Self.appGroupID)
     let resolved = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: shared)
     self.resolved = resolved
-    engine = RimeEngine(configuration: RimeConfiguration(directories: resolved.directories, minLogLevel: 0))
+    engine = RimeEngine(configuration: RimeConfiguration(directories: resolved.directories, minLogLevel: 0),
+                        dictionaryLeaseStore: RimeLeaseStore(workspace: workspace))
     resolvedSummary = Self.describe(resolved)
   }
 
@@ -185,6 +186,7 @@ final class RimeAppModel: ObservableObject {
     do {
       let start = try engine.start()
       try engine.openSession()
+      defer { engine.closeSession() }
       let composing = try engine.processKeys("nihao")
       let candidate = composing.candidates.first?.text ?? "（无候选）"
       let committed = try engine.selectCandidate(at: 0).commit ?? "（未上屏）"

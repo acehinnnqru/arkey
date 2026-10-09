@@ -48,6 +48,9 @@ final class RimeAppModelTests: XCTestCase {
       "the installation record is missing, so the sync directory would move on the next launch")
     XCTAssertFalse(model.engineStatus.contains("尚未启动"),
                    "the engine was never started: " + model.engineStatus)
+    XCTAssertFalse(model.engine.isSessionOpen, "the app typing check must not keep shared dictionaries owned")
+    XCTAssertNil(RimeLeaseStore(workspace: model.workspace).current(),
+                 "the app typing check releases its diagnostic lease")
   }
 
   /// The 配置库 path the screens drive: import a folder, deploy it, and the footer says so. It is the app's

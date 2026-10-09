@@ -158,7 +158,7 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertNotNil(store.liveHolder())
     XCTAssertFalse(store.isCold())
 
-    // A stale heartbeat is not evidence of typing: a suspended extension stops touching the file.
+    // Metadata written without kernel ownership is diagnostic only; its freshness can age out.
     let later = Date().addingTimeInterval(RimeKeyboardLease.staleAfter + 1)
     XCTAssertTrue(store.isCold(now: later))
     XCTAssertNil(store.liveHolder(now: later))
@@ -257,8 +257,8 @@ final class S5UserDictionaryTests: XCTestCase {
       XCTAssertEqual(pid, 999_998)
     }
 
-    // A stale heartbeat is enough to proceed even when the pid exists: a suspended extension is
-    // not typing.
+    // This fixture writes metadata without acquiring ownership. A stale diagnostic file does not
+    // block the advisory check; a real session's kernel lock is tested separately below.
     XCTAssertNil(access.blocker(now: Date().addingTimeInterval(RimeKeyboardLease.staleAfter + 1)))
 
     // The gate closes the app's own session while the operation runs and restores it afterwards.
@@ -269,6 +269,109 @@ final class S5UserDictionaryTests: XCTestCase {
     try access2.perform { sessionDuringOperation = engine.isSessionOpen }
     XCTAssertFalse(sessionDuringOperation, "export needs no session holding the database")
     XCTAssertTrue(engine.isSessionOpen, "and the app's session comes back")
+  }
+
+  private func bindEngineToDictionaryLock() throws -> RimeLeaseStore {
+    let directories = engine.directories
+    engine.shutdown()
+    let store = RimeLeaseStore(workspace: workspace)
+    engine = RimeEngine(configuration: RimeConfiguration(directories: directories),
+                        dictionaryLeaseStore: store, dictionaryHost: "keyboard")
+    try engine.start()
+    return store
+  }
+
+  func testSessionOwnershipSurvivesStaleMissingAndCorruptMetadata() throws {
+    let store = try bindEngineToDictionaryLock()
+    try engine.openSession()
+    defer { engine.closeSession() }
+    let access = RimeDictionaryAccess(workspace: workspace,
+                                      engine: RimeEngine(configuration: RimeConfiguration(directories: engine.directories)))
+    try store.claim(now: Date().addingTimeInterval(-3600))
+    XCTAssertNotNil(access.blocker())
+    XCTAssertThrowsError(try store.acquireLock())
+    store.prune()
+    XCTAssertNotNil(store.current(), "pruning cannot remove a suspended holder's metadata")
+    try FileManager.default.removeItem(at: store.url)
+    XCTAssertNotNil(access.blocker(), "missing diagnostics do not release ownership")
+    try Data("invalid metadata".utf8).write(to: store.url)
+    XCTAssertThrowsError(try access.perform { XCTFail("a competitor entered the operation") })
+    XCTAssertTrue(engine.isSessionOpen)
+  }
+
+  func testAnIdleVisibleSessionRenewsItsDiagnosticHeartbeat() throws {
+    let store = try bindEngineToDictionaryLock()
+    try engine.openSession()
+    defer { engine.closeSession() }
+    let first = try XCTUnwrap(store.current()).heartbeat
+    let renewed = expectation(description: "the session heartbeat timer runs without input")
+    DispatchQueue.global().asyncAfter(deadline: .now() + 6) { renewed.fulfill() }
+    wait(for: [renewed], timeout: 8)
+    XCTAssertGreaterThan(try XCTUnwrap(store.current()).heartbeat, first)
+    XCTAssertThrowsError(try store.acquireLock())
+  }
+
+  func testClosingAndReopeningASessionReacquiresOwnership() throws {
+    let store = try bindEngineToDictionaryLock()
+    try engine.openSession()
+    XCTAssertThrowsError(try store.acquireLock())
+    engine.closeSession()
+    XCTAssertFalse(engine.isSessionOpen)
+    XCTAssertNil(store.current())
+    var competitor: RimeDictionaryLock? = try store.acquireLock()
+    XCTAssertThrowsError(try engine.openSession())
+    XCTAssertFalse(engine.isSessionOpen, "a denied claim must not open a session")
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+    try engine.openSession()
+    XCTAssertNotNil(store.current(), "reappearance claims new metadata")
+    XCTAssertTrue(engine.isSessionOpen)
+    XCTAssertThrowsError(try store.acquireLock())
+    engine.closeSession()
+    XCTAssertNoThrow(try store.acquireLock())
+  }
+
+  func testDictionaryOperationKeepsOwnershipAcrossCloseAndRestoreAndErrors() throws {
+    let store = try bindEngineToDictionaryLock()
+    try engine.openSession()
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    enum Failure: Error { case expected }
+    XCTAssertThrowsError(try access.perform {
+      XCTAssertFalse(engine.isSessionOpen)
+      XCTAssertThrowsError(try store.acquireLock(), "closing for export must not release ownership")
+      throw Failure.expected
+    })
+    XCTAssertTrue(engine.isSessionOpen, "a throwing operation restores the session under the lock")
+    XCTAssertThrowsError(try store.acquireLock())
+    engine.closeSession()
+    try access.perform {
+      XCTAssertThrowsError(try store.acquireLock())
+    }
+    XCTAssertFalse(engine.isSessionOpen, "an initially closed session stays closed")
+    XCTAssertNoThrow(try store.acquireLock())
+    XCTAssertNil(store.current())
+  }
+
+  func testAClaimFailureDoesNotOpenASessionOrLeakOwnership() throws {
+    let store = try bindEngineToDictionaryLock()
+    try FileManager.default.createDirectory(at: store.url, withIntermediateDirectories: false)
+    XCTAssertThrowsError(try engine.openSession(), "diagnostic claim failure must fail closed")
+    XCTAssertFalse(engine.isSessionOpen)
+    XCTAssertNoThrow(try store.acquireLock(), "a failed claim must release the descriptor")
+    try FileManager.default.removeItem(at: store.url)
+    try engine.openSession()
+    XCTAssertTrue(engine.isSessionOpen, "a repaired claim can acquire and open normally")
+    engine.closeSession()
+  }
+
+  func testAnOperationCannotEnterAfterAnAdvisoryCheckRacesWithAClaim() throws {
+    let store = RimeLeaseStore(workspace: workspace)
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    try access.requireExclusiveAccess()
+    let competitor = try store.acquireLock()
+    // No metadata is written: the kernel lock alone must close the check/execute gap.
+    XCTAssertThrowsError(try access.perform { XCTFail("operation raced past the lock") })
+    withExtendedLifetime(competitor) {}
   }
 
   // MARK: The whole phone-side path

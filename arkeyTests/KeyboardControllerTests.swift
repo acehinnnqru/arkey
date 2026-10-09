@@ -11,12 +11,21 @@ import RimeEngine
 /// starts it, opens a session, and reports the status line the bar shows. Nothing here is mocked; a failure is
 /// the keyboard a user would see.
 final class KeyboardControllerTests: XCTestCase {
+  private var controllers: [KeyboardViewController] = []
+
+  override func tearDownWithError() throws {
+    for controller in controllers { controller.viewWillDisappear(false) }
+    controllers.removeAll()
+  }
+
   /// A controller with a keyboard-shaped view: 430 pt wide, the measured width, and tall enough for the
   /// candidate bar, the rows and the bottom inset the constraints ask for. Off a window nothing lays itself
   /// out, so the test gives it the size the system would give it on a phone.
   private func booted() -> KeyboardViewController {
     let controller = KeyboardViewController()
+    controllers.append(controller)
     controller.loadViewIfNeeded()
+    controller.viewWillAppear(false)
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
     controller.view.setNeedsLayout()
     controller.view.layoutIfNeeded()
@@ -77,6 +86,7 @@ final class KeyboardControllerTests: XCTestCase {
   /// intermediate dismissal frames must not expose keys outside that surface.
   func testKeyboardHeightIsReadyBeforePresentation() throws {
     let controller = KeyboardViewController()
+    controllers.append(controller)
     controller.loadViewIfNeeded()
     let root = try XCTUnwrap(controller.inputView)
     let height = try XCTUnwrap(root.constraints.first {
@@ -159,6 +169,7 @@ final class KeyboardControllerTests: XCTestCase {
   /// the candidate bar — 11 pt lower than the slot the height counts — so the bottom row hung below the frame.
   func testTheFrameTheExtensionAsksForHoldsEveryKey() throws {
     let controller = KeyboardViewController()
+    controllers.append(controller)
     controller.loadViewIfNeeded()
     controller.viewWillAppear(false)
     let asked = KeyboardMetrics.totalHeight(needsGlobeRow: controller.needsInputModeSwitchKey)
