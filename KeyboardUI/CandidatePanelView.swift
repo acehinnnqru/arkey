@@ -2,17 +2,102 @@ import UIKit
 import RimeEngine
 
 /// Keep a drag available to the scroll view even when it starts over a candidate control.
-private final class CandidateScrollView: UIScrollView {
+private final class CandidateScrollView: UICollectionView {
   override func touchesShouldCancel(in view: UIView) -> Bool { true }
 }
 
+private final class CandidateCollectionCell: UICollectionViewCell {
+  let button = UIButton(type: .custom)
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    button.titleLabel?.font = .systemFont(ofSize: 20)
+    button.titleLabel?.lineBreakMode = .byTruncatingTail
+    button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+    button.clipsToBounds = true
+    button.layer.cornerRadius = 8
+    button.layer.cornerCurve = .continuous
+    button.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    button.frame = contentView.bounds
+    contentView.addSubview(button)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+
+/// Natural-width rows; UIKit owns cell reuse and the complete scrolling lifecycle.
+private final class CandidateCollectionLayout: UICollectionViewLayout {
+  var widths: [CGFloat] = []
+  var rowPitch: CGFloat = RimeCandidatePanelModel.rowPitch
+  private var attributes: [UICollectionViewLayoutAttributes] = []
+  private var contentSize = CGSize.zero
+  private var measuredWidth: CGFloat = -1
+  private var needsMeasurement = true
+
+  override func invalidateLayout() {
+    needsMeasurement = true
+    super.invalidateLayout()
+  }
+
+  override func prepare() {
+    super.prepare()
+    guard let collectionView, collectionView.bounds.width > 0 else { return }
+    let available = collectionView.bounds.width
+    guard needsMeasurement || measuredWidth != available else { return }
+    measuredWidth = available
+    needsMeasurement = false
+    attributes.removeAll(keepingCapacity: true)
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    for (index, preferredWidth) in widths.enumerated() {
+      let width = min(available, preferredWidth)
+      if x > 0 && x + width > available {
+        x = 0
+        y += rowPitch
+      }
+      let item = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: index, section: 0))
+      item.frame = CGRect(x: x, y: y, width: width, height: rowPitch)
+      attributes.append(item)
+      x += width
+    }
+    contentSize = CGSize(width: available, height: widths.isEmpty ? 0 : y + rowPitch)
+  }
+
+  override var collectionViewContentSize: CGSize { contentSize }
+
+  override func layoutAttributesForItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
+    attributes.indices.contains(indexPath.item) ? attributes[indexPath.item] : nil
+  }
+
+  override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
+    var low = 0
+    var high = attributes.count
+    while low < high {
+      let middle = (low + high) / 2
+      if attributes[middle].frame.maxY < rect.minY { low = middle + 1 }
+      else { high = middle }
+    }
+    var visible: [UICollectionViewLayoutAttributes] = []
+    for item in attributes[low...] {
+      if item.frame.minY > rect.maxY { break }
+      if item.frame.intersects(rect) { visible.append(item) }
+    }
+    return visible
+  }
+
+  override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool {
+    newBounds.width != measuredWidth
+  }
+}
+
 /// Expanded candidates wrap at their natural text width and scroll within the keyboard.
-final class CandidatePanelView: UIView, UIScrollViewDelegate {
+final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
   /// A cell was tapped: the argument is librime's own candidate index, not the cell's position.
   var onSelect: ((Int) -> Void)?
   var onCollapse: (() -> Void)?
   /// Page the grid. Never commits (S3 §5).
   var onPage: ((Bool) -> Void)?
+  var onNeedsMoreCandidates: (() -> Void)?
   #if DEBUG
   var onScroll: ((CGFloat) -> Void)?
   #endif
@@ -23,11 +108,11 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
   private let leadingButton = UIButton(type: .system)
   private let trailingButton = UIButton(type: .system)
   private let collapseButton = UIButton(type: .system)
-  private let gridStack = CandidateScrollView()
+  private let candidateLayout = CandidateCollectionLayout()
+  private lazy var gridStack = CandidateScrollView(frame: .zero, collectionViewLayout: candidateLayout)
   private let loadingIndicator = UIActivityIndicatorView(style: .medium)
   private var rowPitch = RimeCandidatePanelModel.rowPitch
-  private var cellButtons: [UIButton] = []
-  private struct Entry {
+  private struct Entry: Equatable {
     let index: Int
     let text: String
     let comment: String?
@@ -35,10 +120,6 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     let isHighlighted: Bool
   }
   private var entries: [Entry] = []
-  private var cellFrames: [CGRect] = []
-  private var displayedIndices: [Int] = []
-  private var measuredWidth: CGFloat = 0
-  private var needsCellLayout = true
   private let candidateFont = UIFont.systemFont(ofSize: 20)
   private var theme = KeyboardTheme.current(for: .default)
 
@@ -85,6 +166,10 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     gridStack.delaysContentTouches = true
     gridStack.canCancelContentTouches = true
     gridStack.delegate = self
+    gridStack.dataSource = self
+    gridStack.backgroundColor = .clear
+    gridStack.contentInsetAdjustmentBehavior = .never
+    gridStack.register(CandidateCollectionCell.self, forCellWithReuseIdentifier: "candidate")
     addSubview(gridStack)
     loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
     loadingIndicator.hidesWhenStopped = true
@@ -110,24 +195,6 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     ])
   }
 
-  private func ensureCells(_ count: Int) {
-    while cellButtons.count < count {
-      let button = UIButton(type: .custom)
-      button.titleLabel?.font = .systemFont(ofSize: 20)
-      button.titleLabel?.adjustsFontSizeToFitWidth = false
-      button.titleLabel?.lineBreakMode = .byTruncatingTail
-      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
-      button.clipsToBounds = true
-      button.layer.cornerRadius = 8
-      button.layer.cornerCurve = .continuous
-      button.setTitleColor(theme.candidateText, for: .normal)
-      button.addTarget(self, action: #selector(handleCell(_:)), for: .touchUpInside)
-      gridStack.addSubview(button)
-      cellButtons.append(button)
-      displayedIndices.append(-1)
-    }
-  }
-
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is not used")
   }
@@ -146,8 +213,11 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     for button in [leadingButton, trailingButton, collapseButton] {
       button.tintColor = theme.candidateText.withAlphaComponent(0.6)
     }
-    for button in cellButtons {
-      button.setTitleColor(theme.candidateText, for: .normal)
+    for case let cell as CandidateCollectionCell in gridStack.visibleCells {
+      cell.button.setTitleColor(theme.candidateText, for: .normal)
+      if let index = gridStack.indexPath(for: cell)?.item, entries.indices.contains(index) {
+        cell.button.backgroundColor = entries[index].isHighlighted ? theme.candidatePanelHighlightFill : .clear
+      }
     }
   }
 
@@ -165,12 +235,11 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     leadingButton.isHidden = model.isFirstPage
     trailingButton.isHidden = model.isLastPage
 
-    entries = model.cells.map {
+    let entries = model.cells.map {
       Entry(index: $0.index, text: $0.text, comment: $0.comment,
             label: $0.label, isHighlighted: $0.isHighlighted)
     }
-    needsCellLayout = true
-    gridStack.setContentOffset(.zero, animated: false)
+    replaceEntries(entries, resetScroll: true)
     invalidateIntrinsicContentSize()
     setNeedsLayout()
   }
@@ -181,12 +250,11 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
     loadingIndicator.stopAnimating()
     syllableRow.isHidden = true
     headerHeightConstraint.constant = 0
-    entries = candidates.dropFirst(min(start, candidates.count)).enumerated().map { offset, item in
+    let entries = candidates.dropFirst(min(start, candidates.count)).enumerated().map { offset, item in
       Entry(index: start + offset, text: item.text, comment: item.comment,
             label: nil, isHighlighted: false)
     }
-    needsCellLayout = true
-    if resetScroll { gridStack.setContentOffset(.zero, animated: false) }
+    replaceEntries(entries, resetScroll: resetScroll)
     setNeedsLayout()
   }
 
@@ -197,94 +265,70 @@ final class CandidatePanelView: UIView, UIScrollViewDelegate {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    let available = gridStack.bounds.width
-    guard available > 0 else { return }
-    if needsCellLayout || abs(available - measuredWidth) > 0.5 {
-      measureCells(width: available)
-    }
-    updateVisibleCells()
+    gridStack.layoutIfNeeded()
   }
 
-  private func measureCells(width available: CGFloat) {
-    measuredWidth = available
-    needsCellLayout = false
-    cellFrames.removeAll(keepingCapacity: true)
-    cellFrames.reserveCapacity(entries.count)
-    var x: CGFloat = 0
-    var y: CGFloat = 0
-    for entry in entries {
+  private func replaceEntries(_ updated: [Entry], resetScroll: Bool) {
+    let oldCount = entries.count
+    let appending = !resetScroll && candidateLayout.rowPitch == rowPitch
+      && updated.count >= oldCount && updated.prefix(oldCount).elementsEqual(entries)
+    guard resetScroll || updated != entries else { return }
+    let newWidths = (appending ? Array(updated.dropFirst(oldCount)) : updated).map { entry in
       let measured = (entry.text as NSString).size(withAttributes: [.font: candidateFont]).width
-      let width = min(available, max(44, ceil(measured) + 24))
-      if x > 0 && x + width > available {
-        x = 0
-        y += rowPitch
-      }
-      cellFrames.append(CGRect(x: x, y: y, width: width, height: rowPitch))
-      x += width
+      return max(44, ceil(measured) + 24)
     }
-    for button in cellButtons { button.isHidden = true }
-    displayedIndices = Array(repeating: -1, count: cellButtons.count)
-    gridStack.contentSize = CGSize(width: available, height: entries.isEmpty ? 0 : y + rowPitch)
-  }
-
-  private func updateVisibleCells() {
-    // Keep the small panel fully materialized for accessibility. A long list only needs the
-    // current viewport and one row of overscan; scrolls reuse the same buttons.
-    let allVisible = entries.count <= RimeCandidatePanelModel.cellsPerPage
-    let lower = gridStack.contentOffset.y - rowPitch
-    let upper = gridStack.contentOffset.y + gridStack.bounds.height + rowPitch
-    var visible: [Int] = []
-    var first = 0
-    if !allVisible {
-      var low = 0
-      var high = cellFrames.count
-      while low < high {
-        let middle = (low + high) / 2
-        if cellFrames[middle].maxY < lower {
-          low = middle + 1
-        } else {
-          high = middle
+    // Complete the old layout before changing the data source for inserted items.
+    gridStack.layoutIfNeeded()
+    entries = updated
+    candidateLayout.rowPitch = rowPitch
+    if appending {
+      candidateLayout.widths.append(contentsOf: newWidths)
+      UIView.performWithoutAnimation {
+        gridStack.performBatchUpdates {
+          candidateLayout.invalidateLayout()
+          gridStack.insertItems(at: (oldCount..<updated.count).map { IndexPath(item: $0, section: 0) })
         }
       }
-      first = low
+    } else {
+      candidateLayout.widths = newWidths
+      candidateLayout.invalidateLayout()
+      gridStack.reloadData()
+      if resetScroll { gridStack.setContentOffset(.zero, animated: false) }
     }
-    for index in first..<cellFrames.count {
-      let frame = cellFrames[index]
-      if allVisible || (frame.maxY >= lower && frame.minY <= upper) {
-        visible.append(index)
-      } else if !allVisible && frame.minY > upper {
-        break
-      }
-    }
-    ensureCells(visible.count)
-    let visibleSet = Set(visible)
-    for slot in cellButtons.indices where displayedIndices[slot] >= 0
-      && !visibleSet.contains(displayedIndices[slot]) {
-      cellButtons[slot].isHidden = true
-      displayedIndices[slot] = -1
-    }
-    for index in visible {
-      if displayedIndices.contains(index) { continue }
-      guard let slot = displayedIndices.firstIndex(of: -1) else { continue }
-      let button = cellButtons[slot]
-      let entry = entries[index]
-      button.isHidden = false
-      button.frame = cellFrames[index]
-      button.tag = entry.index
-      button.accessibilityLabel = entry.label.map { $0 + ". " + entry.text } ?? entry.text
-      button.accessibilityValue = entry.comment
-      button.setTitle(entry.text, for: .normal)
-      button.backgroundColor = entry.isHighlighted ? theme.candidatePanelHighlightFill : .clear
-      displayedIndices[slot] = index
-    }
+  }
+
+  func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+    entries.count
+  }
+
+  func collectionView(_ collectionView: UICollectionView,
+                      cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "candidate", for: indexPath)
+      as! CandidateCollectionCell
+    let entry = entries[indexPath.item]
+    let button = cell.button
+    button.tag = entry.index
+    button.accessibilityLabel = entry.label.map { $0 + ". " + entry.text } ?? entry.text
+    button.accessibilityValue = entry.comment
+    button.setTitle(entry.text, for: .normal)
+    button.setTitleColor(theme.candidateText, for: .normal)
+    button.backgroundColor = entry.isHighlighted ? theme.candidatePanelHighlightFill : .clear
+    button.removeTarget(self, action: #selector(handleCell(_:)), for: .touchUpInside)
+    button.addTarget(self, action: #selector(handleCell(_:)), for: .touchUpInside)
+    return cell
+  }
+
+  func requestMoreCandidatesIfNeeded() {
+    guard gridStack.bounds.height > 0,
+          gridStack.contentSize.height - gridStack.bounds.maxY < gridStack.bounds.height * 2 else { return }
+    onNeedsMoreCandidates?()
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     #if DEBUG
     onScroll?(scrollView.contentOffset.y)
     #endif
-    guard !needsCellLayout, entries.count > RimeCandidatePanelModel.cellsPerPage else { return }
-    updateVisibleCells()
+    requestMoreCandidatesIfNeeded()
   }
 
   @objc private func handleCell(_ sender: UIButton) {

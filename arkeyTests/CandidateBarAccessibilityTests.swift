@@ -141,17 +141,20 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 373))
     view.apply(model: .all((0..<36).map { _ in RimeCandidateItem(text: "这是一个很长的候选词", comment: nil) }))
     view.layoutIfNeeded()
-    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
-    let buttons = allButtons(in: scroll).filter { !$0.isHidden }
-    XCTAssertEqual(buttons.count, 36)
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    XCTAssertEqual(scroll.numberOfItems(inSection: 0), 36)
     XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
     var selected: Int?
     view.onSelect = { selected = $0 }
-    for button in buttons {
+    for index in 0..<36 {
+      let path = IndexPath(item: index, section: 0)
+      scroll.scrollToItem(at: path, at: .top, animated: false)
+      scroll.layoutIfNeeded()
+      let cell = try XCTUnwrap(scroll.cellForItem(at: path))
+      let button = try XCTUnwrap(allButtons(in: cell).first)
       XCTAssertEqual(button.titleLabel?.font.pointSize, 20)
       XCTAssertEqual(button.titleLabel?.adjustsFontSizeToFitWidth, false)
       XCTAssertLessThanOrEqual(button.frame.maxX, scroll.bounds.width)
-      scroll.scrollRectToVisible(button.frame, animated: false)
       let point = button.convert(CGPoint(x: 1, y: button.bounds.midY), to: view)
       let hit = try XCTUnwrap(view.hitTest(point, with: nil) as? UIButton)
       XCTAssertTrue(hit === button)
@@ -189,12 +192,14 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     let middle = try XCTUnwrap(allButtons(in: scroll).first { !$0.isHidden && $0.tag == 9 })
     for offset: CGFloat in [45, 90, 45, 0] {
       scroll.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
+      scroll.layoutIfNeeded()
       XCTAssertTrue(allButtons(in: scroll).first { !$0.isHidden && $0.tag == 9 } === middle,
                     "a candidate still on screen must keep its button while scrolling")
     }
 
     scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
                             animated: false)
+    scroll.layoutIfNeeded()
     let last = try XCTUnwrap(allButtons(in: scroll).first {
       !$0.isHidden && $0.tag == 499
     })
@@ -223,7 +228,61 @@ final class CandidateBarAccessibilityTests: XCTestCase {
 
     view.applyContinuation(Array(candidates.prefix(2)), startingAt: 0, resetScroll: true)
     view.layoutIfNeeded()
-    XCTAssertEqual(allButtons(in: scroll).filter { !$0.isHidden }.count, 2)
+    let collection = try XCTUnwrap(scroll as? UICollectionView)
+    XCTAssertEqual(collection.numberOfItems(inSection: 0), 2)
+    XCTAssertEqual(collection.indexPathsForVisibleItems.count, 2)
+  }
+
+  func testAppendingCandidatesKeepsVisibleControlsAndScrollPosition() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    let candidates = (0..<200).map { RimeCandidateItem(text: "Candidate \($0)") }
+    view.applyContinuation(Array(candidates.prefix(100)), startingAt: 0, resetScroll: true)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    scroll.setContentOffset(CGPoint(x: 0, y: 180), animated: false)
+    scroll.layoutIfNeeded()
+    let path = try XCTUnwrap(scroll.indexPathsForVisibleItems.first)
+    let original = try XCTUnwrap(scroll.cellForItem(at: path))
+    let button = try XCTUnwrap(allButtons(in: original).first)
+    let index = button.tag
+    view.applyContinuation(candidates, startingAt: 0)
+    view.layoutIfNeeded()
+    XCTAssertTrue(scroll.cellForItem(at: path) === original)
+    XCTAssertEqual(button.tag, index)
+    XCTAssertEqual(scroll.contentOffset.y, 180, accuracy: 0.5)
+    XCTAssertEqual(scroll.numberOfItems(inSection: 0), 200)
+    var selected: Int?
+    view.onSelect = { selected = $0 }
+    button.sendActions(for: .touchUpInside)
+    XCTAssertEqual(selected, index)
+    XCTAssertLessThan(allButtons(in: scroll).count, 100)
+  }
+
+  func testExpandControlDoesNotParticipateInPagingGestures() throws {
+    let view = bar(RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: "Candidate")]))
+    let expand = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "展开候选面板" })
+    var ancestor: UIView? = expand
+    while let current = ancestor {
+      XCTAssertFalse((current.gestureRecognizers ?? []).contains { $0 is UISwipeGestureRecognizer })
+      ancestor = current.superview
+    }
+    let candidate = try XCTUnwrap(allButtons(in: view).first { $0.tag == 0 && $0 !== expand })
+    XCTAssertEqual(candidate.superview?.gestureRecognizers?.filter { $0 is UISwipeGestureRecognizer }.count, 2)
+  }
+
+  func testMoreCandidatesAreRequestedOnlyNearTheEnd() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    view.applyContinuation((0..<96).map { RimeCandidateItem(text: "Candidate \($0)") },
+                           startingAt: 0, resetScroll: true)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    var requests = 0
+    view.onNeedsMoreCandidates = { requests += 1 }
+    view.requestMoreCandidatesIfNeeded()
+    XCTAssertEqual(requests, 0)
+    scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
+                            animated: false)
+    XCTAssertGreaterThan(requests, 0)
   }
 
 }

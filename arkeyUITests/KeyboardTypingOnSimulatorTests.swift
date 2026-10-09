@@ -68,4 +68,28 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
     let text = (field.value as? String) ?? ""
     XCTAssertTrue(text.contains("你好"), "the field says: [" + text + "]")
   }
+
+  func testCandidateBarAndExpandRespondRepeatedlyInInstalledKeyboard() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    let initial = (field.value as? String) ?? ""
+    for iteration in 1...3 {
+      for letter in ["n", "i", "h", "a", "o"] {
+        app.keys[letter].firstMatch.tap()
+      }
+      let expand = keyboardControl(app, "展开候选面板")
+      XCTAssertTrue(expand.waitForExistence(timeout: 5))
+      // Use physical coordinates so accessibility activation cannot bypass hit testing.
+      expand.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+      let collapse = keyboardControl(app, "收起候选面板")
+      XCTAssertTrue(collapse.waitForExistence(timeout: 5))
+      collapse.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+      XCTAssertTrue(expand.waitForExistence(timeout: 5))
+      let candidate = app.staticTexts["你好"].firstMatch
+      XCTAssertTrue(candidate.waitForExistence(timeout: 5))
+      candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+      XCTAssertFalse(keyboardControl(app, "展开候选面板").exists)
+      XCTAssertEqual((field.value as? String) ?? "", initial + String(repeating: "你好", count: iteration))
+    }
+  }
 }

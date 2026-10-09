@@ -157,19 +157,28 @@ extension RimeEngine {
 
   /// The whole candidate list, not just the current page. S3's expanded panel is a grid over it.
   public func candidateList(shouldContinue: () -> Bool = { true }) throws -> [RimeCandidateItem] {
-    try perform {
+    try candidateList(startingAt: 0, limit: .max, shouldContinue: shouldContinue)
+  }
+
+  /// Read a bounded slice without keeping an iterator alive across engine operations.
+  /// The keyboard uses this to release the serial engine queue between visible batches.
+  public func candidateList(startingAt start: Int, limit: Int,
+                            shouldContinue: () -> Bool = { true }) throws -> [RimeCandidateItem] {
+    guard start >= 0, start <= Int(Int32.max), limit > 0 else { return [] }
+    return try perform {
+      guard shouldContinue() else { return [] }
       let api = try requireAPI()
       let session = try requireSession(api: api)
-      guard let begin = api.pointee.candidate_list_begin,
+      guard let begin = api.pointee.candidate_list_from_index,
             let next = api.pointee.candidate_list_next,
             let end = api.pointee.candidate_list_end else {
         throw RimeEngineError.apiUnavailable
       }
       var iterator = RimeCandidateListIterator()
-      guard begin(session, &iterator) else { return [] }
+      guard begin(session, &iterator, Int32(start)) else { return [] }
       defer { end(&iterator) }
       var items: [RimeCandidateItem] = []
-      while shouldContinue() && next(&iterator) {
+      while items.count < limit && shouldContinue() && next(&iterator) {
         let candidate = iterator.candidate
         items.append(RimeCandidateItem(text: candidate.text.map { String(cString: $0) } ?? "",
                                        comment: candidate.comment.map { String(cString: $0) }))

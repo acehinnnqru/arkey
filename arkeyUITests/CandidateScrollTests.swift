@@ -6,7 +6,7 @@ final class CandidateScrollTests: XCTestCase {
     app.launchArguments.append("--candidate-scroll-ui-test")
     app.launch()
 
-    let scroll = app.scrollViews["candidate-scroll"]
+    let scroll = app.collectionViews["candidate-scroll"]
     let offsetLabel = app.staticTexts["candidate-offset"]
     XCTAssertTrue(scroll.waitForExistence(timeout: 10))
     XCTAssertTrue(offsetLabel.waitForExistence(timeout: 10))
@@ -32,7 +32,7 @@ final class CandidateScrollTests: XCTestCase {
     app.launchArguments.append("--candidate-scroll-ui-test")
     app.launch()
 
-    let scroll = app.scrollViews["candidate-scroll"]
+    let scroll = app.collectionViews["candidate-scroll"]
     let selection = app.staticTexts["candidate-selection"]
     XCTAssertTrue(scroll.waitForExistence(timeout: 10))
     XCTAssertTrue(selection.waitForExistence(timeout: 10))

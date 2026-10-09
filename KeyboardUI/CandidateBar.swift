@@ -36,8 +36,8 @@ final class CandidateBar: UIView {
     expandButton.accessibilityLabel = expanded ? "收起候选面板" : "展开候选面板"
   }
 
-  /// S4 §6: "swipe on the bar pages as well". A swipe recognizer on the container does not steal the
-  /// cells' taps — a tap has no movement — so the two gestures coexist the way the system keyboard's do.
+  /// Paging belongs to the candidate area. The expand control must never compete
+  /// with a paging recognizer when a tap includes a little horizontal movement.
   private func addSwipePaging() {
     for (direction, pagesForward) in [(UISwipeGestureRecognizer.Direction.left, true),
                                       (UISwipeGestureRecognizer.Direction.right, false)] {
@@ -46,7 +46,7 @@ final class CandidateBar: UIView {
       swipe.delaysTouchesBegan = false
       swipe.delaysTouchesEnded = false
       swipe.accessibilityLabel = pagesForward ? "下一页" : "上一页"
-      addGestureRecognizer(swipe)
+      cellsStack.addGestureRecognizer(swipe)
     }
   }
 

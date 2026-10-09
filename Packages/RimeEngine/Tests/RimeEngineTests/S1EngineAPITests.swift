@@ -354,6 +354,25 @@ final class S1EngineAPITests: XCTestCase {
     engine.shutdown()
   }
 
+  func testCandidateSlicesPreserveCompositionAndHonorCancellation() throws {
+    let scratch = try Scratch()
+    let directories = try scratch.directories(shared: tracerData)
+    let engine = RimeEngine(configuration: RimeConfiguration(directories: directories))
+    _ = try engine.deploySync(binding: directories, fullCheck: true)
+    try engine.openSession()
+    defer { engine.shutdown() }
+    _ = try engine.processKeys("nihao")
+    let before = try engine.refresh()
+    let all = try engine.candidateList()
+    XCTAssertEqual(try engine.candidateList(startingAt: 0, limit: 1), Array(all.prefix(1)))
+    XCTAssertEqual(try engine.candidateList(startingAt: 1, limit: 1), Array(all.dropFirst(1).prefix(1)))
+    XCTAssertTrue(try engine.candidateList(startingAt: all.count, limit: 1).isEmpty)
+    XCTAssertTrue(try engine.candidateList(startingAt: 0, limit: 96, shouldContinue: { false }).isEmpty)
+    XCTAssertEqual(try engine.refresh().page, before.page)
+    XCTAssertEqual(try engine.rawInput(), "nihao")
+    XCTAssertEqual(try engine.selectCandidate(at: 0).commit, all[0].text)
+  }
+
   /// Two measured corrections to S4 §8, both of which the candidate UI has to design around.
   ///
   /// 1. `highlight_candidate` returns true only when the highlight actually *moves*. Index 0 when
