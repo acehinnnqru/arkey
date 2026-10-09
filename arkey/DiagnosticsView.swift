@@ -10,6 +10,8 @@ struct DiagnosticsView: View {
   @State private var records: [RimeProbeRecord] = []
   @State private var status = "读取中…"
   @State private var showingClearConfirmation = false
+  @State private var showingCopyResult = false
+  @State private var copyResult = ""
 
   var body: some View {
     List {
@@ -38,6 +40,12 @@ struct DiagnosticsView: View {
         Text(status)
           .font(.footnote)
           .foregroundStyle(.secondary)
+      }
+
+      Section("Export") {
+        ShareLink("Share diagnostics", item: DiagnosticsReport.text(records: records, location: status))
+        Text("Recent records are shown below. Repeated legacy layout events are grouped.")
+          .font(.caption).foregroundStyle(.secondary)
       }
 
       if records.isEmpty {
@@ -77,6 +85,7 @@ struct DiagnosticsView: View {
         Button("清理") { showingClearConfirmation = true }
           .disabled(logURL == nil)
         Button("复制") { copyAll() }
+          .accessibilityIdentifier("diagnostics-copy")
       }
     }
     .confirmationDialog("清理键盘日志？",
@@ -86,6 +95,11 @@ struct DiagnosticsView: View {
       Button("取消", role: .cancel) {}
     } message: {
       Text("清空整个日志目录：探针日志与 librime 自己的日志文件。键盘、词库和用户数据都不受影响，清空后无法恢复。")
+    }
+    .alert("Diagnostics", isPresented: $showingCopyResult) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(copyResult)
     }
     .task { load() }
   }
@@ -120,7 +134,7 @@ struct DiagnosticsView: View {
       records = []
       return
     }
-    records = RimeProbeLog(url: url).readAll()
+    records = DiagnosticsReport.compact(RimeProbeLog(url: url).readAll())
     ProbeLogLocation.mirrorIntoAppContainer()
     status = records.isEmpty
       ? url.path + "（暂无记录）"
@@ -128,16 +142,13 @@ struct DiagnosticsView: View {
   }
 
   private func copyAll() {
-    // The numbers first, then the evidence they came from: one paste carries both, which is what a device
-    // run needs when it leaves the phone (S1-AC8, S4-AC6).
-    let lines = records.map(detail)
-    guard !lines.isEmpty else {
-      UIPasteboard.general.string = status
-      return
-    }
-    UIPasteboard.general.string = status + "\n\n"
-      + RimeProbeSummary(records: records).report()
-      + "\n\n— 原始记录 —\n" + lines.joined(separator: "\n")
+    load()
+    let report = DiagnosticsReport.text(records: records, location: status)
+    UIPasteboard.general.string = report
+    copyResult = UIPasteboard.general.string == report
+      ? "Copied the latest diagnostics. You can paste them into a message."
+      : "Copy failed. Use Share diagnostics to export the report."
+    showingCopyResult = true
   }
 
   /// One phase as a line: how many samples, and the numbers a reader compares against the spec.
@@ -158,7 +169,7 @@ struct DiagnosticsView: View {
     if let bytes = phase.maxFootprintBytes, bytes != phase.lastFootprintBytes {
       parts.append("峰值 " + RimeProbe.formatted(bytes: bytes))
     }
-    if let message = phase.lastMessage {
+    if let message = phase.lastMessage, !phase.name.hasPrefix("keyboard.geometry.") {
       parts.append(message)
     }
     return parts.joined(separator: " · ")

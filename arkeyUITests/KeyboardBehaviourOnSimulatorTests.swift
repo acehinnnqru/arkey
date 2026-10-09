@@ -95,7 +95,15 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
   func testKeyboardSurvivesAppSwitchAndDismissal() throws {
     enableThirdPartyKeyboard()
     let (app, field) = launchAppWithArkeyKeyboard()
-    let before = keyboardKey(app, "换行").frame
+    let enter = app.keys.matching(NSPredicate(format: "label IN %@", ["换行", "return", "Return"])).firstMatch
+    XCTAssertTrue(enter.waitForExistence(timeout: 10))
+    let before = enter.frame
+    let surface = keyboardControl(app, "Arkey.keyboardSurface")
+    XCTAssertTrue(surface.waitForExistence(timeout: 10))
+    let firstSurface = surface.frame
+    let firstRowTop = app.keys["q"].frame.minY
+    XCTAssertEqual(firstRowTop - firstSurface.minY, 52, accuracy: 1,
+                   "the full reference candidate slot must be present on first display")
     XCTAssertLessThanOrEqual(field.frame.maxY, app.keys["q"].frame.minY)
 
     XCUIDevice.shared.press(.home)
@@ -103,8 +111,8 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
     XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
     let status = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Arkey 就绪'")).firstMatch
     XCTAssertTrue(status.waitForExistence(timeout: 10))
-    XCTAssertTrue(keyboardKey(app, "换行").waitForExistence(timeout: 10))
-    XCTAssertEqual(keyboardKey(app, "换行").frame.minY, before.minY, accuracy: 1)
+    XCTAssertTrue(enter.waitForExistence(timeout: 10))
+    XCTAssertEqual(enter.frame.minY, before.minY, accuracy: 1)
 
     // Navigation resigns the editor; returning and focusing it presents the same extension again.
     app.navigationBars.buttons["键盘"].tap()
@@ -117,8 +125,39 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
     field.tap()
     switchToArkey(app)
     XCTAssertTrue(arkeyKeyboardIsUp(app))
-    XCTAssertEqual(keyboardKey(app, "换行").frame.minY, before.minY, accuracy: 1)
-    XCTAssertLessThanOrEqual(field.frame.maxY, app.keys["q"].frame.minY)
+    XCTAssertEqual(enter.frame.minY, before.minY, accuracy: 1)
+    XCTAssertEqual(surface.frame.minY, firstSurface.minY, accuracy: 1,
+                   "the keyboard top must stay in place after navigation")
+    XCTAssertEqual(surface.frame.height, firstSurface.height, accuracy: 1,
+                   "the host must reserve the same keyboard height after navigation")
+    XCTAssertEqual(app.keys["q"].frame.minY, firstRowTop, accuracy: 1)
+    XCTAssertLessThanOrEqual(field.frame.maxY, surface.frame.minY,
+                            "the editor must stay above the entire keyboard after navigation")
+  }
+
+  func testInputModeSwitchDoesNotIncreaseKeyboardHeight() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    let surface = keyboardControl(app, "Arkey.keyboardSurface")
+    XCTAssertTrue(surface.waitForExistence(timeout: 10))
+    let first = surface.frame
+    let firstRow = app.keys["q"].frame
+    for _ in 0..<3 {
+      let globe = app.buttons.matching(
+        NSPredicate(format: "label IN %@", ["Next keyboard", "下一个键盘"])).firstMatch
+      XCTAssertTrue(globe.isHittable, "the host keyboard switch button must be reachable")
+      globe.tap()
+      let away = XCTNSPredicateExpectation(
+        predicate: NSPredicate(format: "isHittable == false"), object: surface)
+      XCTAssertEqual(XCTWaiter.wait(for: [away], timeout: 5), .completed)
+      switchToArkey(app)
+      XCTAssertTrue(arkeyKeyboardIsUp(app))
+      XCTAssertEqual(surface.frame.height, first.height, accuracy: 1)
+      XCTAssertEqual(surface.frame.minY, first.minY, accuracy: 1)
+      XCTAssertEqual(app.keys["q"].frame.minY, firstRow.minY, accuracy: 1)
+      XCTAssertLessThanOrEqual(field.frame.maxY, surface.frame.minY,
+                              "the editor must avoid the keyboard after changing input modes")
+    }
   }
 
   /// S1 §9's diagnostics, in the keyboard the system hosts: the bar says which container the extension got and

@@ -67,15 +67,14 @@ final class KeyboardControllerTests: XCTestCase {
                   "the controller has no candidate bar")
   }
 
-  /// A transparent surface must stay transparent through appearance/theme setup,
-  /// including the expanded panel which replaces the key grid.
-  func testTheExtensionDoesNotPaintOverTheHostBackground() throws {
+  /// The outgoing input mode must not show through between our keys.
+  func testTheExtensionCoversThePreviousInputMode() throws {
     let controller = booted()
     controller.viewWillAppear(false)
     let root = try XCTUnwrap(controller.inputView)
     XCTAssertEqual(root.inputViewStyle, .default)
-    XCTAssertFalse(root.isOpaque)
-    XCTAssertEqual(root.backgroundColor, .clear)
+    XCTAssertTrue(root.isOpaque)
+    XCTAssertEqual(root.backgroundColor?.cgColor.alpha, 1)
     XCTAssertEqual(try bar(controller).backgroundColor, .clear)
     let panel = try XCTUnwrap(descendants(CandidatePanelView.self, in: root).first)
     XCTAssertEqual(panel.backgroundColor, .clear)
@@ -89,18 +88,27 @@ final class KeyboardControllerTests: XCTestCase {
     controllers.append(controller)
     controller.loadViewIfNeeded()
     let root = try XCTUnwrap(controller.inputView)
+    XCTAssertTrue(root.allowsSelfSizing)
     let height = try XCTUnwrap(root.constraints.first {
-      $0.firstAttribute == .height && $0.secondItem == nil && $0.isActive
+      $0.identifier == "Arkey.keyboardHeight" && $0.isActive
     })
     XCTAssertEqual(height.constant,
                    KeyboardMetrics.totalHeight(needsGlobeRow: controller.needsInputModeSwitchKey))
+    let firstHeight = root.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+    XCTAssertEqual(firstHeight, height.constant, accuracy: 0.01)
     XCTAssertTrue(root.clipsToBounds)
     controller.viewWillAppear(false)
     controller.viewDidAppear(false)
+    controller.viewDidLayoutSubviews()
     controller.viewWillDisappear(false)
+    controller.viewWillAppear(false)
+    controller.viewDidLayoutSubviews()
+    XCTAssertEqual(root.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height,
+                   firstHeight, accuracy: 0.01,
+                   "first presentation and return from navigation must use the same height")
     XCTAssertTrue(height.isActive)
     XCTAssertEqual(root.constraints.filter {
-      $0.firstAttribute == .height && $0.secondItem == nil && $0.isActive
+      $0.identifier == "Arkey.keyboardHeight" && $0.isActive
     }.count, 1)
   }
 
@@ -117,6 +125,56 @@ final class KeyboardControllerTests: XCTestCase {
     let after = root.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
     XCTAssertEqual(after, before, accuracy: 0.5,
                    "candidate content must scroll inside the existing keyboard frame")
+  }
+
+  func testHostHeightFromAnotherKeyboardDoesNotChangeFittingHeight() throws {
+    let controller = KeyboardViewController()
+    controllers.append(controller)
+    controller.loadViewIfNeeded()
+    let root = try XCTUnwrap(controller.inputView)
+    let expected = KeyboardMetrics.totalHeight(needsGlobeRow: controller.needsInputModeSwitchKey)
+    // A host can retain its previous keyboard's frame during an input-mode switch.
+    let hostHeight = root.heightAnchor.constraint(equalToConstant: expected + 80)
+    hostHeight.isActive = true
+    defer { hostHeight.isActive = false }
+    root.frame = CGRect(x: 0, y: 0, width: 430, height: expected + 80)
+    XCTAssertEqual(root.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height,
+                   expected, accuracy: 0.01)
+    XCTAssertEqual(root.systemLayoutSizeFitting(
+      CGSize(width: 430, height: expected + 80),
+      withHorizontalFittingPriority: .required, verticalFittingPriority: .required).height,
+      expected, accuracy: 0.01)
+  }
+
+  func testFullScreenHostTransitionDoesNotStretchKeyboardContent() throws {
+    let controller = booted()
+    let root = try XCTUnwrap(controller.inputView)
+    let grid = try XCTUnwrap(descendants(KeyboardKeyGrid.self, in: root).first)
+    let candidate = try bar(controller)
+    let panel = try XCTUnwrap(descendants(CandidatePanelView.self, in: root).first)
+    let expected = KeyboardMetrics.totalHeight(needsGlobeRow: controller.needsInputModeSwitchKey)
+    let hostHeight = root.heightAnchor.constraint(equalToConstant: expected)
+    hostHeight.isActive = true
+    defer { hostHeight.isActive = false }
+    var normalKeyFrames: [CGRect] = []
+    for height in [expected, 932, expected + 80, expected] {
+      hostHeight.constant = height
+      root.frame = CGRect(x: 0, y: 0, width: 430, height: height)
+      root.setNeedsLayout()
+      root.layoutIfNeeded()
+      let keyFrames = try keys(controller).map(\.frame)
+      if normalKeyFrames.isEmpty { normalKeyFrames = keyFrames }
+      XCTAssertEqual(keyFrames, normalKeyFrames,
+                     "temporary host heights must not resize the key caps or row gaps")
+      XCTAssertEqual(grid.bounds.height,
+                     expected - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding,
+                     accuracy: 0.5)
+      XCTAssertEqual(candidate.frame.minY, height - expected, accuracy: 0.5)
+      XCTAssertEqual(candidate.frame.maxY, grid.frame.minY, accuracy: 0.5)
+      XCTAssertEqual(grid.frame.maxY, height - KeyboardMetrics.keyBottomPadding, accuracy: 0.5)
+      XCTAssertEqual(panel.frame.minY, candidate.frame.minY, accuracy: 0.5)
+      XCTAssertEqual(panel.frame.height, expected, accuracy: 0.5)
+    }
   }
 
   /// The engine behind the extension boots, and the bar says so. The failure this catches is the one a user

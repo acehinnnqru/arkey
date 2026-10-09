@@ -84,7 +84,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     addSubview(outerStack)
 
     expandButton.translatesAutoresizingMaskIntoConstraints = false
-    // The host already supplies the upper portion of the visible candidate band.
+    // Center the accessory in the candidate slot owned by this view.
     expandButton.imageEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset, left: 0, bottom: 0, right: 0)
     expandButton.tintColor = .secondaryLabel
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)

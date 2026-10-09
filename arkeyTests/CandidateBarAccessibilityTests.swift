@@ -6,6 +6,18 @@ import RimeEngine
 /// and index". The engine's macOS tests pin the model's labels; this pins what the **buttons** carry
 /// after the view has applied that model, which is what VoiceOver actually reads.
 final class CandidateBarAccessibilityTests: XCTestCase {
+  func testCandidateTextAndChevronAreVerticallyCentered() throws {
+    let view = bar(.init(cells: [RimeCandidateCell(index: 0, text: "你好", comment: "ni hao")]))
+    let candidate = try XCTUnwrap(allButtons(in: view).first { $0.attributedTitle(for: .normal) != nil })
+    let expand = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "展开候选面板" })
+    candidate.layoutIfNeeded()
+    expand.layoutIfNeeded()
+    let label = try XCTUnwrap(candidate.titleLabel)
+    let image = try XCTUnwrap(expand.imageView)
+    XCTAssertEqual(label.convert(label.bounds, to: view).midY, view.bounds.midY, accuracy: 0.5)
+    XCTAssertEqual(image.convert(image.bounds, to: view).midY, view.bounds.midY, accuracy: 0.5)
+  }
+
   func testExpansionCentersFirstCandidateAndKeepsBaseline() throws {
     for width: CGFloat in [320, 430] {
       for word in ["你", "你好", "A longer candidate"] {
@@ -25,7 +37,8 @@ final class CandidateBarAccessibilityTests: XCTestCase {
         let stripFrame = stripLabel.convert(stripLabel.bounds, to: collapsed)
         let gridFrame = gridLabel.convert(gridLabel.bounds, to: expanded)
         let cellFrame = gridButton.convert(gridButton.bounds, to: expanded)
-        XCTAssertEqual(gridFrame.midX, cellFrame.midX, accuracy: 0.01, word)
+        // UIKit rounds label frames to device pixels.
+        XCTAssertEqual(gridFrame.midX, cellFrame.midX, accuracy: 1 / UIScreen.main.scale, word)
         XCTAssertEqual(gridFrame.minY, stripFrame.minY, accuracy: 0.01, word)
         XCTAssertEqual(gridFrame.height, stripFrame.height, accuracy: 0.01, word)
         let stripInk = try inkBounds(of: stripButton).offsetBy(
@@ -244,7 +257,7 @@ final class CandidateBarAccessibilityTests: XCTestCase {
         button.layoutIfNeeded()
         let label = try XCTUnwrap(button.titleLabel)
         let labelFrame = label.convert(label.bounds, to: button)
-        XCTAssertEqual(labelFrame.midX, button.bounds.midX, accuracy: 0.01)
+        XCTAssertEqual(labelFrame.midX, button.bounds.midX, accuracy: 1 / UIScreen.main.scale)
         let font = try XCTUnwrap(label.font)
         XCTAssertGreaterThanOrEqual(labelFrame.width + 0.5,
           (words[index] as NSString).size(withAttributes: [.font: font]).width)

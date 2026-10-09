@@ -169,6 +169,28 @@ final class AppScreensTests: XCTestCase {
                   "the version line does not carry the engine's version: [" + version.label + "]")
   }
 
+  func testDiagnosticsCopyCanBePastedIntoTheEditor() {
+    let app = launched()
+    XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30))
+    app.buttons["更多"].firstMatch.tap()
+    app.buttons["诊断"].firstMatch.tap()
+    let copy = app.buttons["diagnostics-copy"]
+    XCTAssertTrue(copy.waitForExistence(timeout: 10))
+    copy.tap()
+    XCTAssertTrue(app.alerts["Diagnostics"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.alerts.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Copied'")).firstMatch.exists)
+    app.alerts.buttons["OK"].tap()
+    app.navigationBars.buttons.firstMatch.tap()
+    let editor = app.textViews.firstMatch
+    XCTAssertTrue(editor.waitForExistence(timeout: 10))
+    editor.tap()
+    editor.press(forDuration: 1.2)
+    let paste = app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", ["Paste", "粘贴"])).firstMatch
+    XCTAssertTrue(paste.waitForExistence(timeout: 5), app.debugDescription)
+    paste.tap()
+    XCTAssertTrue(((editor.value as? String) ?? "").contains("Arkey diagnostics"))
+  }
+
   /// The import buttons open a picker — the profile library's toolbar 导入 and its 导入设置… row, and the
   /// dictionary screen's 选择同步文件夹…. Nothing tapped them, so the round-189 report that 导入 did nothing
   /// shipped unnoticed: both screens stacked two fileImporters on one view and neither presented.

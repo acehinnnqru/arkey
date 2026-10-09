@@ -112,7 +112,7 @@ final class KeyboardGeometryTests: XCTestCase {
   func testTheViewMetricsAreTheEnginesMeasuredStyle() {
     XCTAssertEqual(KeyboardMetrics.style, RimeKeyboardStyle.systemAligned)
     XCTAssertEqual(KeyboardMetrics.keyHeight, 45, accuracy: 0.01)
-    XCTAssertEqual(KeyboardMetrics.candidateBarHeight, 36, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.candidateBarHeight, 52, accuracy: 0.01)
     XCTAssertEqual(KeyboardMetrics.keyGap, 6, accuracy: 0.01)
     XCTAssertEqual(KeyboardMetrics.sideMargin, 6.5, accuracy: 0.01)
   }
@@ -133,7 +133,7 @@ final class KeyboardGeometryTests: XCTestCase {
   }
 
   func testExtensionGeometryMatchesTheDeviceReferenceAfterHostInsets() {
-    XCTAssertEqual(KeyboardMetrics.totalHeight(needsGlobeRow: false), 254, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.totalHeight(needsGlobeRow: false), 270, accuracy: 0.01)
     XCTAssertEqual(KeyboardMetrics.keyBottomPadding, 5)
     let reference = RimeKeyboardLayoutEngine.layout(width: 430, style: KeyboardMetrics.style)
     XCTAssertEqual(reference.rows[0].keys[0].frame.width, 36.3, accuracy: 0.01)

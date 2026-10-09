@@ -9,11 +9,12 @@ import UIKit
 struct ContentView: View {
   @StateObject private var model = RimeAppModel.shared
   @State private var text = ""
-  @State private var keyboardHeight: CGFloat = 0
+  @State private var keyboardOverlap: CGFloat = 0
   @FocusState private var isEditing: Bool
 
   var body: some View {
     NavigationStack {
+      GeometryReader { _ in
       VStack(alignment: .leading, spacing: 10) {
         Text("在下面的输入框里切换到 Arkey 键盘试试。")
           .font(.footnote)
@@ -62,8 +63,9 @@ struct ContentView: View {
         }
       }
       .padding()
-      // Third-party keyboards need explicit avoidance after returning from navigation.
-      .padding(.bottom, keyboardHeight)
+      .padding(.bottom, keyboardOverlap)
+      }
+      .background(KeyboardOverlapReader { keyboardOverlap = $0 })
       .ignoresSafeArea(.keyboard, edges: .bottom)
       .navigationTitle("Arkey")
       .toolbar {
@@ -100,42 +102,9 @@ struct ContentView: View {
         LaunchProbe.mark("checkDone")
         LaunchProbe.flush()
       }
-      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
-        updateKeyboardHeight($0)
-      }
-      .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) {
-        updateKeyboardHeight($0, hiding: true)
-      }
     }
   }
 
-  private func updateKeyboardHeight(_ notification: Notification, hiding: Bool = false) {
-    let info = notification.userInfo ?? [:]
-    let height: CGFloat
-    if hiding {
-      height = 0
-    } else {
-      guard let frame = info[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-      let screenHeight = UIApplication.shared.connectedScenes
-        .compactMap { ($0 as? UIWindowScene)?.screen.bounds.height }
-        .first ?? frame.maxY
-      height = max(0, screenHeight - frame.minY)
-    }
-    guard height != keyboardHeight else { return }
-    let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0
-    let curve = (info[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber)?.intValue ?? 0
-    let animation: Animation
-    switch curve {
-    case UIView.AnimationCurve.easeIn.rawValue: animation = .easeIn(duration: duration)
-    case UIView.AnimationCurve.easeOut.rawValue: animation = .easeOut(duration: duration)
-    case UIView.AnimationCurve.linear.rawValue: animation = .linear(duration: duration)
-    default: animation = .easeInOut(duration: duration)
-    }
-    // A zero-duration frame update (for example an interactive transition) stays immediate.
-    withAnimation(duration > 0 ? animation : nil) {
-      keyboardHeight = height
-    }
-  }
 }
 
 #Preview {

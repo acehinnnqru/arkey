@@ -11,7 +11,7 @@ enum KeyboardMetrics {
   static var keyHeight: CGFloat { style.keyHeight }
   static var candidateBarHeight: CGFloat { extensionStyle.candidateSlotHeight }
   static let candidateTextLeading: CGFloat = 12
-  static let candidateTextOffset: CGFloat = -8
+  static let candidateTextOffset: CGFloat = 0
   static var candidateTextCenterY: CGFloat { candidateBarHeight / 2 + candidateTextOffset }
   static var keyBottomPadding: CGFloat { extensionStyle.bottomInset }
   static var globeRowHeight: CGFloat { style.globeRowHeight }
@@ -21,13 +21,12 @@ enum KeyboardMetrics {
   /// The height the extension asks the system for. It is the layout engine's answer, so the frame the
   /// system animates and the frames the keys are drawn in cannot disagree — the class of bug that
   /// killed the tracer's extension.
-  /// Device captures show an additional host band above the extension and a bottom strip
-  /// five points shorter than the native keyboard's. Keep the key rows at the native positions:
-  /// the extension supplies 36 points of candidate content and five points below the last row.
+  /// The candidate slot belongs entirely to the extension. A host band observed
+  /// after navigation is not a reliable inset, particularly on first presentation.
+  /// Keep the reference candidate slot and five points below the last row.
   /// The full native bottom inset belongs to the host and must never be counted here again.
   static var extensionStyle: RimeKeyboardStyle {
     var style = self.style
-    style.candidateSlotHeight = 36
     style.bottomInset = 5
     return style
   }
@@ -46,8 +45,8 @@ enum KeyboardMetrics {
 
 /// The keyboard's colours, from S3's measured palette.
 ///
-/// The extension leaves the backing to its host. Standalone previews use the
-/// palette backing because they have no system keyboard container.
+/// The extension and preview paint an opaque content backing so an outgoing
+/// input mode cannot show through the keys. The host owns the bottom system strip.
 /// Everything else — key caps, the action key's two states, the glyph colour — is measured.
 struct KeyboardTheme {
   let appearance: UIKeyboardAppearance
@@ -85,7 +84,7 @@ struct KeyboardTheme {
     UIColor(red: value.red, green: value.green, blue: value.blue, alpha: value.alpha)
   }
 
-  /// Solid backing for standalone previews; never painted by the extension.
+  /// Solid backing for keyboard content and standalone previews.
   var background: UIColor { Self.color(palette.backing) }
 
   var backingFollowsMaterial: Bool { palette.backingFollowsMaterial }

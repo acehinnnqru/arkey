@@ -111,7 +111,8 @@ extension XCTestCase {
         Thread.sleep(forTimeInterval: 1.2)
         if arkeyKeyboardIsUp(app) { return }
       }
-      let globe = app.buttons["Next keyboard"].firstMatch
+      let globe = app.buttons.matching(
+        NSPredicate(format: "label IN %@", ["Next keyboard", "下一个键盘"])).firstMatch
       guard globe.exists else { break }
       globe.tap()
       Thread.sleep(forTimeInterval: 2.0)

@@ -1,6 +1,63 @@
 import UIKit
 import RimeEngine
 
+/// The host may retain another keyboard's height while switching input modes.
+/// Report our content height without fitting against that temporary host constraint.
+private final class KeyboardInputView: UIInputView {
+  var onGeometry: ((String, String) -> Void)?
+  var keyboardHeight = KeyboardMetrics.totalHeight(needsGlobeRow: false) {
+    didSet {
+      guard keyboardHeight != oldValue else { return }
+      invalidateIntrinsicContentSize()
+      setNeedsLayout()
+    }
+  }
+
+  override var intrinsicContentSize: CGSize {
+    let result = CGSize(width: UIView.noIntrinsicMetric, height: keyboardHeight)
+    onGeometry?("intrinsic", "result=\(result)")
+    return result
+  }
+
+  override var frame: CGRect {
+    didSet {
+      if frame != oldValue { onGeometry?("frame", "old=\(oldValue) new=\(frame)") }
+    }
+  }
+
+  override var bounds: CGRect {
+    didSet {
+      if bounds != oldValue { onGeometry?("bounds", "old=\(oldValue) new=\(bounds)") }
+    }
+  }
+
+  override func systemLayoutSizeFitting(_ targetSize: CGSize) -> CGSize {
+    let result = CGSize(width: targetSize.width, height: keyboardHeight)
+    onGeometry?("fit", "target=\(targetSize) result=\(result)")
+    return result
+  }
+
+  override func systemLayoutSizeFitting(_ targetSize: CGSize,
+                                       withHorizontalFittingPriority horizontalFittingPriority: UILayoutPriority,
+                                       verticalFittingPriority: UILayoutPriority) -> CGSize {
+    let result = CGSize(width: targetSize.width, height: keyboardHeight)
+    onGeometry?("fitPriorities", "target=\(targetSize) result=\(result)"
+      + " horizontal=\(horizontalFittingPriority.rawValue) vertical=\(verticalFittingPriority.rawValue)")
+    return result
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    onGeometry?("window", "attached=\(window != nil)")
+  }
+
+  override func layoutSubviews() {
+    onGeometry?("inputLayout.before", "")
+    super.layoutSubviews()
+    onGeometry?("inputLayout.after", "")
+  }
+}
+
 private final class CandidateLoadCancellation {
   private let lock = NSLock()
   private var cancelled = false
@@ -49,6 +106,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private static let candidateBatchSize = 96
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
+  private var gridHeightConstraint: NSLayoutConstraint?
+  private let geometryID = String(UUID().uuidString.prefix(8))
+  private let geometryTimeOrigin = DispatchTime.now().uptimeNanoseconds
+  private var geometryAppearance = 0
+  private var geometrySequence = 0
+  private var previousGeometry: [String: String] = [:]
+  private var pendingGeometry: [RimeProbeRecord] = []
+  private var geometryTrace = KeyboardGeometryTrace()
+  private var geometryDisplayLink: CADisplayLink?
+  private var geometrySamplingStart: CFTimeInterval?
   private var engine: RimeEngine?
   /// Kept so the appearance can adopt a profile the app activated (S1 §8).
   private var engineSetup: KeyboardEngine.Setup?
@@ -75,6 +142,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var keyLatency = RimeKeyLatencyWindow()
 
   deinit {
+    geometryDisplayLink?.invalidate()
     candidateLoadCancellation?.cancel()
     engine?.closeSession()
   }
@@ -82,13 +150,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   // MARK: - Lifecycle
 
   override func loadView() {
-    // The host supplies the keyboard backing and the bottom system strip. A
-    // .keyboard-style input view would add another material inside that backing.
-    let contentView = UIInputView(frame: .zero, inputViewStyle: .default)
-    contentView.backgroundColor = .clear
-    contentView.isOpaque = false
+    // The host owns the bottom system strip. Our content must cover any
+    // previous input mode that remains underneath during a transition.
+    let contentView = KeyboardInputView(frame: .zero, inputViewStyle: .default)
+    // Honour our fitting height on the first presentation as well as later ones.
+    contentView.allowsSelfSizing = true
+    contentView.accessibilityIdentifier = "Arkey.keyboardSurface"
+    contentView.backgroundColor = theme.background
+    contentView.isOpaque = true
     contentView.clipsToBounds = true
     inputView = contentView
+    contentView.onGeometry = { [weak self] event, detail in
+      self?.recordGeometry(event, detail: detail)
+    }
   }
 
   override func viewDidLoad() {
@@ -114,15 +188,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     view.addSubview(candidateBar)
     view.addSubview(keyGrid)
 
+    let gridHeight = keyGrid.heightAnchor.constraint(equalToConstant:
+      KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+        - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding)
+    gridHeight.identifier = "Arkey.gridHeight"
+    gridHeightConstraint = gridHeight
     NSLayoutConstraint.activate([
-      candidateBar.topAnchor.constraint(equalTo: view.topAnchor),
+      gridHeight,
       candidateBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       candidateBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       candidateBar.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
-      // The measured slot is *everything* above the first key row — the bar and the room under it — so the grid
-      // starts where the bar ends. One more row gap here (round 191) made the stack 11 pt taller than the frame
-      // `updateHeight()` asks for, and iOS clipped exactly that off the bottom row: 123 / 中 / 空格 / 换行 came
-      // back 34 pt tall instead of 45.
+      // Keep the content at its measured height and against the bottom while
+      // iOS temporarily gives the extension a full-screen launch frame.
+      // Pinning both ends to the root stretches the rows during that transition.
       keyGrid.topAnchor.constraint(equalTo: candidateBar.bottomAnchor),
       keyGrid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       keyGrid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -135,7 +213,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     NSLayoutConstraint.activate([
       candidatePanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       candidatePanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      candidatePanel.topAnchor.constraint(equalTo: view.topAnchor),
+      candidatePanel.topAnchor.constraint(equalTo: candidateBar.topAnchor),
       candidatePanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
     callout.isHidden = true
@@ -163,10 +241,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     keyGrid.onKeyTouchMove = { [weak self] key, point in self?.moveCallout(for: key, at: point) }
     keyGrid.onKeyTouchEnded = { [weak self] in self?.hideCallout() }
+    recordGeometry("loaded", force: true)
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    geometryAppearance += 1
+    geometryTrace = KeyboardGeometryTrace()
+    previousGeometry.removeAll(keepingCapacity: true)
+    recordGeometry("willAppear.before", force: true)
+    startGeometrySampling()
     preferences = preferencesStore?.value ?? .standard
     applyCurrentTheme()
     refreshLayout()
@@ -182,10 +266,20 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     refreshLanguageKeyFromEngine()
     refreshLayout()
+    recordGeometry("willAppear.after", force: true)
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    recordGeometry("didAppear", force: true)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    recordGeometry("willDisappear", force: true)
+    finishGeometryTrace(reason: "disappear")
+    geometryDisplayLink?.invalidate()
+    geometryDisplayLink = nil
     if isPanelExpanded { collapsePanel() }
     flushKeyStatistics()
     candidateLoadCancellation?.cancel()
@@ -196,6 +290,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     candidateBar.setPage(nil)
   }
 
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    recordGeometry("didDisappear", force: true)
+  }
+
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
     updateThemeIfNeeded()
@@ -203,7 +302,18 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    recordGeometry("didLayout.before")
+    // The host can resolve its switch-key policy after viewWillAppear.
+    // Keep the measured height and the rendered rows on the same policy.
+    updateHeight()
+    refreshLayout()
     updateThemeIfNeeded()
+    recordGeometry("didLayout.after")
+  }
+
+  override func viewWillLayoutSubviews() {
+    super.viewWillLayoutSubviews()
+    recordGeometry("willLayout")
   }
 
   private var currentTheme: KeyboardTheme {
@@ -231,6 +341,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       candidateBar.setMessage("Arkey 启动失败：" + reason)
     case .success(let setup):
       engineSetup = setup
+      for record in pendingGeometry {
+        // These events already went to the system log before engine setup existed.
+        KeyboardLog.geometry(record, probe: setup.probe, includeSystemLog: false)
+      }
+      pendingGeometry.removeAll(keepingCapacity: true)
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
@@ -389,6 +504,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       keyLayer = .letters
       refreshLayout()
     case .globe:
+      recordGeometry("advanceInputMode", force: true)
       advanceToNextInputMode()
     case .language:
       // S3 §5's 中/英: the state is the engine's ascii_mode, and the key's own label comes from
@@ -399,6 +515,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       // is where the system emoji keyboard lives. It used to do nothing, which is the worst of the
       // three options — a key that is drawn and then lies. If a device shows the next mode is not the
       // emoji keyboard, D5's fallback applies and the key is removed instead.
+      recordGeometry("advanceInputMode.emoji", force: true)
       advanceToNextInputMode()
     }
     playFeedback()
@@ -514,11 +631,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   // MARK: - Presentation
 
-  /// The extension owns content only; its host owns the keyboard background.
-  /// Keep this transparent on every appearance, including theme changes.
+  /// An opaque content backing prevents the outgoing emoji keyboard from
+  /// showing through between our keys during input-mode transitions.
   private func applyBacking() {
-    view.backgroundColor = .clear
-    view.isOpaque = false
+    view.backgroundColor = theme.background
+    view.isOpaque = true
   }
 
   private func applyCurrentTheme() {
@@ -749,15 +866,127 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func updateHeight() {
     // The panel replaces the keys inside this frame; opening it must not resize the host keyboard.
     let height = KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+    let previousHeight = heightConstraint?.constant
+    if previousHeight != height {
+      recordGeometry("height.before", detail: "old=\(String(describing: previousHeight)) new=\(height)")
+    }
+    (inputView as? KeyboardInputView)?.keyboardHeight = height
+    let gridHeight = height - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding
+    if gridHeightConstraint?.constant != gridHeight {
+      gridHeightConstraint?.constant = gridHeight
+    }
     if let heightConstraint {
       if heightConstraint.constant != height {
         heightConstraint.constant = height
       }
     } else {
       let constraint = view.heightAnchor.constraint(equalToConstant: height)
+      constraint.identifier = "Arkey.keyboardHeight"
       constraint.priority = UILayoutPriority(999)
       view.addConstraint(constraint)
       heightConstraint = constraint
+    }
+    if previousHeight != height {
+      recordGeometry("height.after", detail: "old=\(String(describing: previousHeight)) new=\(height)")
+    }
+  }
+
+  /// Geometry only: never include the text proxy, composition, or candidate contents.
+  /// Deduplicate identical callbacks, but retain every changed frame during a transition.
+  private func recordGeometry(_ event: String, detail: String = "", force: Bool = false) {
+    guard isViewLoaded, !geometryTrace.isFinished else { return }
+    let root = view!
+    let number: (CGFloat) -> String = { String(format: "%.2f", $0) }
+    let rect: (CGRect) -> String = {
+      [number($0.minX), number($0.minY), number($0.width), number($0.height)].joined(separator: ",")
+    }
+    let insets: (UIEdgeInsets) -> String = {
+      [number($0.top), number($0.left), number($0.bottom), number($0.right)].joined(separator: ",")
+    }
+    var parts = ["needsGlobe=\(needsInputModeSwitchKey)",
+                 "fullAccess=\(hasFullAccess)",
+                 "requested=\(heightConstraint.map { number($0.constant) } ?? "nil")",
+                 "fittingHeight=\((inputView as? KeyboardInputView).map { number($0.keyboardHeight) } ?? "nil")",
+                 "selfSizing=\(inputView?.allowsSelfSizing == true)",
+                 "frame=\(rect(root.frame))", "bounds=\(rect(root.bounds))",
+                 "presentation=\(root.layer.presentation().map { rect($0.frame) } ?? "nil")",
+                 "safe=\(insets(root.safeAreaInsets))",
+                 "candidate=\(rect(candidateBar.frame))", "grid=\(rect(keyGrid.frame))",
+                 "panelExpanded=\(isPanelExpanded)"]
+    if let window = root.window {
+      parts += ["window=\(rect(window.bounds))", "windowSafe=\(insets(window.safeAreaInsets))",
+                "rootInWindow=\(rect(root.convert(root.bounds, to: window)))",
+                "screen=\(rect(window.screen.bounds))", "scale=\(number(window.screen.scale))",
+                "orientation=\(window.windowScene?.interfaceOrientation.rawValue ?? 0)"]
+    } else {
+      parts.append("window=nil")
+    }
+    let itemName: (Any?) -> String = {
+      guard let item = $0 else { return "none" }
+      if let itemView = item as? UIView {
+        return NSStringFromClass(type(of: itemView)) + (itemView === root ? "(root)" : "")
+      }
+      return "layoutGuide"
+    }
+    var ancestor: UIView? = root
+    for depth in 0..<6 {
+      guard let current = ancestor else { break }
+      let constraints = current.constraints.filter {
+        $0.isActive && ($0.firstAttribute == .height || $0.secondAttribute == .height)
+      }.prefix(12).map {
+        "\($0.identifier ?? "anonymous"):\($0.firstAttribute.rawValue)"
+          + ":\($0.relation.rawValue):\($0.secondAttribute.rawValue)"
+          + ":c\(number($0.constant)):m\(number($0.multiplier)):p\(number(CGFloat($0.priority.rawValue)))"
+          + ":first[\(itemName($0.firstItem))]:second[\(itemName($0.secondItem))]"
+      }.joined(separator: "|")
+      parts.append("ancestor\(depth)=\(NSStringFromClass(type(of: current)))"
+        + " frame[\(rect(current.frame))] bounds[\(rect(current.bounds))] safe[\(insets(current.safeAreaInsets))]"
+        + " presentation[\(current.layer.presentation().map { rect($0.frame) } ?? "nil")]"
+        + " heights[\(constraints)]")
+      ancestor = current.superview
+    }
+    if !detail.isEmpty { parts.append(detail) }
+    let snapshot = parts.joined(separator: " ")
+    guard force || previousGeometry[event] != snapshot else { return }
+    previousGeometry[event] = snapshot
+    geometrySequence += 1
+    let version = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+    let elapsed = Double(DispatchTime.now().uptimeNanoseconds - geometryTimeOrigin) / 1_000_000
+    let message = "geometry event=\(event) id=\(geometryID) pid=\(ProcessInfo.processInfo.processIdentifier)"
+      + " appearance=\(geometryAppearance) seq=\(geometrySequence) build=\(version) trace=height-3"
+      + " tMs=\(String(format: "%.3f", elapsed)) " + snapshot
+    geometryTrace.record(height: max(root.bounds.height, root.layer.presentation()?.bounds.height ?? 0),
+                         requestedHeight: heightConstraint?.constant,
+                         needsGlobe: needsInputModeSwitchKey, message: message)
+  }
+
+  private func finishGeometryTrace(reason: String) {
+    guard let summary = geometryTrace.finish(reason: reason) else { return }
+    let record = RimeProbeRecord(phase: "keyboard.geometry.summary", message: summary)
+    KeyboardLog.geometry(record, probe: engineSetup?.probe)
+    if engineSetup == nil {
+      // Preserve first-load measurements until the existing probe location is resolved.
+      if pendingGeometry.count < 64 { pendingGeometry.append(record) }
+    }
+  }
+
+  /// Sample the actual animation frames briefly, including ancestor layers that
+  /// can animate without changing this controller's model frames or constraints.
+  private func startGeometrySampling() {
+    geometryDisplayLink?.invalidate()
+    geometrySamplingStart = nil
+    let link = CADisplayLink(target: self, selector: #selector(sampleGeometryFrame(_:)))
+    geometryDisplayLink = link
+    link.add(to: .main, forMode: .common)
+  }
+
+  @objc private func sampleGeometryFrame(_ link: CADisplayLink) {
+    if geometrySamplingStart == nil { geometrySamplingStart = link.timestamp }
+    recordGeometry("displayFrame")
+    if link.timestamp - (geometrySamplingStart ?? link.timestamp) >= 0.75 {
+      finishGeometryTrace(reason: "settled")
+      link.invalidate()
+      geometryDisplayLink = nil
     }
   }
 
