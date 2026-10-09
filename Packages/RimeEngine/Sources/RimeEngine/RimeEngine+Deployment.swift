@@ -141,6 +141,58 @@ extension RimeEngine {
     allocatedStrings = []
   }
 
+  /// A deployment destroys the native session. Keep the user-visible state so a failed
+  /// transaction can recreate it, without committing or replaying keystrokes.
+  struct RuntimeState {
+    let directories: RimeDirectories
+    let running: Bool
+    let hadSession: Bool
+    let schema: String?
+    let options: [String: Bool]
+    let input: String
+    let caret: Int
+  }
+
+  func captureRuntime() throws -> RuntimeState {
+    var schema: String?
+    var options: [String: Bool] = [:]
+    var input = ""
+    var caret = 0
+    if session != nil {
+      schema = try currentSchema()
+      var names: Set<String> = ["ascii_mode", "full_shape", "simplification",
+                                "traditionalization", "ascii_punct"]
+      if let schema {
+        let switches = try withSchemaConfig(schema) { $0.value("switches") }?.listValue ?? []
+        for entry in switches {
+          if let name = entry.mapValue?["name"]?.stringValue { names.insert(name) }
+          for name in entry.mapValue?["options"]?.listValue ?? [] {
+            if let name = name.stringValue { names.insert(name) }
+          }
+        }
+      }
+      for name in names { options[name] = try getOption(name) }
+      input = try rawInput() ?? ""
+      caret = try caretPosition()
+    }
+    return RuntimeState(directories: configuration.directories, running: isStarted,
+                        hadSession: session != nil, schema: schema, options: options,
+                        input: input, caret: caret)
+  }
+
+  func restoreRuntime(_ state: RuntimeState) throws {
+    teardownLocked()
+    configuration.directories = state.directories
+    if state.running { _ = try startLocked(force: true) }
+    if state.hadSession {
+      try openSession()
+      if let schema = state.schema { _ = try selectSchema(schema) }
+      for (name, value) in state.options { try setOption(name, value) }
+      if !state.input.isEmpty { _ = try setInput(state.input) }
+      try setCaretPosition(state.caret)
+    }
+  }
+
   // MARK: Logsink
 
   func installLogSinkLocked() {

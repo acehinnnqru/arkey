@@ -146,11 +146,11 @@ width 430.0 layer numbers shift off size 430.0x384.0 candidate 0.0,0.0 430.0x39.
     character(") " 389.1,95.7 32.6x45.0 "
   row 2 0.0,151.7 430.0x45.0
     layer(symbols) #+= 8.3,151.7 43.4x45.0 符号
-    character(+) + 61.4,151.7 53.3x45.0 +
-    character(×) × 124.4,151.7 53.3x45.0 ×
-    character(÷) ÷ 187.4,151.7 53.3x45.0 ÷
-    character(=) = 250.3,151.7 53.3x45.0 =
-    character(/) / 313.3,151.7 53.3x45.0 /
+    character(.) . 70.1,151.7 49.8x45.0 .
+    character(,) , 129.6,151.7 49.8x45.0 ,
+    character(?) ? 189.1,151.7 49.8x45.0 ?
+    character(!) ! 248.6,151.7 49.8x45.0 !
+    character(') ' 308.1,151.7 49.8x45.0 '
     delete ⌫ 376.3,151.7 45.4x45.0 删除
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
@@ -184,11 +184,11 @@ width 430.0 layer numbers shift on size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
     character(") " 389.1,95.7 32.6x45.0 "
   row 2 0.0,151.7 430.0x45.0
     layer(symbols) #+= 8.3,151.7 43.4x45.0 符号
-    character(+) + 61.4,151.7 53.3x45.0 +
-    character(×) × 124.4,151.7 53.3x45.0 ×
-    character(÷) ÷ 187.4,151.7 53.3x45.0 ÷
-    character(=) = 250.3,151.7 53.3x45.0 =
-    character(/) / 313.3,151.7 53.3x45.0 /
+    character(.) . 70.1,151.7 49.8x45.0 .
+    character(,) , 129.6,151.7 49.8x45.0 ,
+    character(?) ? 189.1,151.7 49.8x45.0 ?
+    character(!) ! 248.6,151.7 49.8x45.0 !
+    character(') ' 308.1,151.7 49.8x45.0 '
     delete ⌫ 376.3,151.7 45.4x45.0 删除
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
@@ -222,11 +222,11 @@ width 430.0 layer numbers shift caps size 430.0x384.0 candidate 0.0,0.0 430.0x39
     character(") " 389.1,95.7 32.6x45.0 "
   row 2 0.0,151.7 430.0x45.0
     layer(symbols) #+= 8.3,151.7 43.4x45.0 符号
-    character(+) + 61.4,151.7 53.3x45.0 +
-    character(×) × 124.4,151.7 53.3x45.0 ×
-    character(÷) ÷ 187.4,151.7 53.3x45.0 ÷
-    character(=) = 250.3,151.7 53.3x45.0 =
-    character(/) / 313.3,151.7 53.3x45.0 /
+    character(.) . 70.1,151.7 49.8x45.0 .
+    character(,) , 129.6,151.7 49.8x45.0 ,
+    character(?) ? 189.1,151.7 49.8x45.0 ?
+    character(!) ! 248.6,151.7 49.8x45.0 !
+    character(') ' 308.1,151.7 49.8x45.0 '
     delete ⌫ 376.3,151.7 45.4x45.0 删除
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
@@ -491,11 +491,11 @@ width 320.0 layer numbers shift off size 320.0x384.0 candidate 0.0,0.0 320.0x39.
     character(") " 290.1,95.7 21.6x45.0 "
   row 2 0.0,151.7 320.0x45.0
     layer(symbols) #+= 8.3,151.7 43.4x45.0 符号
-    character(+) + 61.4,151.7 31.3x45.0 +
-    character(×) × 102.4,151.7 31.3x45.0 ×
-    character(÷) ÷ 143.4,151.7 31.3x45.0 ÷
-    character(=) = 184.3,151.7 31.3x45.0 =
-    character(/) / 225.3,151.7 31.3x45.0 /
+    character(.) . 70.1,151.7 27.8x45.0 .
+    character(,) , 107.6,151.7 27.8x45.0 ,
+    character(?) ? 145.1,151.7 27.8x45.0 ?
+    character(!) ! 182.6,151.7 27.8x45.0 !
+    character(') ' 220.1,151.7 27.8x45.0 '
     delete ⌫ 266.3,151.7 45.4x45.0 删除
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
@@ -529,11 +529,11 @@ width 320.0 layer numbers shift on size 320.0x384.0 candidate 0.0,0.0 320.0x39.7
     character(") " 290.1,95.7 21.6x45.0 "
   row 2 0.0,151.7 320.0x45.0
     layer(symbols) #+= 8.3,151.7 43.4x45.0 符号
-    character(+) + 61.4,151.7 31.3x45.0 +
-    character(×) × 102.4,151.7 31.3x45.0 ×
-    character(÷) ÷ 143.4,151.7 31.3x45.0 ÷
-    character(=) = 184.3,151.7 31.3x45.0 =
-    character(/) / 225.3,151.7 31.3x45.0 /
+    character(.) . 70.1,151.7 27.8x45.0 .
+    character(,) , 107.6,151.7 27.8x45.0 ,
+    character(?) ? 145.1,151.7 27.8x45.0 ?
+    character(!) ! 182.6,151.7 27.8x45.0 !
+    character(') ' 220.1,151.7 27.8x45.0 '
     delete ⌫ 266.3,151.7 45.4x45.0 删除
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
@@ -567,11 +567,11 @@ width 320.0 layer numbers shift caps size 320.0x384.0 candidate 0.0,0.0 320.0x39
     character(") " 290.1,95.7 21.6x45.0 "
   row 2 0.0,151.7 320.0x45.0
     layer(symbols) #+= 8.3,151.7 43.4x45.0 符号
-    character(+) + 61.4,151.7 31.3x45.0 +
-    character(×) × 102.4,151.7 31.3x45.0 ×
-    character(÷) ÷ 143.4,151.7 31.3x45.0 ÷
-    character(=) = 184.3,151.7 31.3x45.0 =
-    character(/) / 225.3,151.7 31.3x45.0 /
+    character(.) . 70.1,151.7 27.8x45.0 .
+    character(,) , 107.6,151.7 27.8x45.0 ,
+    character(?) ? 145.1,151.7 27.8x45.0 ?
+    character(!) ! 182.6,151.7 27.8x45.0 !
+    character(') ' 220.1,151.7 27.8x45.0 '
     delete ⌫ 266.3,151.7 45.4x45.0 删除
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母

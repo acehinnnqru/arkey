@@ -20,6 +20,7 @@ public enum RimeDeploymentFailure: Error, CustomStringConvertible, Sendable {
   case buildUnusable(String)
   case rollbackUnavailable(String)
   case activationFailed(String)
+  case recoveryFailed(original: String, recovery: String)
 
   public var description: String {
     switch self {
@@ -37,6 +38,8 @@ public enum RimeDeploymentFailure: Error, CustomStringConvertible, Sendable {
       return "profile '" + id + "' has no usable build to activate"
     case .rollbackUnavailable(let id):
       return "profile '" + id + "' has no previous generation to roll back to"
+    case .recoveryFailed(let original, let recovery):
+      return original + "; deployment recovery failed: " + recovery
     case .activationFailed(let reason):
       return "the profile could not be activated: " + reason
     }
@@ -74,6 +77,15 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
                          activate: Bool = true,
                          progress: (@Sendable (RimeDeploymentProgress) -> Void)? = nil)
     throws -> RimeDeploymentOutcome {
+    try engine.perform {
+      try engine.withDictionaryOwnership(store: engine.dictionaryLeaseStore, host: engine.dictionaryHost) {
+        try deployLocked(profileID: profileID, fullCheck: fullCheck, activate: activate, progress: progress)
+      }
+    }
+  }
+
+  private func deployLocked(profileID: String, fullCheck: Bool, activate: Bool,
+                            progress: (@Sendable (RimeDeploymentProgress) -> Void)?) throws -> RimeDeploymentOutcome {
     let layout = workspace.profile(profileID)
     guard fileManager.fileExists(atPath: layout.directory.path) else {
       throw RimeDeploymentFailure.profileNotFound(profileID)
@@ -91,78 +103,127 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
     // Measured, and it was a bug: librime's deployer only writes what it decides to rebuild, so a
     // staging directory that starts **empty** produces a generation containing just the YAML it
     // copied — the compiled tables from the previous deploy are gone, and the keyboard is left with
-    // no dictionary at all. The previous build is therefore seeded into staging first, by hard link
-    // where the filesystem allows it and by copy where it does not: unchanged files cost nothing and
-    // the deployer overwrites only what it regenerates.
+    // no dictionary at all. The previous build is therefore seeded into staging first, by copy. Staging must own its inodes so even an in-place
+    // compiler write cannot alter the published generation during a failed deploy.
     if fileManager.fileExists(atPath: layout.build.path) {
       try seedStaging(from: layout.build, into: layout.buildStaging)
     }
 
-    let directories = RimeBindings.deployer(workspace: workspace, profileID: profileID)
-    let report: RimeDeploymentReport
+    let runtime = try engine.captureRuntime()
+    let metadataBefore = fileManager.fileExists(atPath: layout.metadata.path)
+      ? try Data(contentsOf: layout.metadata) : nil
+    let activeBefore = fileManager.fileExists(atPath: workspace.activeRecord.path)
+      ? try Data(contentsOf: workspace.activeRecord) : nil
+    // Keep the older rollback generation until every publication step has succeeded.
+    let previousBackup = workspace.staging.appendingPathComponent("deploy-" + UUID().uuidString)
+    var savedPrevious = false
+    var movedBuild = false
+    var publishedBuild = false
+    var wroteMetadata = false
+    var wroteActive = false
     do {
-      report = try engine.deploySync(binding: directories, fullCheck: fullCheck, progress: progress)
-    } catch let error as RimeDeploymentError {
-      // The previous generation keeps typing; staging stays for diagnosis.
-      throw RimeDeploymentFailure.deployFailed(error.report)
-    }
+      let directories = RimeBindings.deployer(workspace: workspace, profileID: profileID)
+      let report: RimeDeploymentReport
+      do {
+        report = try engine.deploySync(binding: directories, fullCheck: fullCheck) { update in
+          // Maintenance success is provisional until publication and runtime binding succeed.
+          if update.phase != .succeeded { progress?(update) }
+        }
+      } catch let error as RimeDeploymentError {
+        throw RimeDeploymentFailure.deployFailed(error.report)
+      }
 
-    // Success: swap, then point active.json at the result. Three renames inside one volume, in the
-    // order S1 §3 fixes, so a crash between them is recoverable by the launch janitor.
-    let generation = (try workspace.loadMetadata(for: profileID))?.deploy?.generation ?? 0
-    let nextGeneration = generation + 1
-    do {
-      if fileManager.fileExists(atPath: layout.buildPrevious.path) {
-        try fileManager.removeItem(at: layout.buildPrevious)
+      // Success: swap, then point active.json at the result. Three renames inside one volume, in the
+      // order S1 §3 fixes, so a crash between them is recoverable by the launch janitor.
+      let generation = (try workspace.loadMetadata(for: profileID))?.deploy?.generation ?? 0
+      let nextGeneration = generation + 1
+      do {
+        if fileManager.fileExists(atPath: layout.buildPrevious.path) {
+          try fileManager.moveItem(at: layout.buildPrevious, to: previousBackup)
+          savedPrevious = true
+        }
+        if fileManager.fileExists(atPath: layout.build.path) {
+          try fileManager.moveItem(at: layout.build, to: layout.buildPrevious)
+          movedBuild = true
+        }
+        try fileManager.moveItem(at: layout.buildStaging, to: layout.build)
+        publishedBuild = true
+      } catch {
+        throw RimeDeploymentFailure.activationFailed(String(describing: error))
       }
-      if fileManager.fileExists(atPath: layout.build.path) {
-        try fileManager.moveItem(at: layout.build, to: layout.buildPrevious)
+
+      let digest = RimeDigest.sha256(ofTree: layout.source, fileManager: fileManager)
+      var metadata = (try? workspace.loadMetadata(for: profileID))
+        ?? RimeProfileMetadata(id: profileID, displayName: profileID, source: RimeProfileSource(kind: .generated))
+      let warnings = report.logs.filter { $0.severity >= .warning }.map(\.display)
+      metadata.stats.buildBytes = report.totalBytes
+      metadata.stats.sourceBytes = RimeWorkspace.directorySize(layout.source)
+      // get_schema_list() is populated by the switcher, which needs a live session; a deploy has
+      // none. Only replace the imported list when the engine actually knows one, so a deploy cannot
+      // erase the schema ids the import recorded.
+      let deployedSchemas = (try? engine.schemaIDs()) ?? []
+      if !deployedSchemas.isEmpty {
+        metadata.stats.schemaIDs = deployedSchemas
       }
-      try fileManager.moveItem(at: layout.buildStaging, to: layout.build)
+      metadata.deploy = RimeProfileDeployRecord(generation: nextGeneration,
+                                                deployedAt: Date(),
+                                                engineVersion: RimeEngineVersion.pinned,
+                                                durationSeconds: report.duration,
+                                                warnings: warnings)
+      wroteMetadata = true
+      try workspace.writeMetadata(metadata, fileManager: fileManager)
+      try workspace.applyStoragePolicy(fileManager: fileManager)
+
+      var active = RimeActiveProfile(profileID: profileID,
+                                     generation: nextGeneration,
+                                     engineVersion: RimeEngineVersion.pinned,
+                                     sourceDigest: digest)
+      if activate {
+        let previous = try? workspace.loadActiveProfile()
+        if let previous, previous.profileID != profileID {
+          active.previousProfileID = previous.profileID
+        }
+        wroteActive = true
+        try workspace.writeActiveProfile(active)
+      }
+      // The app's own engine follows immediately; the keyboard adopts at its next appearance (§8).
+      if activate {
+        _ = try engine.rebind(to: RimeBindings.client(workspace: workspace, profileID: profileID,
+                                                      buildDirectory: layout.build))
+        if runtime.hadSession { try engine.openSession() }
+      } else {
+        try engine.restoreRuntime(runtime)
+      }
+      if savedPrevious { try? fileManager.removeItem(at: previousBackup) }
+      progress?(RimeDeploymentProgress(phase: .succeeded,
+                                       message: "profile " + profileID + " generation "
+                                         + String(nextGeneration)))
+      return RimeDeploymentOutcome(profileID: profileID, generation: nextGeneration, report: report,
+                                   metadata: metadata, active: active)
     } catch {
-      throw RimeDeploymentFailure.activationFailed(String(describing: error))
-    }
-
-    let digest = RimeDigest.sha256(ofTree: layout.source, fileManager: fileManager)
-    var metadata = (try? workspace.loadMetadata(for: profileID))
-      ?? RimeProfileMetadata(id: profileID, displayName: profileID, source: RimeProfileSource(kind: .generated))
-    let warnings = report.logs.filter { $0.severity >= .warning }.map(\.display)
-    metadata.stats.buildBytes = report.totalBytes
-    metadata.stats.sourceBytes = RimeWorkspace.directorySize(layout.source)
-    // get_schema_list() is populated by the switcher, which needs a live session; a deploy has
-    // none. Only replace the imported list when the engine actually knows one, so a deploy cannot
-    // erase the schema ids the import recorded.
-    let deployedSchemas = (try? engine.schemaIDs()) ?? []
-    if !deployedSchemas.isEmpty {
-      metadata.stats.schemaIDs = deployedSchemas
-    }
-    metadata.deploy = RimeProfileDeployRecord(generation: nextGeneration,
-                                              deployedAt: Date(),
-                                              engineVersion: RimeEngineVersion.pinned,
-                                              durationSeconds: report.duration,
-                                              warnings: warnings)
-    try workspace.writeMetadata(metadata, fileManager: fileManager)
-    try workspace.applyStoragePolicy(fileManager: fileManager)
-
-    var active = RimeActiveProfile(profileID: profileID,
-                                   generation: nextGeneration,
-                                   engineVersion: RimeEngineVersion.pinned,
-                                   sourceDigest: digest)
-    if activate {
-      let previous = try? workspace.loadActiveProfile()
-      if let previous, previous.profileID != profileID {
-        active.previousProfileID = previous.profileID
+      let original = error
+      var failures: [String] = []
+      func recover(_ body: () throws -> Void) {
+        do { try body() } catch { failures.append(String(describing: error)) }
       }
-      try workspace.writeActiveProfile(active)
+      engine.teardownLocked()
+      if publishedBuild { recover { try fileManager.moveItem(at: layout.build, to: layout.buildStaging) } }
+      if movedBuild { recover { try fileManager.moveItem(at: layout.buildPrevious, to: layout.build) } }
+      if savedPrevious { recover { try fileManager.moveItem(at: previousBackup, to: layout.buildPrevious) } }
+      if wroteMetadata { recover { try restoreRecord(metadataBefore, at: layout.metadata) } }
+      if wroteActive { recover { try restoreRecord(activeBefore, at: workspace.activeRecord) } }
+      recover { try engine.restoreRuntime(runtime) }
+      if !failures.isEmpty {
+        throw RimeDeploymentFailure.recoveryFailed(original: String(describing: original),
+                                                    recovery: failures.joined(separator: "; "))
+      }
+      throw original
     }
-    // The app's own engine follows immediately; the keyboard adopts at its next appearance (§8).
-    _ = try engine.rebind(to: RimeBindings.client(workspace: workspace, profileID: profileID,
-                                                  buildDirectory: layout.build))
-    progress?(RimeDeploymentProgress(phase: .succeeded,
-                                     message: "profile " + profileID + " generation "
-                                       + String(nextGeneration)))
-    return RimeDeploymentOutcome(profileID: profileID, generation: nextGeneration, report: report,
-                                 metadata: metadata, active: active)
+  }
+
+  private func restoreRecord(_ data: Data?, at url: URL) throws {
+    if let data { try data.write(to: url, options: .atomic) }
+    else if fileManager.fileExists(atPath: url.path) { try fileManager.removeItem(at: url) }
   }
 
   /// The asynchronous form: a real config takes tens of seconds, and the app must stay responsive.
@@ -184,8 +245,7 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
     }
   }
 
-  /// Seeds the previous generation's **derived binaries** into staging, by hard link where the
-  /// filesystem allows it.
+  /// Copies the previous generation's derived binaries into staging, isolating compiler writes.
   ///
   /// Only `*.bin`: the compiled tables are the expensive half and librime rewrites them when their
   /// sources change. The deployed **YAML copies are deliberately not seeded** — measured, and it cost
@@ -211,12 +271,7 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
       if fileManager.fileExists(atPath: target.path) { continue }
       try fileManager.createDirectory(at: target.deletingLastPathComponent(),
                                       withIntermediateDirectories: true)
-      do {
-        try fileManager.linkItem(at: item, to: target)
-      } catch {
-        // A filesystem without hard links still gets a correct deploy, at the cost of a copy.
-        try fileManager.copyItem(at: item, to: target)
-      }
+      try fileManager.copyItem(at: item, to: target)
     }
   }
 

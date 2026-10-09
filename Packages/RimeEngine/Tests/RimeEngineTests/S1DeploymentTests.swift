@@ -175,6 +175,13 @@ final class S1DeploymentTests: XCTestCase {
     let layout = workspace.profile(id)
     _ = try coordinator().deploySync(profileID: id)
     let activeBefore = try XCTUnwrap(try workspace.loadActiveProfile())
+    let bindingBefore = engine.directories
+    let metadataBefore = try Data(contentsOf: layout.metadata)
+    try engine.openSession()
+    _ = try engine.selectSchema("tracer")
+    try engine.setOption("full_shape", true)
+    _ = try engine.processKeys("nihao")
+    try engine.setCaretPosition(2)
 
     // Break the profile the way a bad edit would: schema_list names one more schema than the
     // config contains. tracer still deploys; ghost cannot.
@@ -195,17 +202,156 @@ final class S1DeploymentTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: layout.buildStaging.path),
                   "staging stays for diagnosis; the janitor removes it at next launch")
 
-    // And it still types: the previous generation's tables plus the sources, which still hold the
-    // schema that worked.
-    _ = try engine.rebind(to: RimeBindings.client(workspace: workspace, profileID: id,
-                                                  buildDirectory: layout.build))
-    try engine.openSession()
-    XCTAssertEqual(try engine.processKeys("nihao").candidates.first?.text, "你好")
+    XCTAssertEqual(engine.directories, bindingBefore)
+    XCTAssertEqual(try Data(contentsOf: layout.metadata), metadataBefore)
+    XCTAssertEqual(try engine.currentSchema(), "tracer")
+    XCTAssertTrue(try engine.getOption("full_shape"))
+    XCTAssertEqual(try engine.rawInput(), "nihao")
+    XCTAssertEqual(try engine.caretPosition(), 2)
+    try engine.clearComposition()
+    XCTAssertEqual(try engine.processKeys("nihao").candidates.first?.text, "你好",
+                   "the restored session types without a caller rebind or reopen")
     engine.closeSession()
 
     // The next launch's janitor clears the failed staging directory (§3).
     let outcome = RimeWorkspaceJanitor().run(workspace: workspace)
     XCTAssertEqual(outcome.removedBuildStaging, [id])
+  }
+
+  private final class FailingPublicationFileManager: FileManager, @unchecked Sendable {
+    enum Point { case swap, metadata }
+    let point: Point
+    let layout: RimeProfileLayout
+    var failed = false
+
+    init(point: Point, layout: RimeProfileLayout) {
+      self.point = point
+      self.layout = layout
+      super.init()
+    }
+
+    private func fail() throws {
+      failed = true
+      throw NSError(domain: "DeploymentPublicationTest", code: 1)
+    }
+
+    override func moveItem(at srcURL: URL, to dstURL: URL) throws {
+      if !failed && point == .swap && srcURL == layout.buildStaging { try fail() }
+      try super.moveItem(at: srcURL, to: dstURL)
+    }
+
+    override func createDirectory(at url: URL, withIntermediateDirectories createIntermediates: Bool,
+                                  attributes: [FileAttributeKey: Any]? = nil) throws {
+      if !failed && point == .metadata && url == layout.directory { try fail() }
+      try super.createDirectory(at: url, withIntermediateDirectories: createIntermediates,
+                                attributes: attributes)
+    }
+
+
+  }
+
+  func testPublicationFailuresRestoreBuildsRecordsAndSession() throws {
+    let id = try importedProfile()
+    let layout = workspace.profile(id)
+    _ = try coordinator().deploySync(profileID: id)
+    try Data("old rollback".utf8).write(to: layout.build.appendingPathComponent("marker.txt"))
+    _ = try coordinator().deploySync(profileID: id)
+    try Data("current".utf8).write(to: layout.build.appendingPathComponent("marker.txt"))
+    let metadataBefore = try Data(contentsOf: layout.metadata)
+    let activeBefore = try Data(contentsOf: workspace.activeRecord)
+    let bindingBefore = engine.directories
+    try engine.openSession()
+    _ = try engine.processKeys("ni")
+
+    for point in [FailingPublicationFileManager.Point.swap, .metadata] {
+      let manager = FailingPublicationFileManager(point: point, layout: layout)
+      let deployment = RimeDeploymentCoordinator(workspace: workspace, engine: engine, fileManager: manager)
+      XCTAssertThrowsError(try deployment.deploySync(profileID: id))
+      XCTAssertTrue(manager.failed)
+      XCTAssertEqual(engine.directories, bindingBefore)
+      XCTAssertEqual(try engine.rawInput(), "ni")
+      XCTAssertEqual(try engine.processKeys("hao").candidates.first?.text, "你好")
+      _ = try engine.setInput("ni")
+      XCTAssertEqual(try Data(contentsOf: layout.metadata), metadataBefore)
+      XCTAssertEqual(try Data(contentsOf: workspace.activeRecord), activeBefore)
+      XCTAssertEqual(try String(contentsOf: layout.build.appendingPathComponent("marker.txt"), encoding: .utf8), "current")
+      XCTAssertEqual(try String(contentsOf: layout.buildPrevious.appendingPathComponent("marker.txt"), encoding: .utf8), "old rollback")
+      XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: workspace.staging.path), [])
+    }
+  }
+
+  func testFailedDeploymentOfAnotherProfileRestoresTheOriginalClosedBinding() throws {
+    let first = try importedProfile(name: "First")
+    let second = try importedProfile(name: "Second")
+    _ = try coordinator().deploySync(profileID: first)
+    let bindingBefore = engine.directories
+    try "schema_list:\n  - schema: ghost\n"
+      .write(to: workspace.profile(second).source.appendingPathComponent("default.yaml"),
+             atomically: true, encoding: .utf8)
+    XCTAssertThrowsError(try coordinator().deploySync(profileID: second))
+    XCTAssertEqual(engine.directories, bindingBefore)
+    XCTAssertNil(try engine.currentSchema(), "a closed session stays closed")
+    XCTAssertEqual(try workspace.loadActiveProfile()?.profileID, first)
+    XCTAssertNil(try workspace.loadMetadata(for: second)?.deploy)
+    try engine.openSession()
+    XCTAssertEqual(try engine.processKeys("nihao").candidates.first?.text, "你好")
+  }
+
+  func testActivePointerWriteFailureRestoresMetadataBuildAndRuntime() throws {
+    let id = try importedProfile()
+    let layout = workspace.profile(id)
+    let metadataBefore = try Data(contentsOf: layout.metadata)
+    let bindingBefore = engine.directories
+    try engine.openSession()
+    _ = try engine.processKeys("ni")
+    let pointer = workspace.activeRecord
+    XCTAssertThrowsError(try coordinator().deploySync(profileID: id) { update in
+      if update.phase == .running {
+        // A directory at the destination makes the atomic pointer write fail after metadata
+        // publication. Recovery must also remove an originally absent record.
+        try? FileManager.default.createDirectory(at: pointer, withIntermediateDirectories: true)
+      }
+    })
+    XCTAssertEqual(try Data(contentsOf: layout.metadata), metadataBefore)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: pointer.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: layout.build.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: layout.buildPrevious.path))
+    XCTAssertTrue(FileManager.default.fileExists(atPath: layout.buildStaging.path))
+    XCTAssertEqual(engine.directories, bindingBefore)
+    XCTAssertEqual(try engine.rawInput(), "ni")
+    XCTAssertEqual(try engine.processKeys("hao").candidates.first?.text, "你好")
+  }
+
+  func testFailedFirstDeploymentRestoresAStoppedEngineAndAbsentPointer() throws {
+    let id = try importedProfile()
+    let layout = workspace.profile(id)
+    engine.shutdown()
+    let bindingBefore = engine.directories
+    let metadataBefore = try Data(contentsOf: layout.metadata)
+    try "schema_list:\n  - schema: ghost\n"
+      .write(to: layout.source.appendingPathComponent("default.yaml"), atomically: true, encoding: .utf8)
+    XCTAssertThrowsError(try coordinator().deploySync(profileID: id))
+    XCTAssertEqual(engine.directories, bindingBefore)
+    XCTAssertFalse(engine.isRunning)
+    XCTAssertNil(try workspace.loadActiveProfile())
+    XCTAssertEqual(try Data(contentsOf: layout.metadata), metadataBefore)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: layout.build.path))
+  }
+
+  func testDeployWithoutActivationPreservesTheOriginalRuntimeAndPointer() throws {
+    let first = try importedProfile(name: "First")
+    let second = try importedProfile(name: "Second")
+    _ = try coordinator().deploySync(profileID: first)
+    let bindingBefore = engine.directories
+    let activeBefore = try Data(contentsOf: workspace.activeRecord)
+    try engine.openSession()
+    _ = try engine.processKeys("ni")
+    _ = try coordinator().deploySync(profileID: second, activate: false)
+    XCTAssertEqual(engine.directories, bindingBefore)
+    XCTAssertEqual(try Data(contentsOf: workspace.activeRecord), activeBefore)
+    XCTAssertEqual(try engine.rawInput(), "ni")
+    XCTAssertEqual(try engine.processKeys("hao").candidates.first?.text, "你好")
+    XCTAssertEqual(try workspace.loadMetadata(for: second)?.deploy?.generation, 1)
   }
 
   // MARK: Library
