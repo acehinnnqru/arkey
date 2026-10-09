@@ -50,7 +50,12 @@ final class KeyboardGeometryTests: XCTestCase {
         let enter = try XCTUnwrap(buttons.first { $0.key == .returnKey })
         let space = try XCTUnwrap(buttons.first { $0.key == .space })
         XCTAssertEqual(enter.frame.maxX, width - KeyboardMetrics.sideMargin, accuracy: 0.01)
-        XCTAssertEqual(enter.frame.minX - space.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
+        let auxiliary = try XCTUnwrap(buttons.first {
+          if case .auxiliary = $0.key { return true }
+          return false
+        })
+        XCTAssertEqual(auxiliary.frame.minX - space.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
+        XCTAssertEqual(enter.frame.minX - auxiliary.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
         XCTAssertGreaterThan(space.frame.width, 0)
       }
     }
@@ -107,6 +112,7 @@ final class KeyboardGeometryTests: XCTestCase {
   func testTheViewMetricsAreTheEnginesMeasuredStyle() {
     XCTAssertEqual(KeyboardMetrics.style, RimeKeyboardStyle.systemAligned)
     XCTAssertEqual(KeyboardMetrics.keyHeight, 45, accuracy: 0.01)
+    XCTAssertEqual(KeyboardMetrics.candidateBarHeight, 52, accuracy: 0.01)
     XCTAssertEqual(KeyboardMetrics.sideMargin, 6.5, accuracy: 0.01)
   }
 

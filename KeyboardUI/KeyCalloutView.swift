@@ -5,8 +5,7 @@ import RimeEngine
 ///
 /// The frame is always `RimeCalloutGeometry`'s, because an extension cannot draw outside its own frame
 /// — a callout that escaped would be clipped or, worse, move the keyboard. On the first row there is
-/// only the 39.7 pt candidate slot above the key, so the callout is that tall there and full height
-/// from the second row down (R10, as a number).
+/// only the candidate slot above the key, so the callout is limited to that space.
 final class KeyCalloutView: UIView {
   private let label = UILabel()
   private let tail = UIView()

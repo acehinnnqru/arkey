@@ -30,7 +30,7 @@ public struct RimeCandidateCell: Sendable, Hashable {
 
 // MARK: - The collapsed bar
 
-/// S3 §7's candidate slot and S4 §6's collapsed bar: one row, the 39.7 pt slot above the keys.
+/// The collapsed candidate strip uses the same height as the keyboard layout.
 public struct RimeCandidateBarModel: Sendable, Hashable {
   public let cells: [RimeCandidateCell]
   public let pageNumber: Int
@@ -44,7 +44,7 @@ public struct RimeCandidateBarModel: Sendable, Hashable {
   public let message: String?
 
   public init(cells: [RimeCandidateCell], pageNumber: Int = 0, isLastPage: Bool = true,
-              syllableRow: [String]? = nil, height: CGFloat = 39.7, message: String? = nil) {
+              syllableRow: [String]? = nil, height: CGFloat = RimeKeyboardStyle.systemAligned.candidateSlotHeight, message: String? = nil) {
     self.cells = cells
     self.pageNumber = pageNumber
     self.isLastPage = isLastPage
@@ -60,7 +60,7 @@ public struct RimeCandidateBarModel: Sendable, Hashable {
   public var showsTrailingChevron: Bool { !isLastPage }
 
   /// The bar for a page of librime's output.
-  public static func page(_ page: RimePage?, height: CGFloat = 39.7,
+  public static func page(_ page: RimePage?, height: CGFloat = RimeKeyboardStyle.systemAligned.candidateSlotHeight,
                           syllableRow: [String]? = nil,
                           message: String? = nil) -> RimeCandidateBarModel {
     guard let page else {
@@ -81,7 +81,7 @@ public struct RimeCandidateBarModel: Sendable, Hashable {
   }
 
   /// The bar that says something instead of showing candidates.
-  public static func message(_ text: String, height: CGFloat = 39.7) -> RimeCandidateBarModel {
+  public static func message(_ text: String, height: CGFloat = RimeKeyboardStyle.systemAligned.candidateSlotHeight) -> RimeCandidateBarModel {
     RimeCandidateBarModel(cells: [], height: height, message: text)
   }
 }

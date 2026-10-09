@@ -76,6 +76,8 @@ public struct RimeKeyboardStyle: Sendable, Equatable {
   /// historical capture baseline; the UI uses this wider, flat-cap treatment.
   public static let systemAligned: RimeKeyboardStyle = {
     var style = measured
+    // The reference candidate strip includes the breathing room above the first key row.
+    style.candidateSlotHeight = 52
     style.sideMargin = 6.5
     style.horizontalGap = 6.5
     style.cornerRadius = 8.5

@@ -15,7 +15,7 @@ final class CandidateBarAccessibilityTests: XCTestCase {
   }
 
   private func bar(_ model: RimeCandidateBarModel) -> CandidateBar {
-    let bar = CandidateBar(frame: CGRect(x: 0, y: 0, width: 430, height: 39.7))
+    let bar = CandidateBar(frame: CGRect(x: 0, y: 0, width: 430, height: KeyboardMetrics.candidateBarHeight))
     bar.apply(theme: KeyboardTheme.current(for: .light))
     bar.apply(model: model)
     bar.layoutIfNeeded()
@@ -48,7 +48,7 @@ final class CandidateBarAccessibilityTests: XCTestCase {
                    "the comment belongs in the value, not glued onto the label")
   }
 
-  /// Paging stays available through swipes; the only accessory is the panel expander.
+  /// The only accessory is the panel expander.
   func testPagesOnlyShowCandidatesAndTheExpandButton() {
     for (pageNumber, isLastPage) in [(0, false), (1, false), (1, true)] {
       let model = RimeCandidateBarModel(cells: [
@@ -84,7 +84,7 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     func candidates() -> [UIButton] {
       allButtons(in: view).filter { !$0.isHidden && $0.attributedTitle(for: .normal) != nil }
     }
-    XCTAssertEqual(candidates().count, 1)
+    XCTAssertEqual(candidates().count, 9)
     let button = try XCTUnwrap(candidates().first)
     XCTAssertFalse(try XCTUnwrap(button.titleLabel).adjustsFontSizeToFitWidth)
     let font = try XCTUnwrap(button.attributedTitle(for: .normal)?.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
@@ -92,10 +92,10 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     view.frame.size.width = 900
     view.setNeedsLayout()
     view.layoutIfNeeded()
-    XCTAssertGreaterThan(candidates().count, 1)
+    XCTAssertEqual(candidates().count, 9)
   }
 
-  func testWholeCandidateCellsAreTappableIncludingSeparatorAndPadding() throws {
+  func testWholeCandidateCellsAreTappableIncludingPadding() throws {
     let view = bar(RimeCandidateBarModel(cells: [
       RimeCandidateCell(index: 7, text: "你"),
       RimeCandidateCell(index: 8, text: "这是比较长的词"),
@@ -267,7 +267,73 @@ final class CandidateBarAccessibilityTests: XCTestCase {
       ancestor = current.superview
     }
     let candidate = try XCTUnwrap(allButtons(in: view).first { $0.tag == 0 && $0 !== expand })
-    XCTAssertEqual(candidate.superview?.gestureRecognizers?.filter { $0 is UISwipeGestureRecognizer }.count, 2)
+    let scroll = try XCTUnwrap(candidate.superview?.superview as? UIScrollView)
+    XCTAssertTrue(scroll.panGestureRecognizer.view === scroll)
+    XCTAssertFalse(expand.isDescendant(of: scroll))
+  }
+
+  func testFirstCandidateTextOriginStaysFixedAcrossWidthsAndCandidateLists() throws {
+    let view = bar(.init(cells: [RimeCandidateCell(index: 0, text: "你")]))
+    for width: CGFloat in [320, 430, 900] {
+      for text in ["你", "你好", "A much longer candidate"] {
+        view.frame.size.width = width
+        view.apply(model: .init(cells: [RimeCandidateCell(index: 0, text: text),
+                                      RimeCandidateCell(index: 1, text: "Second")]))
+        view.layoutIfNeeded()
+        let button = try XCTUnwrap(allButtons(in: view).first { $0.attributedTitle(for: .normal) != nil })
+        button.layoutIfNeeded()
+        let label = try XCTUnwrap(button.titleLabel)
+        XCTAssertEqual(label.convert(label.bounds, to: view).minX, 12, accuracy: 0.5)
+        XCTAssertEqual(button.contentHorizontalAlignment, .left)
+        XCTAssertTrue(button.subviews.allSatisfy { $0 is UILabel || $0 is UIImageView },
+                      "candidate cells must not contain separator views")
+      }
+    }
+  }
+
+  func testCollapsedCandidatesScrollAndResetForNewInput() throws {
+    let model = RimeCandidateBarModel(cells: (0..<12).map {
+      RimeCandidateCell(index: $0, text: "Candidate \($0)")
+    })
+    let view = bar(model)
+    let scroll = try XCTUnwrap(allButtons(in: view).first {
+      $0.attributedTitle(for: .normal) != nil
+    }?.superview?.superview as? UIScrollView)
+    XCTAssertGreaterThan(scroll.contentSize.width, scroll.bounds.width)
+    XCTAssertTrue(scroll.canCancelContentTouches)
+    let last = try XCTUnwrap(allButtons(in: scroll).first { $0.tag == 11 })
+    XCTAssertTrue(scroll.touchesShouldCancel(in: last))
+    scroll.setContentOffset(CGPoint(x: scroll.contentSize.width - scroll.bounds.width, y: 0), animated: false)
+    var selected: Int?
+    view.onSelect = { selected = $0 }
+    let point = last.convert(CGPoint(x: last.bounds.midX, y: last.bounds.midY), to: view)
+    let hit = try XCTUnwrap(view.hitTest(point, with: nil) as? UIButton)
+    hit.sendActions(for: .touchUpInside)
+    XCTAssertEqual(selected, 11)
+    view.apply(model: model)
+    XCTAssertGreaterThan(scroll.contentOffset.x, 0)
+    view.apply(model: .init(cells: [RimeCandidateCell(index: 0, text: "New")]))
+    view.layoutIfNeeded()
+    XCTAssertEqual(scroll.contentOffset.x, 0)
+  }
+
+  func testPagingRequiresDraggingBeyondTheCurrentPageEdge() throws {
+    let view = bar(.init(cells: (0..<9).map { RimeCandidateCell(index: $0, text: "Candidate \($0)") },
+                         pageNumber: 1, isLastPage: false))
+    let scroll = try XCTUnwrap(allButtons(in: view).first {
+      $0.attributedTitle(for: .normal) != nil
+    }?.superview?.superview as? UIScrollView)
+    var pages: [Bool] = []
+    view.onPage = { pages.append($0) }
+    scroll.contentOffset.x = 80
+    view.scrollViewDidEndDragging(scroll, willDecelerate: false)
+    XCTAssertTrue(pages.isEmpty)
+    scroll.contentOffset.x = scroll.contentSize.width - scroll.bounds.width + 50
+    view.scrollViewDidEndDragging(scroll, willDecelerate: false)
+    XCTAssertEqual(pages, [false])
+    scroll.contentOffset.x = -50
+    view.scrollViewDidEndDragging(scroll, willDecelerate: false)
+    XCTAssertEqual(pages, [false, true])
   }
 
   func testMoreCandidatesAreRequestedOnlyNearTheEnd() throws {

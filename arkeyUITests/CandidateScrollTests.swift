@@ -1,6 +1,34 @@
 import XCTest
 
 final class CandidateScrollTests: XCTestCase {
+  func testCollapsedRowDragsOverButtonsAndSelectsAfterScrolling() throws {
+    let app = XCUIApplication()
+    app.launchArguments.append("--candidate-scroll-ui-test")
+    app.launch()
+    let scroll = app.scrollViews["candidate-bar-scroll"]
+    let offset = app.staticTexts["candidate-bar-offset"]
+    XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+    func position() throws -> Int { try XCTUnwrap(Int(offset.label)) }
+    for _ in 0..<2 {
+      let before = try position()
+      scroll.swipeLeft()
+      XCTAssertGreaterThan(try position(), before + 10)
+    }
+    let bounds = scroll.frame.insetBy(dx: 4, dy: 0)
+    let candidate = try XCTUnwrap(scroll.buttons.allElementsBoundByIndex.first {
+      $0.isHittable && bounds.contains($0.frame)
+    })
+    let index = String(candidate.label.dropFirst("Candidate ".count))
+    candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    XCTAssertEqual(app.staticTexts["candidate-selection"].label, "bar-" + index)
+    let before = try position()
+    scroll.swipeRight()
+    XCTAssertLessThan(try position(), before - 10)
+    let expand = app.buttons["展开候选面板"]
+    XCTAssertTrue(expand.isHittable)
+    XCTAssertGreaterThanOrEqual(expand.frame.minX, scroll.frame.maxX - 1)
+  }
+
   func testRepeatedDragsKeepScrollingOverCandidateCells() throws {
     let app = XCUIApplication()
     app.launchArguments.append("--candidate-scroll-ui-test")

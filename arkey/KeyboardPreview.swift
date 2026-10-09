@@ -99,19 +99,36 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
     selection.accessibilityIdentifier = "candidate-selection"
     selection.text = "none"
     selection.translatesAutoresizingMaskIntoConstraints = false
+    let barOffset = UILabel()
+    barOffset.accessibilityIdentifier = "candidate-bar-offset"
+    barOffset.text = "0"
+    barOffset.translatesAutoresizingMaskIntoConstraints = false
+    let bar = CandidateBar()
+    bar.translatesAutoresizingMaskIntoConstraints = false
+    bar.onScroll = { [weak barOffset] value in barOffset?.text = String(Int(value)) }
+    bar.onSelect = { [weak selection] value in selection?.text = "bar-\(value)" }
+    bar.apply(model: .init(cells: (0..<12).map { RimeCandidateCell(index: $0, text: "Candidate \($0)") }))
     let panel = CandidatePanelView()
     panel.translatesAutoresizingMaskIntoConstraints = false
     panel.onScroll = { [weak offset] value in offset?.text = String(Int(value)) }
     panel.onSelect = { [weak selection] value in selection?.text = String(value) }
     container.addSubview(offset)
     container.addSubview(selection)
+    container.addSubview(barOffset)
+    container.addSubview(bar)
     container.addSubview(panel)
     NSLayoutConstraint.activate([
       offset.topAnchor.constraint(equalTo: container.topAnchor),
       offset.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       selection.topAnchor.constraint(equalTo: container.topAnchor),
       selection.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-      panel.topAnchor.constraint(equalTo: offset.bottomAnchor),
+      barOffset.topAnchor.constraint(equalTo: container.topAnchor),
+      barOffset.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      bar.topAnchor.constraint(equalTo: offset.bottomAnchor),
+      bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      bar.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
+      panel.topAnchor.constraint(equalTo: bar.bottomAnchor),
       panel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       panel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       panel.bottomAnchor.constraint(equalTo: container.bottomAnchor),

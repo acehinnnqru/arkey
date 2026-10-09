@@ -1,15 +1,19 @@
 import UIKit
 import RimeEngine
 
+/// A drag beginning on a candidate must be able to cancel the button's tracking.
+private final class CandidateBarScrollView: UIScrollView {
+  override func touchesShouldCancel(in view: UIView) -> Bool { true }
+}
+
 /// The suggestion strip above the keys — S4 §6's collapsed bar, rendered from `RimeCandidateBarModel`.
 ///
 /// Three rules earned the hard way, kept from the tracer's version:
 ///  - every constraint is anchored inside the view that owns it, so no activation can happen between
 ///    two views that share no ancestor (that threw on the first key press and killed the extension);
-///  - buttons are pooled and updated in place, because creating and destroying five buttons plus
-///    separators on every keystroke was a large part of why typing felt laggy;
+///  - buttons are pooled and updated in place to keep keystrokes inexpensive;
 ///  - a keystroke that changes nothing visible must not restyle anything.
-final class CandidateBar: UIView {
+final class CandidateBar: UIView, UIScrollViewDelegate {
   /// Called with the index of the tapped candidate on the current page.
   var onSelect: ((Int) -> Void)?
   /// A long press forgets the word (S4 §8, S5-AC5). The index is the cell's position on the page the bar is
@@ -19,53 +23,66 @@ final class CandidateBar: UIView {
   var onPage: ((Bool) -> Void)?
   /// The expand control: S4 §6's panel replaces the keyboard area, so the bar has to offer it.
   var onExpand: (() -> Void)?
+  #if DEBUG
+  var onScroll: ((CGFloat) -> Void)?
+  #endif
 
   private let expandButton = UIButton(type: .system)
   private let cellsStack = UIView()
+  private let scrollView = CandidateBarScrollView()
   private var preferredWidths: [CGFloat] = []
   private let outerStack = UIStackView()
   private let messageLabel = UILabel()
   private var cellButtons: [UIButton] = []
   private var theme = KeyboardTheme.current(for: .default)
+  private var currentModel: RimeCandidateBarModel?
 
   private static let chevronWidth: CGFloat = 64
-  var visibleCandidateCount: Int { cellButtons.filter { !$0.isHidden }.count }
+  /// Only omit a prefix from the expanded panel when that entire prefix remains visible.
+  var visibleCandidateCount: Int {
+    guard scrollView.contentOffset.x <= 0 else { return 0 }
+    return cellButtons.prefix { !$0.isHidden && $0.frame.maxX <= scrollView.bounds.width }.count
+  }
 
   func setExpanded(_ expanded: Bool) {
     expandButton.setImage(UIImage(systemName: expanded ? "chevron.up" : "chevron.down"), for: .normal)
     expandButton.accessibilityLabel = expanded ? "收起候选面板" : "展开候选面板"
   }
 
-  /// Paging belongs to the candidate area. The expand control must never compete
-  /// with a paging recognizer when a tap includes a little horizontal movement.
-  private func addSwipePaging() {
-    for (direction, pagesForward) in [(UISwipeGestureRecognizer.Direction.left, true),
-                                      (UISwipeGestureRecognizer.Direction.right, false)] {
-      let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
-      swipe.direction = direction
-      swipe.delaysTouchesBegan = false
-      swipe.delaysTouchesEnded = false
-      swipe.accessibilityLabel = pagesForward ? "下一页" : "上一页"
-      cellsStack.addGestureRecognizer(swipe)
+  /// Turn pages only after dragging beyond an edge of the current page.
+  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard let model = currentModel else { return }
+    let end = max(0, scrollView.contentSize.width - scrollView.bounds.width)
+    if scrollView.contentOffset.x < -44 && model.pageNumber > 0 {
+      onPage?(true)
+    } else if scrollView.contentOffset.x > end + 44 && !model.isLastPage {
+      onPage?(false)
     }
   }
 
-  @objc private func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
-    onPage?(gesture.direction == .right)
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    #if DEBUG
+    onScroll?(scrollView.contentOffset.x)
+    #endif
   }
-  private static let maxCells = 9
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    addSwipePaging()
-
+    scrollView.delegate = self
+    scrollView.alwaysBounceHorizontal = true
+    scrollView.showsHorizontalScrollIndicator = false
+    scrollView.delaysContentTouches = true
+    scrollView.canCancelContentTouches = true
+    scrollView.contentInsetAdjustmentBehavior = .never
+    scrollView.accessibilityIdentifier = "candidate-bar-scroll"
+    scrollView.addSubview(cellsStack)
 
     outerStack.axis = .horizontal
     outerStack.alignment = .fill
     outerStack.distribution = .fill
     outerStack.spacing = 0
     outerStack.translatesAutoresizingMaskIntoConstraints = false
-    outerStack.addArrangedSubview(cellsStack)
+    outerStack.addArrangedSubview(scrollView)
     outerStack.addArrangedSubview(expandButton)
     addSubview(outerStack)
 
@@ -112,6 +129,11 @@ final class CandidateBar: UIView {
   // MARK: - The model
 
   func apply(model: RimeCandidateBarModel) {
+    let changed = currentModel != model
+    currentModel = model
+    if changed {
+      scrollView.setContentOffset(.zero, animated: false)
+    }
     guard !model.isEmpty else {
       showMessage(model.message ?? "")
       return
@@ -119,7 +141,7 @@ final class CandidateBar: UIView {
     hideMessage()
     expandButton.isHidden = false
 
-    let count = min(model.cells.count, Self.maxCells)
+    let count = model.cells.count
     ensureCells(count: count)
 
     preferredWidths = model.cells.prefix(count).map { max(44, ceil(Self.title(for: $0, theme: theme).size().width) + 24) }
@@ -147,25 +169,18 @@ final class CandidateBar: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     outerStack.layoutIfNeeded()
-    let available = cellsStack.bounds.width
+    let available = scrollView.bounds.width
     guard available > 0, !preferredWidths.isEmpty else { return }
-    var widths: [CGFloat] = []
-    var used: CGFloat = 0
-    for width in preferredWidths {
-      let fitted = min(width, available)
-      if !widths.isEmpty && used + fitted > available { break }
-      widths.append(fitted)
-      used += fitted
-    }
-    let extra = (available - used) / CGFloat(widths.count)
     var x: CGFloat = 0
     for (index, button) in cellButtons.enumerated() {
-      button.isHidden = index >= widths.count
-      guard index < widths.count else { continue }
-      let width = widths[index] + extra
-      button.frame = CGRect(x: x, y: 0, width: width, height: cellsStack.bounds.height)
+      button.isHidden = index >= preferredWidths.count
+      guard index < preferredWidths.count else { continue }
+      let width = preferredWidths[index]
+      button.frame = CGRect(x: x, y: 0, width: width, height: scrollView.bounds.height)
       x += width
     }
+    cellsStack.frame = CGRect(x: 0, y: 0, width: max(available, x), height: scrollView.bounds.height)
+    scrollView.contentSize = cellsStack.bounds.size
   }
 
   /// The convenience the controller uses: a whole page from the engine.
@@ -206,6 +221,7 @@ final class CandidateBar: UIView {
   }
 
   private func showMessage(_ message: String) {
+    scrollView.setContentOffset(.zero, animated: false)
     outerStack.isHidden = true
     expandButton.isHidden = true
     messageLabel.text = message
@@ -239,6 +255,7 @@ final class CandidateBar: UIView {
     while cellButtons.count < count {
       let button = UIButton(type: .custom)
       button.titleLabel?.adjustsFontSizeToFitWidth = false
+      button.contentHorizontalAlignment = .left
       button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
       button.clipsToBounds = true
       button.titleLabel?.lineBreakMode = .byTruncatingTail
@@ -248,25 +265,9 @@ final class CandidateBar: UIView {
       forget.delaysTouchesBegan = false
       forget.delaysTouchesEnded = false
       button.addGestureRecognizer(forget)
-      if !cellButtons.isEmpty {
-        addSeparator(to: button)
-      }
       cellsStack.addSubview(button)
       cellButtons.append(button)
     }
   }
 
-  private func addSeparator(to host: UIView) {
-    let separator = UIView()
-    separator.isUserInteractionEnabled = false
-    separator.backgroundColor = theme.separator
-    separator.translatesAutoresizingMaskIntoConstraints = false
-    host.addSubview(separator)
-    NSLayoutConstraint.activate([
-      separator.leadingAnchor.constraint(equalTo: host.leadingAnchor),
-      separator.centerYAnchor.constraint(equalTo: host.centerYAnchor),
-      separator.widthAnchor.constraint(equalToConstant: 1),
-      separator.heightAnchor.constraint(equalTo: host.heightAnchor, multiplier: 0.5),
-    ])
-  }
 }

@@ -26,7 +26,7 @@ final class S3CandidatePanelTests: XCTestCase {
     XCTAssertTrue(model.cells[0].isHighlighted)
     XCTAssertFalse(model.cells[1].isHighlighted)
     XCTAssertEqual(model.cells[0].displayText, "1 你好")
-    XCTAssertEqual(model.height, 39.7, "the measured slot")
+    XCTAssertEqual(model.height, 52, "the system-aligned candidate slot")
     XCTAssertNil(model.syllableRow, "librime offers no segmentation here, so the row is omitted")
   }
 
