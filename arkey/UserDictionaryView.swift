@@ -67,7 +67,7 @@ struct UserDictionaryView: View {
     .searchable(text: $query, prompt: "按词库名搜索")
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button("刷新") { model.refreshDictionaries() }
+        Button("刷新") { Task { await model.refreshDictionariesInBackground() } }
       }
     }
     .confirmationDialog("清空这个词库？",
@@ -83,7 +83,7 @@ struct UserDictionaryView: View {
       Text("整表删除，无法恢复；若要只忘掉某一个词，请在键盘的候选上长按删除（桌面端的 Shift+Delete）。"
            + "librime 的导入是增量写入，删掉一行再导回去并不会移除词条。")
     }
-    .task { model.refreshDictionaries() }
+    .task { await model.refreshDictionariesInBackground() }
     // S5 §5: the file the user picks is a snapshot or a levers export, and the engine tells them apart. The
     // types are the union of both kinds; each branch keeps to its own.
     .fileImporter(isPresented: $isPicking,
@@ -143,6 +143,7 @@ struct UserDictionaryView: View {
         }
       }
       .font(.caption)
+      .disabled(model.isSyncing)
     }
     .padding(.vertical, 2)
   }
@@ -166,6 +167,7 @@ struct UserDictionaryView: View {
             Spacer(minLength: 8)
             Button("恢复") { model.restoreDictionary(file.name, from: file.url) }
               .font(.caption)
+              .disabled(model.isSyncing)
           }
         }
       }
@@ -188,6 +190,7 @@ struct UserDictionaryView: View {
         Button("合并") { Task { await model.mergeDictionaries(from: device.deviceID) } }
           .font(.caption2)
           .buttonStyle(.borderless)
+          .disabled(model.isSyncing)
       }
     }
   }
@@ -232,6 +235,7 @@ struct UserDictionaryView: View {
       } else {
         Button("导出整组快照（zip）") { exportedSet = model.exportAllDictionaries() }
           .font(.caption)
+          .disabled(model.isSyncing)
       }
       if let directory = report.syncDirectory {
         Text(UserFacing.text(directory)).font(.caption2).foregroundStyle(.secondary)
@@ -244,12 +248,14 @@ struct UserDictionaryView: View {
           .font(.caption2).foregroundStyle(.secondary)
         Button("恢复默认（iCloud / 文稿）") { model.useDefaultSyncFolder() }
           .font(.caption)
+          .disabled(model.isSyncing)
       } else {
         Button("选择同步文件夹…") {
           pick = .syncFolder
           isPicking = true
         }
           .font(.caption)
+          .disabled(model.isSyncing)
       }
       if let problem = model.syncChoiceProblem {
         Text(problem).font(.caption2).foregroundStyle(.orange)

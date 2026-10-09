@@ -46,10 +46,14 @@ struct ProfileLibraryView: View {
         } label: {
           Label("导入", systemImage: "square.and.arrow.down")
         }
-        .disabled(model.isDeploying)
+        .disabled(model.isDeploying || model.isImporting)
       }
       ToolbarItem(placement: .topBarTrailing) {
-        Button("刷新") { model.refresh() }
+        if model.isImporting {
+          ProgressView().accessibilityLabel("正在导入配置")
+        } else {
+          Button("刷新") { model.refresh() }
+        }
       }
     }
     // The union of both kinds' types; the handler refuses what the kind does not accept, which is what a
@@ -137,7 +141,7 @@ struct ProfileLibraryView: View {
       }
       .font(.caption)
       .buttonStyle(.borderless)
-      .disabled(model.isDeploying)
+      .disabled(model.isDeploying || model.isImporting)
     }
     .padding(.vertical, 2)
   }
@@ -154,6 +158,7 @@ struct ProfileLibraryView: View {
         pickKind = .settings
         isPicking = true
       }
+      .disabled(model.isImporting)
     } header: {
       Text("设置")
     } footer: {

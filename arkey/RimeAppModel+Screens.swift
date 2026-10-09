@@ -3,6 +3,27 @@ import Foundation
 import RimeEngine
 import SwiftUI
 
+private struct DictionarySnapshot: Sendable {
+  let choice: RimeSyncFolderChoice?
+  let report: RimeUserDictionaryReport?
+  let backups: [String: [URL]]
+  let error: String?
+
+  nonisolated static func load(workspace: RimeWorkspace, engine: RimeEngine) -> Self {
+    let service = RimeSyncService(workspace: workspace, engine: engine)
+    let choice = workspace.loadSyncChoice()
+    do {
+      let report = try service.report()
+      let backups = Dictionary(uniqueKeysWithValues: report.dictionaries.map { entry in
+        (entry.name, service.backups(for: entry.name))
+      })
+      return Self(choice: choice, report: report, backups: backups, error: nil)
+    } catch {
+      return Self(choice: choice, report: nil, backups: [:], error: String(describing: error))
+    }
+  }
+}
+
 /// The app's own screens, in one place: what the workspace holds, and the few writes the UI may make.
 ///
 /// Everything here goes through the same single engine the keyboard contract is built on, and the
@@ -205,19 +226,7 @@ extension RimeAppModel {
   // MARK: - User dictionary (S5)
 
   func refreshDictionaries() {
-    let service = RimeSyncService(workspace: workspace, engine: engine)
-    syncChoice = workspace.loadSyncChoice()
-    do {
-      let report = try service.report()
-      dictionaryReport = report
-      dictionaryBackups = Dictionary(uniqueKeysWithValues: report.dictionaries.map { entry in
-        (entry.name, service.backups(for: entry.name))
-      })
-    } catch {
-      dictionaryReport = nil
-      dictionaryBackups = [:]
-      errorMessage = "读取用户词库失败：" + String(describing: error)
-    }
+    applyDictionarySnapshot(DictionarySnapshot.load(workspace: workspace, engine: engine))
   }
 
   /// S5 §4/§5: one backup on demand, beside the snapshot and pruned to the last three.
@@ -252,9 +261,12 @@ extension RimeAppModel {
     guard !isSyncing else { return }
     isSyncing = true
     syncMessage = "正在同步…"
-    let service = RimeSyncService(workspace: workspace, engine: engine)
+    let workspace = self.workspace
+    let engine = self.engine
     do {
-      let outcome = try service.syncNow()
+      let outcome = try await Task.detached(priority: .userInitiated) {
+        try RimeSyncService(workspace: workspace, engine: engine).syncNow()
+      }.value
       syncMessage = outcome.succeeded
         ? "同步完成：" + String(outcome.snapshots.count) + " 个快照，"
           + String(format: "%.1f s", outcome.duration)
@@ -263,8 +275,8 @@ extension RimeAppModel {
       syncMessage = "同步失败：" + String(describing: error)
       errorMessage = syncMessage
     }
+    await refreshDictionariesInBackground()
     isSyncing = false
-    refreshDictionaries()
   }
 
   /// S5 §6/§10: read every other device's snapshot in the shared folder and merge it in additively.
@@ -273,9 +285,13 @@ extension RimeAppModel {
   func mergeDictionaries(from deviceID: String? = nil) async {
     guard !isSyncing else { return }
     isSyncing = true
-    let service = RimeSyncService(workspace: workspace, engine: engine)
+    let workspace = self.workspace
+    let engine = self.engine
     do {
-      let outcome = try service.mergeFromOtherDevices(devices: deviceID.map { [$0] })
+      let outcome = try await Task.detached(priority: .userInitiated) {
+        try RimeSyncService(workspace: workspace, engine: engine)
+          .mergeFromOtherDevices(devices: deviceID.map { [$0] })
+      }.value
       if outcome.isEmpty {
         syncMessage = "同步目录里还没有其他设备的快照。"
       } else {
@@ -289,8 +305,26 @@ extension RimeAppModel {
       syncMessage = "合并失败：" + String(describing: error)
       errorMessage = syncMessage
     }
+    await refreshDictionariesInBackground()
     isSyncing = false
-    refreshDictionaries()
+  }
+
+  func refreshDictionariesInBackground() async {
+    let workspace = self.workspace
+    let engine = self.engine
+    let snapshot = await Task.detached(priority: .userInitiated) {
+      DictionarySnapshot.load(workspace: workspace, engine: engine)
+    }.value
+    applyDictionarySnapshot(snapshot)
+  }
+
+  private func applyDictionarySnapshot(_ snapshot: DictionarySnapshot) {
+    syncChoice = snapshot.choice
+    dictionaryReport = snapshot.report
+    dictionaryBackups = snapshot.backups
+    if let error = snapshot.error {
+      errorMessage = "读取用户词库失败：" + error
+    }
   }
 
   // MARK: - The sync folder (S5 §6)

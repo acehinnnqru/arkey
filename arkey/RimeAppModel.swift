@@ -18,6 +18,23 @@ enum RimeSyncLocation {
   }
 }
 
+private struct LibrarySnapshot: Sendable {
+  let profiles: [RimeProfileMetadata]
+  let storage: RimeStorageReport
+  let activeProfileID: String?
+  let resolved: RimeResolvedProfile
+
+  nonisolated static func load(workspace: RimeWorkspace, bundledSharedData: URL) throws -> Self {
+    let profiles = try workspace.loadMetadataList()
+    let storage = try workspace.storageReport()
+    let activeProfileID = try workspace.loadActiveProfile()?.profileID
+    let resolved = RimeWorkspaceResolver.resolve(workspace: workspace,
+                                                 bundledSharedData: bundledSharedData)
+    return Self(profiles: profiles, storage: storage, activeProfileID: activeProfileID,
+                resolved: resolved)
+  }
+}
+
 /// The host app's single librime instance and the workspace behind it.
 ///
 /// librime keeps process-global state, so the app owns exactly one engine: the profile library, the
@@ -43,6 +60,7 @@ final class RimeAppModel: ObservableObject {
   /// Why the stored choice was not used, if it was not.
   @Published var syncChoiceProblem: String?
   @Published var importWarnings: [String] = []
+  @Published private(set) var isImporting = false
   @Published var errorMessage: String?
   @Published var schemas: [String] = []
   /// The 方案 screen's rows and their order, refreshed with the rest of the settings: reading librime
@@ -195,11 +213,12 @@ final class RimeAppModel: ObservableObject {
   }
 
   var libraryEntries: [LibraryEntry] {
-    profiles.map { metadata in
+    let buildBytes = Dictionary(uniqueKeysWithValues: (storage?.profiles ?? []).map { ($0.id, $0.buildBytes) })
+    return profiles.map { metadata in
       let layout = workspace.profile(metadata.id)
       return LibraryEntry(metadata: metadata,
                           buildBytes: layout.buildIsUsable(layout.build)
-                            ? RimeWorkspace.directorySize(layout.build) : 0,
+                            ? (buildBytes[metadata.id] ?? 0) : 0,
                           isActive: metadata.id == activeProfileID)
     }
   }
@@ -215,29 +234,51 @@ final class RimeAppModel: ObservableObject {
 
   /// The picker hands back a security-scoped URL; the scope is held for the whole pipeline.
   func importPayload(at url: URL, displayName: String?, adoptUserData: Bool) async {
+    guard !isImporting else { return }
+    isImporting = true
+    defer { isImporting = false }
     let scoped = url.startAccessingSecurityScopedResource()
     defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-    let importer = RimeImporter(workspace: workspace, engine: engine)
+    let workspace = self.workspace
+    let engine = self.engine
+    let bundledSharedData = self.bundledSharedData
+    let outcome: RimeImportOutcome
     do {
-      let outcome = try importer.import(payload: url, options: RimeImportOptions(
-        displayName: displayName ?? url.deletingPathExtension().lastPathComponent,
-        origin: RimeProfileSource(kind: .files, url: url.absoluteString, retrievedAt: Date()),
-        license: RimeProfileLicense.unknown,
-        adoptUserData: adoptUserData))
-      importWarnings = outcome.warnings.map(\.description)
-      if !outcome.userDataCandidates.isEmpty {
-        importWarnings.append("发现用户设置 " + String(outcome.userDataCandidates.count)
-                              + " 个：" + outcome.userDataCandidates.map(\.relativePath).joined(separator: ", ")
-                              + (adoptUserData ? "（已导入）" : "（保留在配置里，未写入用户目录）"))
-      }
-      if let generated = outcome.generatedDefaultYAML {
-        importWarnings.append("该配置没有 default.yaml，已生成一个列出 "
-                              + String(outcome.metadata.stats.schemaIDs.count) + " 个方案的文件")
-        _ = generated
-      }
-      refresh()
+      outcome = try await Task.detached(priority: .userInitiated) {
+        return try RimeImporter(workspace: workspace, engine: engine).import(
+          payload: url,
+          options: RimeImportOptions(
+            displayName: displayName ?? url.deletingPathExtension().lastPathComponent,
+            origin: RimeProfileSource(kind: .files, url: url.absoluteString, retrievedAt: Date()),
+            license: RimeProfileLicense.unknown,
+            adoptUserData: adoptUserData))
+      }.value
     } catch {
       errorMessage = "导入失败：" + String(describing: error)
+      return
+    }
+    importWarnings = outcome.warnings.map(\.description)
+    if !outcome.userDataCandidates.isEmpty {
+      importWarnings.append("发现用户设置 " + String(outcome.userDataCandidates.count)
+                            + " 个：" + outcome.userDataCandidates.map(\.relativePath).joined(separator: ", ")
+                            + (adoptUserData ? "（已导入）" : "（保留在配置里，未写入用户目录）"))
+    }
+    if outcome.generatedDefaultYAML != nil {
+      importWarnings.append("该配置没有 default.yaml，已生成一个列出 "
+                            + String(outcome.metadata.stats.schemaIDs.count) + " 个方案的文件")
+    }
+    // The library scan includes directory sizes and can be substantial after a large import.
+    do {
+      let snapshot = try await Task.detached(priority: .userInitiated) {
+        try LibrarySnapshot.load(workspace: workspace, bundledSharedData: bundledSharedData)
+      }.value
+      profiles = snapshot.profiles
+      storage = snapshot.storage
+      activeProfileID = snapshot.activeProfileID
+      resolved = snapshot.resolved
+      resolvedSummary = Self.describe(snapshot.resolved)
+    } catch {
+      errorMessage = "读取配置库失败：" + String(describing: error)
     }
   }
 
