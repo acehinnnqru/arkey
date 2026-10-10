@@ -10,6 +10,7 @@ struct ContentView: View {
   @StateObject private var model = RimeAppModel.shared
   @State private var text = ""
   @State private var keyboardOverlap: CGFloat = 0
+  @State private var isShowingSettings = false
   @FocusState private var isEditing: Bool
 
   var body: some View {
@@ -73,22 +74,19 @@ struct ContentView: View {
           NavigationLink("键盘") { KeyboardPreviewScreen(model: model) }
         }
         ToolbarItem(placement: .topBarTrailing) {
-          Menu {
-            NavigationLink("配置库") { ProfileLibraryView(model: model) }
-            NavigationLink("下载配置") { CatalogView() }
-            NavigationLink("方案与输入") { SchemaSettingsView(model: model) }
-            NavigationLink("用户词库") { UserDictionaryView(model: model) }
-            NavigationLink("键盘") { KeyboardSettingsView(model: model) }
-            NavigationLink("标点") { PunctuationView(model: model) }
-            NavigationLink("按键") { KeyBindingsView(model: model) }
-            NavigationLink("自定义短语") { CustomPhraseView(model: model) }
-            NavigationLink("部署") { DeployView(model: model) }
-            NavigationLink("许可证") { NoticesView(model: model) }
-            NavigationLink("诊断") { DiagnosticsView() }
+          Button {
+            isEditing = false
+            isShowingSettings = true
           } label: {
-            Label("更多", systemImage: "ellipsis.circle")
+            Label("Settings", systemImage: "gearshape")
           }
+          .accessibilityIdentifier("settings-open")
         }
+      }
+      .sheet(isPresented: $isShowingSettings) {
+        SettingsView(model: model)
+          .presentationDetents([.large])
+          .presentationDragIndicator(.visible)
       }
       .onAppear {
         LaunchProbe.mark("viewAppear")

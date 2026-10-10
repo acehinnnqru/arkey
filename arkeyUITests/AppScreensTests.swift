@@ -13,7 +13,7 @@ final class AppScreensTests: XCTestCase {
     continueAfterFailure = false
   }
 
-  /// The menu entry, the title the screen gives itself, and a line only that screen carries.
+  /// The settings entry, the title the screen gives itself, and a line only that screen carries.
   private static let screens: [(menu: String, title: String, content: String)] = [
     ("配置库", "配置库", "当前生效"),
     ("下载配置", "下载配置", "可选配置"),
@@ -60,20 +60,14 @@ final class AppScreensTests: XCTestCase {
     XCTAssertTrue(app.buttons["导入或选择配置"].exists, "the degraded state offers no repair")
   }
 
-  /// Every screen the menu offers opens, draws its own content, and can be left again. A screen that traps,
+  /// Every settings page opens, draws its own content, and can be left again. A screen that traps,
   /// that shows nothing, or that cannot be dismissed is exactly what "never run" hides.
-  func testEveryScreenInTheMenuOpens() {
+  func testEveryScreenInTheSettingsDrawerOpens() {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
 
     for screen in Self.screens {
-      let menu = app.buttons["更多"].firstMatch
-      XCTAssertTrue(menu.waitForExistence(timeout: 10), "the more menu is not on the home screen")
-      menu.tap()
-
-      let entry = app.buttons[screen.menu].firstMatch
-      XCTAssertTrue(entry.waitForExistence(timeout: 10), screen.menu + " is not in the menu")
-      entry.tap()
+      app.openSettingsPage(screen.menu)
 
       let bar = app.navigationBars[screen.title]
       XCTAssertTrue(bar.waitForExistence(timeout: 10),
@@ -105,8 +99,11 @@ final class AppScreensTests: XCTestCase {
       add(shot)
 
       bar.buttons.element(boundBy: 0).tap()
-      XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 10),
-                    "did not come back from " + screen.menu)
+      XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10),
+                    "did not return to settings from " + screen.menu)
+      app.buttons["settings-close"].tap()
+      XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 10),
+                    "closing settings did not return home")
     }
   }
 
@@ -156,10 +153,7 @@ final class AppScreensTests: XCTestCase {
   func testTheDiagnosticsScreenShowsTheEngineVersion() {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
-    app.buttons["更多"].firstMatch.tap()
-    let entry = app.buttons["诊断"].firstMatch
-    XCTAssertTrue(entry.waitForExistence(timeout: 10), "no diagnostics entry")
-    entry.tap()
+    app.openSettingsPage("诊断")
     let version = contains(app, "librime")
     XCTAssertTrue(version.waitForExistence(timeout: 10),
                   "the diagnostics screen shows no engine version: "
@@ -172,8 +166,7 @@ final class AppScreensTests: XCTestCase {
   func testDiagnosticsCopyCanBePastedIntoTheEditor() {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30))
-    app.buttons["更多"].firstMatch.tap()
-    app.buttons["诊断"].firstMatch.tap()
+    app.openSettingsPage("诊断")
     let copy = app.buttons["diagnostics-copy"]
     XCTAssertTrue(copy.waitForExistence(timeout: 10))
     copy.tap()
@@ -181,6 +174,8 @@ final class AppScreensTests: XCTestCase {
     XCTAssertTrue(app.alerts.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Copied'")).firstMatch.exists)
     app.alerts.buttons["OK"].tap()
     app.navigationBars.buttons.firstMatch.tap()
+    XCTAssertTrue(app.buttons["settings-close"].waitForExistence(timeout: 10))
+    app.buttons["settings-close"].tap()
     let editor = app.textViews.firstMatch
     XCTAssertTrue(editor.waitForExistence(timeout: 10))
     editor.tap()
@@ -208,10 +203,7 @@ final class AppScreensTests: XCTestCase {
   private func assertAPickerOpens(menu: String, button: String) {
     let app = launched()
     XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
-    app.buttons["更多"].firstMatch.tap()
-    let entry = app.buttons[menu].firstMatch
-    XCTAssertTrue(entry.waitForExistence(timeout: 10), menu + " is not in the menu")
-    entry.tap()
+    app.openSettingsPage(menu)
     XCTAssertTrue(app.navigationBars[menu].waitForExistence(timeout: 10), menu + " did not open")
 
     let target = app.buttons[button].firstMatch
@@ -228,8 +220,7 @@ final class AppScreensTests: XCTestCase {
   private func pickerOf(_ app: XCUIApplication) -> XCUIElement {
     let browser = app.otherElements["Browse View (Picker)"]
     if browser.exists { return browser }
-    let english = app.searchFields["Search"]
-    return english.exists ? english : app.searchFields["搜索"].firstMatch
+    return app.searchFields.matching(NSPredicate(format: "label IN %@", ["Search", "搜索"])).firstMatch
   }
 
   /// What is on screen, element by element. An indexed walk of the whole tree was what this reported with
@@ -239,5 +230,24 @@ final class AppScreensTests: XCTestCase {
     let labels = ["Cancel", "取消", "Open", "打开", "Browse", "浏览", "Recents", "最近使用", "Search", "搜索"]
     let present = labels.filter { app.buttons[$0].exists || app.searchFields[$0].exists }
     return present.isEmpty ? "no picker chrome on screen" : present.joined(separator: " | ")
+  }
+}
+
+extension XCUIApplication {
+  /// Open a detail from a fresh drawer, scrolling rows into view on smaller devices.
+  func openSettingsPage(_ title: String) {
+    let settings = buttons["settings-open"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 10), "the settings button is missing")
+    settings.tap()
+    XCTAssertTrue(navigationBars["Settings"].waitForExistence(timeout: 10),
+                  "the settings drawer did not open")
+    let list = descendants(matching: .any)["settings-list"].firstMatch
+    let entry = list.buttons[title].firstMatch
+    for _ in 0..<5 {
+      if entry.exists && entry.isHittable { break }
+      list.swipeUp()
+    }
+    XCTAssertTrue(entry.exists && entry.isHittable, title + " is not reachable in settings")
+    entry.tap()
   }
 }

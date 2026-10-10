@@ -77,10 +77,7 @@ final class ImportPickerTests: XCTestCase {
   }
 
   private func openProfileLibrary(_ app: XCUIApplication) {
-    app.buttons["更多"].firstMatch.tap()
-    let library = app.buttons["配置库"].firstMatch
-    XCTAssertTrue(library.waitForExistence(timeout: 10), "no profile library entry")
-    library.tap()
+    app.openSettingsPage("配置库")
     XCTAssertTrue(app.navigationBars["配置库"].waitForExistence(timeout: 10),
                   "the profile library did not open")
   }
@@ -98,6 +95,8 @@ final class ImportPickerTests: XCTestCase {
     Thread.sleep(forTimeInterval: 1.0)
     // Each test opens 配置库 itself, and the picker is presented from there.
     app.navigationBars["配置库"].buttons.element(boundBy: 0).tap()
+    XCTAssertTrue(app.buttons["settings-close"].waitForExistence(timeout: 10))
+    app.buttons["settings-close"].tap()
     return "arkey-settings-"
   }
 
