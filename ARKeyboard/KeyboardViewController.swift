@@ -529,9 +529,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       }
     case .returnKey:
       if !(markedText ?? "").isEmpty {
+        // Return commits the raw composition; a later Return inserts a newline.
         send(RimeKey.returnKey)
+      } else {
+        textDocumentProxy.insertText("\n")
       }
-      textDocumentProxy.insertText("\n")
     case .shift:
       // S3 §5: one-shot after a tap, caps lock after a double tap. The case control is ours; the
       // 中/英 state is the engine's ascii_mode and is not this key.

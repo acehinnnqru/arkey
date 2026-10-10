@@ -25,8 +25,6 @@ public enum RimeInputEffect: Sendable, Hashable {
   /// The composition changed; the marked text is what to show.
   case composing
   case committed(String)
-  /// The return key while composing: commit, then the newline the client asked for.
-  case commitThenNewline(String)
   /// librime declined the key and nothing was composing, so the character is typed literally.
   case literal(String)
   case cleared
@@ -115,13 +113,13 @@ public final class RimeInputDriver {
       guard isComposing else {
         return RimeInputOutcome(effect: .none, markedText: nil)
       }
-      let output = try engine.commitComposition()
+      // Let the schema handle Return, which commits raw input rather than selecting a candidate.
+      let output = try engine.processKey(RimeKey.returnKey)
       lastOutput = output
-      let commit = output.commit ?? ""
-      if commit.isEmpty {
-        return makeOutcome(from: output, effect: .cleared)
+      if let commit = output.commit, !commit.isEmpty {
+        return makeOutcome(from: output, effect: .committed(commit))
       }
-      return makeOutcome(from: output, effect: .commitThenNewline(commit))
+      return makeOutcome(from: output, effect: output.isComposing ? .composing : .cleared)
 
     case .backspace:
       let output = try engine.processKey(RimeKey.backSpace)

@@ -116,14 +116,17 @@ final class S4InputTests: XCTestCase {
                    "measured: an input with no entry comes back as the raw letters")
   }
 
-  func testReturnCommitsThenLetsTheClientInsertTheNewline() throws {
+  func testReturnCommitsRawInputWithoutRequestingANewline() throws {
     let driver = try makeDriver()
-    _ = try type("nihao", into: driver)
-    let outcome = try driver.handle(.returnKey)
-    XCTAssertEqual(outcome.effect, .commitThenNewline("你好"))
-    XCTAssertEqual(outcome.insertText, "你好")
-    XCTAssertNil(outcome.markedText)
-    XCTAssertFalse(driver.isComposing)
+    for input in ["list", "nihao"] {
+      _ = try type(input, into: driver)
+      XCTAssertTrue(driver.isComposing)
+      let outcome = try driver.handle(.returnKey)
+      XCTAssertEqual(outcome.effect, .committed(input))
+      XCTAssertEqual(outcome.insertText, input)
+      XCTAssertNil(outcome.markedText)
+      XCTAssertFalse(driver.isComposing)
+    }
 
     // Idle: the driver contributes nothing, and the newline is the client's business.
     let idle = try driver.handle(.returnKey)

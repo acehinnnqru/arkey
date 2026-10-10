@@ -11,6 +11,31 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testReturnCommitsListWithoutANewlineUntilPressedAgain() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    let initial = (field.value as? String) ?? ""
+
+    for letter in ["l", "i", "s", "t"] {
+      let key = app.keys[letter].firstMatch
+      XCTAssertTrue(key.waitForExistence(timeout: 5), "no " + letter + " key")
+      key.tap()
+    }
+
+    let enter = app.keys.matching(
+      NSPredicate(format: "label IN %@", ["换行", "return", "Return"])).firstMatch
+    XCTAssertTrue(enter.waitForExistence(timeout: 5))
+    for suffix in ["list", "list\n"] {
+      enter.tap()
+      let matches = NSPredicate { _, _ in
+        (field.value as? String) == initial + suffix
+      }
+      let updated = XCTNSPredicateExpectation(predicate: matches, object: field)
+      XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 5), .completed,
+                     "Return produced unexpected text: " + String(reflecting: field.value))
+    }
+  }
+
   func testFourBackspacesRemoveAllOfNihc() throws {
     enableThirdPartyKeyboard()
     let (app, field) = launchAppWithArkeyKeyboard()

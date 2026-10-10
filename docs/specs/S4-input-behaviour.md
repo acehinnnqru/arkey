@@ -67,7 +67,7 @@ Rules:
 | Input | Librime's part | Our part |
 | --- | --- | --- |
 | Space | commits the highlighted candidate, or the raw input when there is none | insert `commit`, clear the composition |
-| Return / 换行 | `commit_composition()` when composing | insert the commit, then the newline the client asked for |
+| Return / 换行 | process `Return` when composing to commit the raw input | insert only the commit; insert a newline only when no composition was active before the key press |
 | Tap a candidate | selects that candidate | insert `commit`; **measured**: a selection librime will not commit is accepted, produces no commit, and leaves the composition and the bar untouched (see [s4-results.md](../s4-results.md)) |
 | Select key (digit/letter) | `select_candidate_on_current_page` | same as a tap |
 | Punctuation | schema's `punctuator` commits it | if the key is declined, type the literal character |

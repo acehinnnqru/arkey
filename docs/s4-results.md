@@ -51,9 +51,10 @@ S4 §2 argues, not a UI bug. Covered by `testTheFirstLetterAlreadyComposes`.
 ### S4 §9 — the other rows
 
 Space (commit, raw-input fallback, and a plain space with no composition), return
-(`commitThenNewline`, and nothing when idle), escape, backspace mid-composition and at composition
-start (`deleteBackward`), paging (which never commits), and 中/英 option toggling (which preserves the
-composition) all behave as specified and are asserted row by row.
+(`committed` with raw input and no newline; the client inserts a newline only when idle), escape,
+backspace mid-composition and at composition start (`deleteBackward`), paging (which never commits),
+and 中/英 option toggling (which preserves the composition) all behave as specified and are asserted
+row by row.
 
 ### S4 §5 — sentence composition is attempted, not switched on
 
