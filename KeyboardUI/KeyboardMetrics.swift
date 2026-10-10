@@ -13,12 +13,6 @@ enum KeyboardMetrics {
   static let candidateTextLeading: CGFloat = 12
   static let candidateTextOffset: CGFloat = 0
   static var candidateTextCenterY: CGFloat { candidateBarHeight / 2 + candidateTextOffset }
-  /// Include the assumed host band when centering visually, but keep the full
-  /// text line inside the extension's own clipped bounds.
-  static func candidateContentOffset(slotHeight: CGFloat, topReduction: CGFloat) -> CGFloat {
-    let minimumCenter = min(slotHeight / 2, ceil(UIFont.systemFont(ofSize: 20).lineHeight / 2))
-    return max(minimumCenter, slotHeight / 2 - topReduction / 2) - slotHeight / 2
-  }
   static var keyBottomPadding: CGFloat { extensionStyle.bottomInset }
   static var globeRowHeight: CGFloat { style.globeRowHeight }
   static var bottomInset: CGFloat { style.bottomInset }

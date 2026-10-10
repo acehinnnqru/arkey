@@ -27,21 +27,19 @@ final class S3PreferencesTests: XCTestCase {
     XCTAssertEqual(store.value.deleteRepeatInterval, 0.1)
   }
 
-  func testReentryExperimentMigratesEnabledAndCanBePersistentlyDisabled() {
-    defaults.set(Data(#"{"paletteMode":"fixed","hapticsEnabled":false}"#.utf8),
-                 forKey: RimeKeyboardPreferencesStore.storageKey)
-    var preferences = store.value
-    XCTAssertTrue(preferences.reentryCompensationEnabled)
-    XCTAssertEqual(preferences.paletteMode, .fixed)
-    XCTAssertFalse(preferences.hapticsEnabled)
-    preferences.reentryCompensationEnabled = false
-    store.value = preferences
-    let reader = RimeKeyboardPreferencesStore(defaults: defaults)
-    XCTAssertFalse(reader.value.reentryCompensationEnabled)
-    XCTAssertFalse(reader.value.hapticsEnabled)
-    XCTAssertEqual(reader.value.paletteMode, .fixed)
-    store.reset()
-    XCTAssertTrue(reader.value.reentryCompensationEnabled)
+  func testRetiredExperimentSettingDoesNotResetExistingPreferences() throws {
+    for enabled in [false, true] {
+      let data = Data("{\"reentryCompensationEnabled\":\(enabled),\"paletteMode\":\"fixed\",\"hapticsEnabled\":false}".utf8)
+      defaults.set(data, forKey: RimeKeyboardPreferencesStore.storageKey)
+      let preferences = store.value
+      XCTAssertEqual(preferences.paletteMode, .fixed)
+      XCTAssertFalse(preferences.hapticsEnabled)
+      store.value = preferences
+      let saved = try XCTUnwrap(defaults.data(forKey: RimeKeyboardPreferencesStore.storageKey))
+      let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [String: Any])
+      XCTAssertNil(fields["reentryCompensationEnabled"])
+      XCTAssertEqual(store.value, preferences)
+    }
   }
 
   func testFullwidthAuxiliaryPunctuationIsStoredAsASCII() throws {

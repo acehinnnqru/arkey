@@ -148,15 +148,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
   private var gridHeightConstraint: NSLayoutConstraint?
-  private var candidateHeightConstraint: NSLayoutConstraint?
-  private var reentryCompatibility = KeyboardReentryCompatibility.shared
-  private var processPresentation = 0
-  private var topReduction: CGFloat = 0
-
-  convenience init(reentryCompatibility: KeyboardReentryCompatibility) {
-    self.init()
-    self.reentryCompatibility = reentryCompatibility
-  }
   private let geometryID = String(UUID().uuidString.prefix(8))
   private let geometryTimeOrigin = DispatchTime.now().uptimeNanoseconds
   private var geometryAppearance = 0
@@ -201,10 +192,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   // MARK: - Lifecycle
 
   override func loadView() {
-    // Offer the expected size before presentation; loading alone does not count
-    // as a presentation. Reused controllers refresh this in viewWillAppear.
-    preferences = preferencesStore?.value ?? .standard
-    topReduction = preferences.reentryCompensationEnabled ? reentryCompatibility.nextTopReduction : 0
     // The host supplies the outer material and corners. A bounded backing
     // protects transitions without painting over that surface permanently.
     let contentView = KeyboardInputView(frame: .zero, inputViewStyle: .default)
@@ -247,15 +234,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding)
     gridHeight.identifier = "Arkey.gridHeight"
     gridHeightConstraint = gridHeight
-    let candidateHeight = candidateBar.heightAnchor.constraint(
-      equalToConstant: KeyboardMetrics.candidateBarHeight - topReduction)
-    candidateHeight.identifier = "Arkey.candidateHeight"
-    candidateHeightConstraint = candidateHeight
     NSLayoutConstraint.activate([
       gridHeight,
       candidateBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       candidateBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      candidateHeight,
+      candidateBar.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
       // Keep the content at its measured height and against the bottom while
       // iOS temporarily gives the extension a full-screen launch frame.
       // Pinning both ends to the root stretches the rows during that transition.
@@ -308,13 +291,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     backingState.beginAppearance()
     geometryTrace = KeyboardGeometryTrace()
     previousGeometry.removeAll(keepingCapacity: true)
-    preferences = preferencesStore?.value ?? .standard
-    let compatibility = reentryCompatibility.beginPresentation()
-    processPresentation = compatibility.number
-    topReduction = preferences.reentryCompensationEnabled ? compatibility.topReduction : 0
-    updateHeight()
     recordGeometry("willAppear.before", force: true)
     startGeometrySampling()
+    preferences = preferencesStore?.value ?? .standard
     applyCurrentTheme()
     refreshLayout()
     updateHeight()
@@ -932,20 +911,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func updateHeight() {
     // The panel replaces the keys inside this frame; opening it must not resize the host keyboard.
-    let baseHeight = KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
-    let height = baseHeight - topReduction
-    let candidateHeight = KeyboardMetrics.candidateBarHeight - topReduction
-    candidateHeightConstraint?.constant = candidateHeight
-    candidatePanel.candidateSlotHeight = candidateHeight
-    let offset = KeyboardMetrics.candidateContentOffset(slotHeight: candidateHeight, topReduction: topReduction)
-    candidateBar.contentVerticalOffset = offset
-    candidatePanel.contentVerticalOffset = offset
+    let height = KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
     let previousHeight = heightConstraint?.constant
     if previousHeight != height {
       recordGeometry("height.before", detail: "old=\(String(describing: previousHeight)) new=\(height)")
     }
     (inputView as? KeyboardInputView)?.keyboardHeight = height
-    let gridHeight = baseHeight - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding
+    let gridHeight = height - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding
     if gridHeightConstraint?.constant != gridHeight {
       gridHeightConstraint?.constant = gridHeight
     }
@@ -978,11 +950,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       [number($0.top), number($0.left), number($0.bottom), number($0.right)].joined(separator: ",")
     }
     var parts = ["needsGlobe=\(needsInputModeSwitchKey)",
-                 "reentryExperiment=\(reentryCompatibility.isEnabled)",
-                 "reentryPreference=\(preferences.reentryCompensationEnabled)",
-                 "candidateOffset=\(number(candidateBar.contentVerticalOffset))",
-                 "processPresentation=\(processPresentation)",
-                 "topReduction=\(number(topReduction))",
                  "fullAccess=\(hasFullAccess)",
                  "requested=\(heightConstraint.map { number($0.constant) } ?? "nil")",
                  "fittingHeight=\((inputView as? KeyboardInputView).map { number($0.keyboardHeight) } ?? "nil")",
@@ -1033,7 +1000,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let version = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
     let elapsed = Double(DispatchTime.now().uptimeNanoseconds - geometryTimeOrigin) / 1_000_000
     let message = "geometry event=\(event) id=\(geometryID) pid=\(ProcessInfo.processInfo.processIdentifier)"
-      + " appearance=\(geometryAppearance) seq=\(geometrySequence) build=\(version) trace=height-7"
+      + " appearance=\(geometryAppearance) seq=\(geometrySequence) build=\(version) trace=height-8"
       + " tMs=\(String(format: "%.3f", elapsed))"
       + " uptime=\(String(format: "%.3f", ProcessInfo.processInfo.systemUptime)) " + snapshot
     geometryTrace.record(height: max(root.bounds.height, root.layer.presentation()?.bounds.height ?? 0),

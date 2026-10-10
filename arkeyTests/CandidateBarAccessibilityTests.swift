@@ -6,49 +6,6 @@ import RimeEngine
 /// and index". The engine's macOS tests pin the model's labels; this pins what the **buttons** carry
 /// after the view has applied that model, which is what VoiceOver actually reads.
 final class CandidateBarAccessibilityTests: XCTestCase {
-  func testCompensatedCandidatesKeepTheirInkAndAlignWithBothChevrons() throws {
-    for word in ["你", "你好", "Ág", "A longer candidate"] {
-      let model = RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: word)])
-      let baseline = bar(model)
-      let original = try XCTUnwrap(allButtons(in: baseline).first { $0.attributedTitle(for: .normal) != nil })
-      original.layoutIfNeeded()
-      let originalInk = try inkBounds(of: original)
-      let collapsed = bar(model)
-      let panel = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 430, height: 253))
-      panel.applyContinuation([RimeCandidateItem(text: word)], startingAt: 0)
-      for reduction: CGFloat in [17, 0, 17] {
-        let height = 52 - reduction
-        let offset = KeyboardMetrics.candidateContentOffset(slotHeight: height, topReduction: reduction)
-        collapsed.frame.size.height = height
-        collapsed.contentVerticalOffset = offset
-        panel.candidateSlotHeight = height
-        panel.contentVerticalOffset = offset
-        collapsed.layoutIfNeeded()
-        panel.layoutIfNeeded()
-        let candidate = try XCTUnwrap(allButtons(in: collapsed).first { $0.attributedTitle(for: .normal) != nil })
-        let expanded = try XCTUnwrap(allButtons(in: panel).first { $0.currentTitle == word })
-        let expand = try XCTUnwrap(allButtons(in: collapsed).first { $0.currentImage != nil })
-        let collapse = try XCTUnwrap(allButtons(in: panel).first { $0.bounds.width == CandidateBar.accessoryWidth })
-        expanded.superview?.superview?.layoutIfNeeded()
-        for button in [candidate, expanded, expand, collapse] { button.layoutIfNeeded() }
-        let label = try XCTUnwrap(candidate.titleLabel)
-        let labelFrame = label.convert(label.bounds, to: collapsed)
-        XCTAssertGreaterThanOrEqual(labelFrame.minY, -0.5, word)
-        XCTAssertEqual(labelFrame.midY, height / 2 + offset, accuracy: 0.5, word)
-        let expandedLabel = try XCTUnwrap(expanded.titleLabel)
-        XCTAssertEqual(expandedLabel.convert(expandedLabel.bounds, to: panel).midY,
-                       labelFrame.midY, accuracy: 0.5, word)
-        for (button, parent) in [(expand, collapsed as UIView), (collapse, panel as UIView)] {
-          let image = try XCTUnwrap(button.imageView)
-          XCTAssertEqual(image.convert(image.bounds, to: parent).midY, labelFrame.midY, accuracy: 0.5,
-                         "\(word), reduction=\(reduction), control=\(button.accessibilityLabel ?? "unknown")")
-        }
-        XCTAssertEqual(try inkBounds(of: candidate).height, originalInk.height, accuracy: 1.0 / 3, word)
-        XCTAssertEqual(try inkBounds(of: expanded).height, originalInk.height, accuracy: 1.0 / 3, word)
-      }
-    }
-  }
-
   func testCandidateTextAndChevronAreVerticallyCentered() throws {
     let view = bar(.init(cells: [RimeCandidateCell(index: 0, text: "你好", comment: "ni hao")]))
     let candidate = try XCTUnwrap(allButtons(in: view).first { $0.attributedTitle(for: .normal) != nil })

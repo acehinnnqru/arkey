@@ -13,7 +13,7 @@ import RimeEngine
 /// local centre, so the callout was placed a whole key to the left of the finger.
 final class KeyboardCalloutTests: XCTestCase {
   private func booted() -> KeyboardViewController {
-    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
+    let controller = KeyboardViewController()
     controller.loadViewIfNeeded()
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
     controller.view.setNeedsLayout()

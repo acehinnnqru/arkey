@@ -14,16 +14,6 @@ private final class CandidateBarScrollView: UIScrollView {
 ///  - buttons are pooled and updated in place to keep keystrokes inexpensive;
 ///  - a keystroke that changes nothing visible must not restyle anything.
 final class CandidateBar: UIView, UIScrollViewDelegate {
-  var contentVerticalOffset: CGFloat = 0 {
-    didSet {
-      guard contentVerticalOffset != oldValue else { return }
-      let insets = UIEdgeInsets(top: 2 * (KeyboardMetrics.candidateTextOffset + contentVerticalOffset),
-                                left: 0, bottom: 0, right: 0)
-      expandButton.imageEdgeInsets = insets
-      for button in cellButtons { button.titleEdgeInsets = insets }
-      setNeedsLayout()
-    }
-  }
   /// Called with the global index of the tapped candidate.
   var onSelect: ((Int) -> Void)?
   /// A long press forgets the word using its global candidate index.
@@ -280,8 +270,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
       let button = UIButton(type: .custom)
       button.titleLabel?.adjustsFontSizeToFitWidth = false
       button.contentHorizontalAlignment = .left
-      button.titleEdgeInsets = UIEdgeInsets(
-        top: 2 * (KeyboardMetrics.candidateTextOffset + contentVerticalOffset), left: 0, bottom: 0, right: 0)
+      button.titleEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset, left: 0, bottom: 0, right: 0)
       button.contentEdgeInsets = UIEdgeInsets(top: 0, left: KeyboardMetrics.candidateTextLeading, bottom: 0, right: 12)
       button.clipsToBounds = true
       button.titleLabel?.lineBreakMode = .byTruncatingTail

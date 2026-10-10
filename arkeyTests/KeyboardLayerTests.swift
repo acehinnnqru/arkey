@@ -8,7 +8,7 @@ import RimeEngine
 /// callout a key to the left (round 147).
 final class KeyboardLayerTests: XCTestCase {
   private func booted() -> KeyboardViewController {
-    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
+    let controller = KeyboardViewController()
     controller.loadViewIfNeeded()
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
     // The keyboard's *appearance* is what configures the grid from the engine — layers, shift, and the 中/英

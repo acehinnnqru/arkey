@@ -28,7 +28,7 @@ final class KeyboardTypingTests: XCTestCase {
   }
 
   private func booted() -> KeyboardViewController {
-    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
+    let controller = KeyboardViewController()
     controllers.append(controller)
     controller.loadViewIfNeeded()
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
