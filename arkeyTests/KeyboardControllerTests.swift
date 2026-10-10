@@ -67,18 +67,62 @@ final class KeyboardControllerTests: XCTestCase {
                   "the controller has no candidate bar")
   }
 
-  /// The outgoing input mode must not show through between our keys.
-  func testTheExtensionCoversThePreviousInputMode() throws {
+  /// A transition cover must not turn the entire temporary host frame into an
+  /// opaque rectangle or replace the system material after the transition.
+  func testTheTransitionCoverIsBoundedAndCanReturnToTheHostMaterial() throws {
     let controller = booted()
     controller.viewWillAppear(false)
-    let root = try XCTUnwrap(controller.inputView)
+    let root = try XCTUnwrap(controller.inputView as? KeyboardInputView)
     XCTAssertEqual(root.inputViewStyle, .default)
-    XCTAssertTrue(root.isOpaque)
-    XCTAssertEqual(root.backgroundColor?.cgColor.alpha, 1)
+    XCTAssertFalse(root.isOpaque)
+    XCTAssertEqual(root.backgroundColor, .clear)
+    root.applyBacking(color: .darkGray, fixed: false, needsTransitionCover: true)
+    let backing = try XCTUnwrap(root.subviews.first {
+      $0.accessibilityIdentifier == "Arkey.contentBacking"
+    })
+    let hostHeight = root.heightAnchor.constraint(equalToConstant: 932)
+    hostHeight.isActive = true
+    defer { hostHeight.isActive = false }
+    root.frame = CGRect(x: 0, y: 0, width: 430, height: 932)
+    root.setNeedsLayout()
+    root.layoutIfNeeded()
+    XCTAssertFalse(backing.isHidden)
+    XCTAssertFalse(backing.isUserInteractionEnabled)
+    XCTAssertEqual(backing.backgroundColor?.cgColor.alpha, 1)
+    XCTAssertEqual(backing.frame.height, root.keyboardHeight, accuracy: 0.5)
+    XCTAssertEqual(backing.frame.minY, 932 - root.keyboardHeight, accuracy: 0.5)
+    root.applyBacking(color: .darkGray, fixed: false, needsTransitionCover: false)
+    XCTAssertTrue(backing.isHidden)
+    XCTAssertEqual(root.backingMode, "host")
+    root.applyBacking(color: .darkGray, fixed: true, needsTransitionCover: false)
+    XCTAssertFalse(backing.isHidden)
+    XCTAssertEqual(root.backingMode, "fixed")
     XCTAssertEqual(try bar(controller).backgroundColor, .clear)
     let panel = try XCTUnwrap(descendants(CandidatePanelView.self, in: root).first)
     XCTAssertEqual(panel.backgroundColor, .clear)
     XCTAssertFalse(panel.isOpaque)
+  }
+
+  func testBackingPreferenceIsAdoptedOnTheNextAppearance() throws {
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: RimeKeyboardPreferencesStore.appGroupID))
+    let key = RimeKeyboardPreferencesStore.storageKey
+    let original = defaults.object(forKey: key)
+    defer {
+      if let original { defaults.set(original, forKey: key) }
+      else { defaults.removeObject(forKey: key) }
+    }
+    let store = RimeKeyboardPreferencesStore(defaults: defaults)
+    var preferences = store.value
+    preferences.paletteMode = .fixed
+    store.value = preferences
+    let controller = booted()
+    let root = try XCTUnwrap(controller.inputView as? KeyboardInputView)
+    XCTAssertEqual(root.backingMode, "fixed")
+    controller.viewWillDisappear(false)
+    preferences.paletteMode = .followHost
+    store.value = preferences
+    controller.viewWillAppear(false)
+    XCTAssertEqual(root.backingMode, "transition")
   }
 
   /// The host must be able to measure the keyboard before appearance begins, and

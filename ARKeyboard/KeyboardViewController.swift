@@ -3,8 +3,45 @@ import RimeEngine
 
 /// The host may retain another keyboard's height while switching input modes.
 /// Report our content height without fitting against that temporary host constraint.
-private final class KeyboardInputView: UIInputView {
+final class KeyboardInputView: UIInputView {
   var onGeometry: ((String, String) -> Void)?
+  private let contentBacking = UIView()
+  private(set) var backingMode = "transition"
+
+  override init(frame: CGRect, inputViewStyle: UIInputView.Style) {
+    super.init(frame: frame, inputViewStyle: inputViewStyle)
+    configureContentBacking()
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    configureContentBacking()
+  }
+
+  private func configureContentBacking() {
+    backgroundColor = .clear
+    isOpaque = false
+    contentBacking.isUserInteractionEnabled = false
+    contentBacking.accessibilityIdentifier = "Arkey.contentBacking"
+    if #available(iOS 26.0, *) {
+      // Follow the containing surface's corners rather than inventing another
+      // keyboard radius. The bottom joins the system-owned strip.
+      contentBacking.cornerConfiguration = .uniformEdges(
+        topRadius: .containerConcentric(), bottomRadius: 0)
+    }
+    addSubview(contentBacking)
+  }
+
+  func applyBacking(color: UIColor, fixed: Bool, needsTransitionCover: Bool) {
+    // The host already provides the keyboard material, including the globe
+    // strip and outer corners. Do not add a second material inside it.
+    backgroundColor = .clear
+    isOpaque = false
+    backingMode = fixed ? "fixed" : (needsTransitionCover ? "transition" : "host")
+    contentBacking.backgroundColor = color
+    contentBacking.isHidden = backingMode == "host"
+    setNeedsLayout()
+  }
   var keyboardHeight = KeyboardMetrics.totalHeight(needsGlobeRow: false) {
     didSet {
       guard keyboardHeight != oldValue else { return }
@@ -54,6 +91,10 @@ private final class KeyboardInputView: UIInputView {
   override func layoutSubviews() {
     onGeometry?("inputLayout.before", "")
     super.layoutSubviews()
+    // Cover only our content, even when the root temporarily fills the screen.
+    let height = min(bounds.height, keyboardHeight)
+    contentBacking.frame = CGRect(x: bounds.minX, y: bounds.maxY - height,
+                                  width: bounds.width, height: height)
     onGeometry?("inputLayout.after", "")
   }
 }
@@ -116,6 +157,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var geometryTrace = KeyboardGeometryTrace()
   private var geometryDisplayLink: CADisplayLink?
   private var geometrySamplingStart: CFTimeInterval?
+  private var backingState = KeyboardBackingState()
   private var engine: RimeEngine?
   /// Kept so the appearance can adopt a profile the app activated (S1 §8).
   private var engineSetup: KeyboardEngine.Setup?
@@ -150,14 +192,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   // MARK: - Lifecycle
 
   override func loadView() {
-    // The host owns the bottom system strip. Our content must cover any
-    // previous input mode that remains underneath during a transition.
+    // The host supplies the outer material and corners. A bounded backing
+    // protects transitions without painting over that surface permanently.
     let contentView = KeyboardInputView(frame: .zero, inputViewStyle: .default)
     // Honour our fitting height on the first presentation as well as later ones.
     contentView.allowsSelfSizing = true
     contentView.accessibilityIdentifier = "Arkey.keyboardSurface"
-    contentView.backgroundColor = theme.background
-    contentView.isOpaque = true
+    contentView.applyBacking(color: theme.background, fixed: false, needsTransitionCover: true)
     contentView.clipsToBounds = true
     inputView = contentView
     contentView.onGeometry = { [weak self] event, detail in
@@ -247,6 +288,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     geometryAppearance += 1
+    backingState.beginAppearance()
     geometryTrace = KeyboardGeometryTrace()
     previousGeometry.removeAll(keepingCapacity: true)
     recordGeometry("willAppear.before", force: true)
@@ -271,6 +313,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    backingState.didAppear()
     recordGeometry("didAppear", force: true)
   }
 
@@ -631,11 +674,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   // MARK: - Presentation
 
-  /// An opaque content backing prevents the outgoing emoji keyboard from
-  /// showing through between our keys during input-mode transitions.
+  /// Follow the host in normal use; cover only the content during a transition
+  /// or when the user explicitly chooses the fixed palette.
   private func applyBacking() {
-    view.backgroundColor = theme.background
-    view.isOpaque = true
+    (inputView as? KeyboardInputView)?.applyBacking(
+      color: theme.background, fixed: preferences.paletteMode == .fixed,
+      needsTransitionCover: backingState.needsCover)
   }
 
   private func applyCurrentTheme() {
@@ -908,6 +952,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                  "requested=\(heightConstraint.map { number($0.constant) } ?? "nil")",
                  "fittingHeight=\((inputView as? KeyboardInputView).map { number($0.keyboardHeight) } ?? "nil")",
                  "selfSizing=\(inputView?.allowsSelfSizing == true)",
+                 "backing=\((inputView as? KeyboardInputView)?.backingMode ?? "unknown")",
                  "frame=\(rect(root.frame))", "bounds=\(rect(root.bounds))",
                  "presentation=\(root.layer.presentation().map { rect($0.frame) } ?? "nil")",
                  "safe=\(insets(root.safeAreaInsets))",
@@ -953,7 +998,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let version = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
     let elapsed = Double(DispatchTime.now().uptimeNanoseconds - geometryTimeOrigin) / 1_000_000
     let message = "geometry event=\(event) id=\(geometryID) pid=\(ProcessInfo.processInfo.processIdentifier)"
-      + " appearance=\(geometryAppearance) seq=\(geometrySequence) build=\(version) trace=height-3"
+      + " appearance=\(geometryAppearance) seq=\(geometrySequence) build=\(version) trace=height-4"
       + " tMs=\(String(format: "%.3f", elapsed)) " + snapshot
     geometryTrace.record(height: max(root.bounds.height, root.layer.presentation()?.bounds.height ?? 0),
                          requestedHeight: heightConstraint?.constant,
@@ -970,8 +1015,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
   }
 
-  /// Sample the actual animation frames briefly, including ancestor layers that
-  /// can animate without changing this controller's model frames or constraints.
+  /// Sample display callbacks briefly, including ancestor presentation layers
+  /// that can animate without changing model frames. These are not captured pixels.
   private func startGeometrySampling() {
     geometryDisplayLink?.invalidate()
     geometrySamplingStart = nil
@@ -982,9 +1027,22 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   @objc private func sampleGeometryFrame(_ link: CADisplayLink) {
     if geometrySamplingStart == nil { geometrySamplingStart = link.timestamp }
+    let previousCover = backingState.needsCover
+    let requested = heightConstraint?.constant ?? KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+    let presentationHeight = view.layer.presentation()?.bounds.height
+    backingState.sample(modelHeight: view.bounds.height, presentationHeight: presentationHeight,
+                        requestedHeight: requested, attached: view.window != nil)
+    if previousCover != backingState.needsCover { applyBacking() }
+    geometryTrace.recordDisplayFrame(timestamp: link.timestamp, targetTimestamp: link.targetTimestamp,
+                                     modelHeight: view.bounds.height,
+                                     presentationHeight: presentationHeight, requestedHeight: requested)
     recordGeometry("displayFrame")
     if link.timestamp - (geometrySamplingStart ?? link.timestamp) >= 0.75 {
-      finishGeometryTrace(reason: "settled")
+      let matched = !backingState.needsCover
+      backingState.endSampling()
+      applyBacking()
+      recordGeometry("samplingEnd", detail: "coverMatched=\(matched)", force: true)
+      finishGeometryTrace(reason: "samplingWindowEnded")
       link.invalidate()
       geometryDisplayLink = nil
     }

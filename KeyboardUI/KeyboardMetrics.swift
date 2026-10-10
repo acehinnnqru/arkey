@@ -45,8 +45,8 @@ enum KeyboardMetrics {
 
 /// The keyboard's colours, from S3's measured palette.
 ///
-/// The extension and preview paint an opaque content backing so an outgoing
-/// input mode cannot show through the keys. The host owns the bottom system strip.
+/// The extension follows the host's material unless the fixed palette is chosen.
+/// Standalone previews and temporary transition covers use the measured backing.
 /// Everything else — key caps, the action key's two states, the glyph colour — is measured.
 struct KeyboardTheme {
   let appearance: UIKeyboardAppearance
@@ -84,7 +84,7 @@ struct KeyboardTheme {
     UIColor(red: value.red, green: value.green, blue: value.blue, alpha: value.alpha)
   }
 
-  /// Solid backing for keyboard content and standalone previews.
+  /// Solid backing for fixed palettes, transition covers and standalone previews.
   var background: UIColor { Self.color(palette.backing) }
 
   var backingFollowsMaterial: Bool { palette.backingFollowsMaterial }

@@ -2,6 +2,55 @@ import XCTest
 import RimeEngine
 
 final class KeyboardDiagnosticsTests: XCTestCase {
+  func testTransitionCoverWaitsForAppearanceAndMatchingPresentationFrames() {
+    var state = KeyboardBackingState()
+    state.sample(modelHeight: 270, presentationHeight: 270, requestedHeight: 270, attached: true)
+    XCTAssertTrue(state.needsCover)
+    state.didAppear()
+    state.sample(modelHeight: 270, presentationHeight: 932, requestedHeight: 270, attached: true)
+    XCTAssertTrue(state.needsCover)
+    state.sample(modelHeight: 270, presentationHeight: 270, requestedHeight: 270, attached: true)
+    XCTAssertTrue(state.needsCover)
+    state.sample(modelHeight: 932, presentationHeight: 932, requestedHeight: 270, attached: true)
+    state.sample(modelHeight: 270, presentationHeight: 270, requestedHeight: 270, attached: true)
+    XCTAssertTrue(state.needsCover, "an intervening mismatch must restart the stability check")
+    state.sample(modelHeight: 270, presentationHeight: 270, requestedHeight: 270, attached: true)
+    XCTAssertFalse(state.needsCover)
+    state.beginAppearance()
+    XCTAssertTrue(state.needsCover, "a retained controller must protect its next appearance")
+    XCTAssertFalse(state.hasAppeared)
+  }
+
+  func testMissingPresentationOrUnusualHostHeightCannotLeaveAPermanentCover() {
+    var state = KeyboardBackingState()
+    state.didAppear()
+    state.sample(modelHeight: 270, presentationHeight: nil, requestedHeight: 270, attached: true)
+    state.sample(modelHeight: 270, presentationHeight: 270, requestedHeight: 270, attached: false)
+    XCTAssertTrue(state.needsCover)
+    state.sample(modelHeight: 216, presentationHeight: 216, requestedHeight: 270, attached: true)
+    state.endSampling()
+    XCTAssertFalse(state.needsCover)
+  }
+
+  func testDisplayTimingCountsUnchangedAndPresentationOnlyMismatches() throws {
+    var trace = KeyboardGeometryTrace()
+    trace.record(height: 270, requestedHeight: 270, needsGlobe: false, message: "layout")
+    for index in 0..<3 {
+      let start = Double(index) * 0.01
+      trace.recordDisplayFrame(timestamp: start, targetTimestamp: start + 0.01,
+                               modelHeight: 270, presentationHeight: index < 2 ? 932 : 270,
+                               requestedHeight: 270)
+    }
+    let summary = try XCTUnwrap(trace.finish(reason: "samplingWindowEnded"))
+    XCTAssertTrue(summary.contains("samples=1"))
+    XCTAssertTrue(summary.contains("displaySamples=3"))
+    XCTAssertTrue(summary.contains("presentationSamples=3"))
+    XCTAssertTrue(summary.contains("displayPeak=932.00"))
+    XCTAssertTrue(summary.contains("mismatchSamples=2"))
+    XCTAssertTrue(summary.contains("mismatchSampledMs=20.00"))
+    XCTAssertTrue(summary.contains("mismatchSpanMs=20.00"))
+  }
+
   func testTransitionProducesOneSummaryAndRetainsOneFramePeak() throws {
     var trace = KeyboardGeometryTrace()
     for index in 0..<104 {

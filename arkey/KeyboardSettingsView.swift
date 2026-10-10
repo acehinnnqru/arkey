@@ -106,7 +106,7 @@ struct KeyboardSettingsView: View {
     } header: {
       Text("外观")
     } footer: {
-      Text("跟随宿主时背板由系统的 .keyboard 材质提供，实测色只作为回落；固定调色板可预测，但在浅色宿主上会显得不对。")
+      Text("System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears.")
     }
   }
 

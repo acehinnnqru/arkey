@@ -135,6 +135,8 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
                             "the editor must stay above the entire keyboard after navigation")
   }
 
+  /// This checks settled extension geometry. It does not verify the host's
+  /// outer height or exclude a visible spike during the switching animation.
   func testInputModeSwitchDoesNotIncreaseKeyboardHeight() throws {
     enableThirdPartyKeyboard()
     let (app, field) = launchAppWithArkeyKeyboard()
@@ -142,7 +144,11 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
     XCTAssertTrue(surface.waitForExistence(timeout: 10))
     let first = surface.frame
     let firstRow = app.keys["q"].frame
-    for _ in 0..<3 {
+    let firstCapture = XCTAttachment(screenshot: app.screenshot())
+    firstCapture.name = "Keyboard material before input-mode switching"
+    firstCapture.lifetime = .keepAlways
+    add(firstCapture)
+    for index in 0..<3 {
       let globe = app.buttons.matching(
         NSPredicate(format: "label IN %@", ["Next keyboard", "下一个键盘"])).firstMatch
       XCTAssertTrue(globe.isHittable, "the host keyboard switch button must be reachable")
@@ -157,6 +163,10 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
       XCTAssertEqual(app.keys["q"].frame.minY, firstRow.minY, accuracy: 1)
       XCTAssertLessThanOrEqual(field.frame.maxY, surface.frame.minY,
                               "the editor must avoid the keyboard after changing input modes")
+      let capture = XCTAttachment(screenshot: app.screenshot())
+      capture.name = "Keyboard material after input-mode switch \(index + 1)"
+      capture.lifetime = .keepAlways
+      add(capture)
     }
   }
 

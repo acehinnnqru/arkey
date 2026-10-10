@@ -53,7 +53,8 @@ enum DiagnosticsReport {
       length += line.utf8.count
     }
     let header = "Arkey diagnostics\napp \(RimeHostVersion.current ?? "unknown")"
-      + " · librime \(RimeEngine.librimeVersion)\n\(location)\n"
+      + " · librime \(RimeEngine.librimeVersion)"
+      + " · OS \(ProcessInfo.processInfo.operatingSystemVersionString)\n\(location)\n"
       + "Recent records: \(lines.count) of \(records.count)\n"
     return header + (lines.isEmpty ? "\nNo records available." : "\n" + lines.reversed().joined(separator: "\n\n"))
   }
