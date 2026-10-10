@@ -352,6 +352,15 @@ extension RimeEngine {
           failureReason = "librime reported a deploy failure"
         } else if files.isEmpty {
           failureReason = "the deploy produced no files in " + directories.prebuiltDataDir
+        } else {
+          do {
+            let unusable = try unusableDeployedSchemaIDs()
+            if !unusable.isEmpty {
+              failureReason = "Missing or empty deployed schemas: " + unusable.joined(separator: ", ")
+            }
+          } catch {
+            failureReason = "Cannot validate deployed schemas: " + String(describing: error)
+          }
         }
         let succeeded = failureReason == nil
         let report = RimeDeploymentReport(directories: directories,

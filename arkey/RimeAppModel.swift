@@ -186,6 +186,36 @@ final class RimeAppModel: ObservableObject {
     }
     #endif
     refresh()
+    // Repair a published generation that contains tables/default.yaml but has lost an enabled
+    // schema. Maintenance runs in the host app, with the coordinator's rollback protection.
+    if let id = activeProfileID, resolved?.profileID == id {
+      do {
+        _ = try engine.start()
+        let schemaIDs = try workspace.loadMetadata(for: id)?.stats.schemaIDs ?? []
+        let repairs = try RimePunctuation.repairLegacySymbolImports(
+          schemaIDs: schemaIDs, engine: engine,
+          backupDirectory: workspace.root.appendingPathComponent("backups")
+            .appendingPathComponent("punctuation-" + UUID().uuidString))
+        for repair in repairs { recordConfigChange(repair) }
+        let missing = try engine.unusableDeployedSchemaIDs()
+        let hasUsableSession: Bool = try {
+          try engine.openSession()
+          defer { engine.closeSession() }
+          guard let schema = try engine.currentSchema(), schema != ".default" else { return false }
+          return try engine.hasInputProcessors(schemaID: schema)
+        }()
+        if !repairs.isEmpty || !missing.isEmpty || !hasUsableSession {
+          RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+            .append(RimeProbeRecord(phase: "app.schema.repair",
+                                    message: "Redeploying unusable input configuration; missing schemas: "
+                                      + missing.joined(separator: ", ")))
+          await deploy(profileID: id)
+        }
+      } catch {
+        RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+          .append(RimeProbeRecord(phase: "app.schema.check.failed", message: String(describing: error)))
+      }
+    }
     engineStatus = Self.typingCheck(engine: engine)
     if let outcome = RimeWorkspaceJanitor().run(workspace: workspace) as RimeWorkspaceJanitor.Outcome? {
       let removed = outcome.removedStagingEntries.count + outcome.removedBuildStaging.count
@@ -203,7 +233,16 @@ final class RimeAppModel: ObservableObject {
       let start = try engine.start()
       try engine.openSession()
       defer { engine.closeSession() }
+      let probe = RimeProbeLog(url: URL(fileURLWithPath: engine.directories.logDir)
+        .appendingPathComponent("probe.jsonl"))
+      probe.append(RimeProbeRecord(phase: "app.configuration",
+                                  message: try engine.inputConfigurationSummary()))
       let composing = try engine.processKeys("nihao")
+      probe.append(RimeProbeRecord(phase: "app.typingCheck",
+                                  message: "handled=" + String(composing.handled)
+                                    + " composing=" + String(composing.isComposing)
+                                    + " candidates=" + String(composing.candidates.count)
+                                    + " asciiMode=" + String(composing.status?.isAsciiMode ?? false)))
       let candidate = composing.candidates.first?.text ?? "（无候选）"
       let committed = try engine.selectCandidate(at: 0).commit ?? "（未上屏）"
       try engine.clearComposition()
@@ -377,6 +416,16 @@ final class RimeAppModel: ObservableObject {
     } catch {
       let reason = String(describing: error)
       let text = "部署失败：" + reason
+      RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+        .append(RimeProbeRecord(phase: "app.deploy.failed", message: reason))
+      if case RimeDeploymentFailure.deployFailed(let report) = error {
+        // The final error is often only "error building config"; earlier compiler errors name
+        // the missing include or invalid patch. Use this deployment's report, never typing logs.
+        let diagnostics = report.logs.filter { $0.severity >= .warning }.map(\.display)
+        RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+          .append(RimeProbeRecord(phase: "app.deploy.diagnostics",
+                                  message: diagnostics.suffix(80).joined(separator: "\n")))
+      }
       deployMessage = text
       errorMessage = text
       // The reason only: the footer adds the label itself, so the sentence is not doubled.

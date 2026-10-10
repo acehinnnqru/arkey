@@ -171,7 +171,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var languageSchemaID: String?
   private var schemaAuxiliaryPrefix: String?
   private var hasResolvedLanguageSchema = false
-  private var languageSwitchAvailable = false
   private var markedText: String?
   /// The engine's current page, whose labels decide which physical keys select.
   private var currentPage: RimePage?
@@ -186,7 +185,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   deinit {
     geometryDisplayLink?.invalidate()
     candidateLoadCancellation?.cancel()
-    engine?.closeSession()
+    engine?.shutdown()
   }
 
   // MARK: - Lifecycle
@@ -298,14 +297,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     refreshLayout()
     updateHeight()
     prepareEngine()
-    // A profile the app activated is adopted here, before the first keystroke of this appearance,
-    // and only because the composition was just cleared: S1 §8 forbids switching mid-sentence.
-    markedText = nil
-    try? engine?.clearComposition()
-    if engine != nil, let setup = engineSetup {
-      KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
-      candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
-    }
     refreshLanguageKeyFromEngine()
     refreshLayout()
     recordGeometry("willAppear.after", force: true)
@@ -318,6 +309,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   override func viewWillDisappear(_ animated: Bool) {
+    releaseEngine()
     super.viewWillDisappear(animated)
     recordGeometry("willDisappear", force: true)
     finishGeometryTrace(reason: "disappear")
@@ -325,9 +317,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     geometryDisplayLink = nil
     if isPanelExpanded { collapsePanel() }
     flushKeyStatistics()
-    candidateLoadCancellation?.cancel()
-    engine?.closeSession()
-    engine = nil
     markedText = nil
     currentPage = nil
     candidateBar.setPage(nil)
@@ -392,6 +381,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
+        markedText = nil
+        try setup.engine.clearComposition()
+        KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
+        try KeyboardEngine.ensureInputSchema(setup.engine)
+        setup.probe?.append(RimeProbeRecord(phase: "keyboard.configuration",
+                                            message: try setup.engine.inputConfigurationSummary()))
         engine = setup.engine
         refreshLanguageKeyFromEngine()
         refreshLayout()
@@ -405,11 +400,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                                             message: detail))
         candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
       } catch {
-        setup.engine.closeSession()
+        let detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
+        setup.engine.shutdown()
         engine = nil
         let reason = String(describing: error)
         KeyboardLog.error("boot failed: " + reason)
-        setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot.failed", message: reason))
+        setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot.failed", message: reason + " " + detail))
         candidateBar.setMessage("Arkey 启动失败：" + reason)
       }
     }
@@ -450,11 +446,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func toggleAsciiMode() {
-    asciiMode.toggle()
-    refreshLayout()
+    if engine == nil { prepareEngine() }
     guard let engine else { return }
     do {
-      try engine.setOption("ascii_mode", asciiMode)
+      try KeyboardEngine.ensureInputSchema(engine)
+      try engine.setOption("ascii_mode", !asciiMode)
       apply(try engine.refresh())
     } catch {
       report("option.failed", error, userVisible: "切换出错：")
@@ -550,20 +546,31 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       refreshLayout()
     case .globe:
       recordGeometry("advanceInputMode", force: true)
+      prepareForInputModeSwitch()
       advanceToNextInputMode()
     case .language:
       // S3 §5's 中/英: the state is the engine's ascii_mode, and the key's own label comes from
       // get_state_label on the next layout pass.
       toggleAsciiMode()
     case .emoji:
-      // D5, decided here and pending one device check: the key advances to the next input mode, which
-      // is where the system emoji keyboard lives. It used to do nothing, which is the worst of the
-      // three options — a key that is drawn and then lies. If a device shows the next mode is not the
-      // emoji keyboard, D5's fallback applies and the key is removed instead.
       recordGeometry("advanceInputMode.emoji", force: true)
+      prepareForInputModeSwitch()
       advanceToNextInputMode()
     }
     playFeedback()
+  }
+
+  /// Release both the session lease and librime's cached dictionary handles before
+  /// UIKit can suspend the extension. A disappearance callback may arrive too late
+  /// after an explicit input-mode switch.
+  func prepareForInputModeSwitch() {
+    releaseEngine()
+  }
+
+  private func releaseEngine() {
+    candidateLoadCancellation?.cancel()
+    engine?.shutdown()
+    engine = nil
   }
 
   /// S3 §5's key-up feedback: the action has already fired, and both signals are optional. Nothing
@@ -870,7 +877,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                       spaceKeyLabel: KeyboardKeyLabels.space(language: KeyboardKeyLabels.systemLanguage),
                       showsGlobeRow: needsInputModeSwitchKey,
                       shift: shiftController.state,
-                      language: languageKey,
+                      language: languageKey ?? RimeLanguageKey(label: asciiMode ? "英" : "中", isASCII: asciiMode),
                       feedback: preferences.feedback,
                       auxiliaryPrefix: schemaAuxiliaryPrefix ?? preferences.auxiliaryPrefix,
                       auxiliaryKeySide: preferences.auxiliaryKeySide)
@@ -887,13 +894,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
           .flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
       }
       hasResolvedLanguageSchema = true
-      languageSwitchAvailable = engine.schemaDeclaresSwitch("ascii_mode")
       languageKey = nil
     }
-    guard languageSwitchAvailable else {
-      languageKey = nil
-      return
-    }
+    // ascii_mode is a runtime option even when a schema omits its switch label.
+    // Missing labels or a failed config read must not turn this into an emoji key.
     if languageKey?.isASCII == isASCII { return }
     let label = (try? engine.stateLabel(option: "ascii_mode", state: isASCII)) ?? (isASCII ? "英" : "中")
     languageKey = RimeLanguageKey(label: label, isASCII: isASCII)
@@ -903,6 +907,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     guard let engine else { return }
     let schemaID = (try? engine.currentSchema()) ?? nil
     let isASCII = (try? engine.getOption("ascii_mode")) ?? false
+    asciiMode = isASCII
     // A profile may replace the same schema ID with new switch labels between appearances.
     hasResolvedLanguageSchema = false
     languageKey = nil

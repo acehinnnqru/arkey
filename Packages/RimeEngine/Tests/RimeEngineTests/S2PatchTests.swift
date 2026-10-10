@@ -77,6 +77,64 @@ final class S2PatchTests: XCTestCase {
 
   // MARK: The write path
 
+  func testModernSymbolPresetRepairsCompilationAndPreservesCommaWidth() throws {
+    let source = workspace.profile(profileID).source
+    let schema = source.appendingPathComponent("tracer.schema.yaml")
+    let original = try String(contentsOf: schema, encoding: .utf8)
+    try (original.replacingOccurrences(of: "- ascii_composer", with: "- ascii_composer\n    - punctuator")
+      .replacingOccurrences(of: "- abc_segmentor", with: "- punct_segmentor\n    - abc_segmentor")
+      .replacingOccurrences(of: "- script_translator", with: "- punct_translator\n    - script_translator")
+      + "\npunctuator:\n  half_shape:\n    ',': {commit: ','}\n  full_shape:\n    ',': {commit: '，'}\n")
+      .write(to: schema, atomically: true, encoding: .utf8)
+    try "symbols:\n  vtest: ['★']\n".write(to: source.appendingPathComponent("symbols_v.yaml"),
+                                            atomically: true, encoding: .utf8)
+    let schemaPatch = RimePatch(engine: engine, configID: "tracer")
+    try schemaPatch.set(.bool(true), at: "translator/enable_completion")
+    try schemaPatch.set(.string("symbols_v"), at: "punctuator/import_preset")
+    let brokenPatch = try Data(contentsOf: schemaPatch.patchFileURL)
+    XCTAssertThrowsError(try redeploy(), "legacy import expects a punctuator section that is absent") { error in
+      guard case RimeDeploymentFailure.deployFailed(let report) = error else {
+        return XCTFail("unexpected error: \(error)")
+      }
+      XCTAssertFalse(report.files.isEmpty, "the old nonempty-directory check accepted this build")
+      XCTAssertEqual(report.failureReason, "Missing or empty deployed schemas: tracer")
+      XCTAssertFalse(report.files.contains { $0.relativePath == "tracer.schema.yaml" })
+    }
+
+    let backup = scratch.appendingPathComponent("punctuation-backup")
+    let repairs = try RimePunctuation.repairLegacySymbolImports(schemaIDs: ["tracer"], engine: engine,
+                                                                backupDirectory: backup)
+    XCTAssertEqual(repairs.count, 1)
+    XCTAssertEqual(try Data(contentsOf: backup.appendingPathComponent("tracer.custom.yaml")), brokenPatch)
+    XCTAssertNil(try schemaPatch.userValue("punctuator/import_preset"))
+    XCTAssertEqual(try schemaPatch.userValue("translator/enable_completion"), .bool(true))
+    XCTAssertEqual(try RimePunctuation.selectedPreset(schemaID: "tracer", engine: engine), "symbols_v")
+    XCTAssertTrue(try RimePunctuation.repairLegacySymbolImports(schemaIDs: ["tracer"], engine: engine,
+                                                               backupDirectory: backup).isEmpty)
+    try redeploy()
+    try engine.openSession()
+    XCTAssertEqual(try engine.processKeys("nihao").candidates.first?.text, "你好")
+    try engine.clearComposition()
+    try engine.setOption("full_shape", false)
+    XCTAssertEqual(try engine.processKeys(",").commit, ",")
+    try engine.setOption("full_shape", true)
+    XCTAssertEqual(try engine.processKeys(",").commit, "，")
+  }
+
+  func testPunctuationPickerSupportsLegacyTablesAndRejectsInvalidTablesBeforeWriting() throws {
+    let source = workspace.profile(profileID).source
+    let symbols = source.appendingPathComponent("symbols.yaml")
+    try "punctuator:\n  half_shape:\n    ',': ','\n".write(to: symbols, atomically: true, encoding: .utf8)
+    let schemaPatch = RimePatch(engine: engine, configID: "tracer")
+    let preset = try XCTUnwrap(RimePunctuation.preset(id: "symbols"))
+    try schemaPatch.setPunctuationPreset(preset)
+    XCTAssertEqual(try schemaPatch.userValue("punctuator/import_preset"), .string("symbols"))
+    let before = try Data(contentsOf: schemaPatch.patchFileURL)
+    try "unrelated: true\n".write(to: symbols, atomically: true, encoding: .utf8)
+    XCTAssertThrowsError(try schemaPatch.setPunctuationPreset(preset))
+    XCTAssertEqual(try Data(contentsOf: schemaPatch.patchFileURL), before)
+  }
+
   func testAuxiliaryPrefixUpdatesSearchAndAlphabetTogether() throws {
     let schemaPatch = RimePatch(engine: engine, configID: "tracer")
     let alphabet = try XCTUnwrap(engine.schemaValue("speller/alphabet", schemaID: "tracer")?.stringValue)

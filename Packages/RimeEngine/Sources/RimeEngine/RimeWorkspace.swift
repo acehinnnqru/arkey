@@ -600,7 +600,9 @@ public enum RimeWorkspaceResolver {
     RimeDirectories(sharedDataDir: layout.source.path,
                     prebuiltDataDir: build.path,
                     userDataDir: workspace.userData.path,
-                    stagingDir: layout.buildStaging.path,
+                    // librime searches staging before prebuilt for compiled schemas. A failed
+                    // deploy must never shadow the published generation with partial output.
+                    stagingDir: build.path,
                     logDir: workspace.log.path,
                     writableRoot: workspace.writableRoot,
                     appGroupID: workspace.appGroupID,
@@ -612,7 +614,7 @@ public enum RimeWorkspaceResolver {
 
 public enum RimeBindings {
   /// What the keyboard and the app's preview bind to: the profile's source, its deployed build,
-  /// the shared user directory, and a staging directory nothing writes to at runtime.
+  /// the shared user directory, and the published build for both runtime lookup paths.
   public static func client(workspace: RimeWorkspace, profileID: String, buildDirectory: URL) -> RimeDirectories {
     RimeWorkspaceResolver.client(workspace: workspace,
                                  layout: workspace.profile(profileID),

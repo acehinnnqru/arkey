@@ -49,6 +49,11 @@ final class KeyboardGeometryTests: XCTestCase {
         let buttons = keys(grid(width: width, layer: layer))
         let enter = try XCTUnwrap(buttons.first { $0.key == .returnKey })
         let space = try XCTUnwrap(buttons.first { $0.key == .space })
+        let comma = try XCTUnwrap(buttons.first {
+          $0.key == .character(",") && abs($0.frame.minY - space.frame.minY) < 0.01
+        })
+        XCTAssertEqual(space.frame.minX - comma.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
+        XCTAssertGreaterThanOrEqual(comma.frame.width, 20)
         XCTAssertEqual(enter.frame.maxX, width - KeyboardMetrics.sideMargin, accuracy: 0.01)
         let auxiliary = try XCTUnwrap(buttons.first {
           if case .auxiliary = $0.key { return true }
@@ -56,7 +61,8 @@ final class KeyboardGeometryTests: XCTestCase {
         })
         XCTAssertEqual(auxiliary.frame.minX - space.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
         XCTAssertEqual(enter.frame.minX - auxiliary.frame.maxX, KeyboardMetrics.keyGap, accuracy: 0.01)
-        XCTAssertGreaterThan(space.frame.width, 0)
+        XCTAssertGreaterThan(space.frame.width, enter.frame.width,
+                             "space must remain wider than Return after adding punctuation")
       }
     }
   }

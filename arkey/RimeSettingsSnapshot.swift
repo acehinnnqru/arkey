@@ -33,7 +33,7 @@ struct RimeSettingsSnapshot: Sendable {
       try? engine.schemaValue("speller/algebra", schemaID: $0)?.listValue
     } ?? []
     let punctuation = schemaID.flatMap {
-      try? engine.schemaValue("punctuator/import_preset", schemaID: $0)?.stringValue
+      try? RimePunctuation.selectedPreset(schemaID: $0, engine: engine)
     }
     let choices = punctuationSource.map {
       RimePunctuation.choices(inSource: $0).map { (preset: $0.preset, isAvailable: $0.isAvailable) }

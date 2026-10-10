@@ -69,6 +69,7 @@ final class KeyboardPreviewView: UIView {
                       asciiMode: false,
                       returnKeyLabel: "换行",
                       showsGlobeRow: true,
+                      language: RimeLanguageKey(label: "中", isASCII: false),
                       auxiliaryPrefix: auxiliaryPrefix,
                       auxiliaryKeySide: auxiliaryKeySide)
   }

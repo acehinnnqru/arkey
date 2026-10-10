@@ -133,6 +133,45 @@ final class S1DeploymentTests: XCTestCase {
     XCTAssertEqual(try workspace.loadActiveProfile()?.generation, 2)
   }
 
+  func testRedeployRepairsMissingCompiledSchema() throws {
+    let id = try importedProfile()
+    _ = try coordinator().deploySync(profileID: id)
+    let schema = workspace.profile(id).build.appendingPathComponent("tracer.schema.yaml")
+    engine.shutdown()
+    try FileManager.default.removeItem(at: schema)
+    _ = try engine.start()
+    try engine.openSession()
+    XCTAssertEqual(try engine.currentSchema(), "tracer")
+    XCTAssertFalse(try engine.hasInputProcessors(schemaID: "tracer"))
+    XCTAssertEqual(try engine.unusableDeployedSchemaIDs(), ["tracer"])
+    XCTAssertTrue(try engine.processKeys("nihao").needsLiteralFallback)
+    engine.closeSession()
+
+    _ = try coordinator().deploySync(profileID: id)
+    XCTAssertEqual(try engine.unusableDeployedSchemaIDs(), [])
+    try engine.openSession()
+    XCTAssertEqual(try engine.processKeys("nihao").candidates.first?.text, "你好")
+  }
+
+  func testDeployRejectsANamedSchemaWithoutInputProcessors() throws {
+    let id = try importedProfile()
+    _ = try coordinator().deploySync(profileID: id)
+    let activeBefore = try Data(contentsOf: workspace.activeRecord)
+    let layout = workspace.profile(id)
+    try "schema:\n  schema_id: tracer\n  name: Broken\n  version: '99'\n"
+      .write(to: layout.source.appendingPathComponent("tracer.schema.yaml"),
+             atomically: true, encoding: .utf8)
+    XCTAssertThrowsError(try coordinator().deploySync(profileID: id)) { error in
+      guard case RimeDeploymentFailure.deployFailed(let report) = error else {
+        return XCTFail("unexpected error: \(error)")
+      }
+      XCTAssertTrue(report.failureReason?.contains("tracer") == true)
+    }
+    XCTAssertEqual(try Data(contentsOf: workspace.activeRecord), activeBefore)
+    try engine.openSession()
+    XCTAssertEqual(try engine.processKeys("nihao").candidates.first?.text, "你好")
+  }
+
   func testRollbackRestoresThePreviousGeneration() throws {
     let id = try importedProfile()
     let layout = workspace.profile(id)

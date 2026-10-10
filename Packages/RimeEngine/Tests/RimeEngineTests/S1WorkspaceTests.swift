@@ -381,6 +381,8 @@ final class S1WorkspaceTests: XCTestCase {
 
     let client = RimeBindings.client(workspace: workspace, profileID: "a", buildDirectory: layout.build)
     XCTAssertEqual(client.prebuiltDataDir, layout.build.path)
+    XCTAssertEqual(client.stagingDir, layout.build.path,
+                   "failed deployment output must not shadow the published schemas")
     XCTAssertEqual(client.sharedDataDir, layout.source.path)
   }
 }

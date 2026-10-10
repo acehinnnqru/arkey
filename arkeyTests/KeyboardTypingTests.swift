@@ -114,6 +114,9 @@ final class KeyboardTypingTests: XCTestCase {
         .first { $0.key == .character(character) }, "no " + character + " key")
       button.sendActions(for: .primaryActionTriggered)
     }
+    // Candidate buttons are materialized during layout to keep offscreen cells cheap.
+    controller.view.layoutIfNeeded()
+    try bar(controller).layoutIfNeeded()
   }
 
   func testTypingThroughTheKeyboardPutsTheEnginesCandidatesOnTheBar() throws {
@@ -124,6 +127,61 @@ final class KeyboardTypingTests: XCTestCase {
     let shown = texts(in: try bar(controller))
     XCTAssertTrue(shown.contains { $0.contains("你好") },
                   "the bar shows: " + shown.joined(separator: " | "))
+  }
+
+  func testSwitchingBackFromEnglishProducesChineseCandidates() throws {
+    try deployBundledProfile()
+    let controller = booted()
+    let grid = try XCTUnwrap(descendants(KeyboardKeyGrid.self, in: controller.view).first)
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    func toggleLanguage() throws {
+      let button = try XCTUnwrap(grid.subviews.compactMap { $0 as? KeyButton }.first {
+        if case .language = $0.key { return true }
+        return false
+      })
+      button.sendActions(for: .primaryActionTriggered)
+      grid.layoutIfNeeded()
+    }
+    try toggleLanguage()
+    XCTAssertTrue(try setup.engine.getOption("ascii_mode"))
+    try type(["n"], in: controller)
+    XCTAssertFalse(try setup.engine.refresh().isComposing)
+    try toggleLanguage()
+    XCTAssertFalse(try setup.engine.getOption("ascii_mode"))
+    try type(["n", "i", "h", "a", "o"], in: controller)
+    XCTAssertTrue(texts(in: try bar(controller)).contains { $0.contains("你好") })
+  }
+
+  func testMissingSchemaIsReportedInsteadOfTreatingEnglishFallbackAsReady() throws {
+    try deployBundledProfile()
+    _ = booted()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    let original = setup.engine.directories
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer {
+      setup.engine.shutdown()
+      _ = try? setup.engine.rebind(to: original)
+      try? FileManager.default.removeItem(at: root)
+    }
+    try "schema_list:\n  - schema: ghost\n".write(to: root.appendingPathComponent("default.yaml"),
+                                  atomically: true, encoding: .utf8)
+    _ = try setup.engine.rebind(to: RimeDirectories(sharedDataDir: root.path,
+                                                    prebuiltDataDir: root.path,
+                                                    userDataDir: root.path,
+                                                    stagingDir: root.path,
+                                                    logDir: root.path))
+    try setup.engine.openSession()
+    XCTAssertEqual(try setup.engine.currentSchema(), "ghost",
+                   "a missing schema can still have a non-placeholder ID")
+    try setup.engine.setOption("ascii_mode", false)
+    XCTAssertTrue(try setup.engine.processKey(RimeKey.ascii("n")!).needsLiteralFallback,
+                  "a missing compiled schema reproduces English-only input even in Chinese mode")
+    XCTAssertThrowsError(try KeyboardEngine.ensureInputSchema(setup.engine)) { error in
+      guard case KeyboardEngine.InputSessionError.noUsableSchema = error else {
+        return XCTFail("unexpected error: \(error)")
+      }
+    }
   }
 
   /// Tapping a candidate commits it: the composition is gone afterwards, which is what the bar shows by
@@ -169,10 +227,10 @@ final class KeyboardTypingTests: XCTestCase {
     XCTAssertEqual(controller.view.constraints.first {
       $0.firstAttribute == .height && $0.secondItem == nil
     }?.constant, keyboardHeight, "expanding candidates resized the keyboard")
-    XCTAssertFalse(bar.isHidden, "the candidate row should remain fixed")
+    XCTAssertTrue(bar.isHidden, "the expanded panel replaces the collapsed candidate row")
     controller.view.layoutIfNeeded()
     waitForPanelCandidates(panel)
-    XCTAssertEqual(panel.frame.minY, bar.frame.maxY, accuracy: 0.5)
+    XCTAssertEqual(panel.frame.minY, bar.frame.minY, accuracy: 0.5)
     XCTAssertTrue(texts(in: bar).contains { $0.contains("你好") })
     let panelScroll = panel.subviews.compactMap { $0 as? UIScrollView }.first
     XCTAssertTrue(texts(in: panel).contains { $0.contains("你") },

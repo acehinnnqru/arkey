@@ -22,7 +22,8 @@ public struct RimeKeyboardStyle: Sendable, Equatable {
   public var deleteWidth: CGFloat
   /// The gap between shift/delete and the letter block — wider than the key gap.
   public var sideKeyGap: CGFloat
-  /// Bottom row widths: 123 / emoji / space / return.
+  /// Bottom row widths: 123 / emoji / space region / return.
+  /// The space region also accommodates the comma and optional auxiliary key.
   public var layerKeyWidth: CGFloat
   public var emojiKeyWidth: CGFloat
   public var spaceKeyWidth: CGFloat
@@ -86,8 +87,9 @@ public struct RimeKeyboardStyle: Sendable, Equatable {
     style.sideKeyGap = 15
     style.layerKeyWidth = 46.5
     style.emojiKeyWidth = 47
-    style.spaceKeyWidth = 205
-    style.returnKeyWidth = 99.5
+    // Give the comma and auxiliary keys room without squeezing the space bar.
+    style.spaceKeyWidth = 240.5
+    style.returnKeyWidth = 64
     return style
   }()
 
@@ -417,7 +419,7 @@ public enum RimeKeyboardLayoutEngine {
     return keys
   }
 
-  /// The measured bottom row is four keys: 123 / emoji / space / return. The second slot holds the
+  /// The bottom row adds a comma immediately before space. The second slot holds the
   /// 中/英 key when the schema has an 中英 state (S3 §5), and the emoji key otherwise — an emoji key
   /// with no panel behind it is a key that does nothing, which is worse than one that works.
   private static func bottomRow(width: CGFloat, layer: RimeKeyboardLayer,
@@ -448,15 +450,23 @@ public enum RimeKeyboardLayoutEngine {
     }
     x += style.emojiKeyWidth + style.horizontalGap
     let prefix = auxiliaryPrefix.flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
-    let auxiliaryWidth = prefix == nil ? 0 : min(style.letterKeyWidth(for: width),
-                                                 max(1, style.spaceKeyWidth - style.horizontalGap - 1))
-    let spaceWidth = style.spaceKeyWidth - (prefix == nil ? 0 : auxiliaryWidth + style.horizontalGap)
+    let extraKeyCount: CGFloat = prefix == nil ? 1 : 2
+    let punctuationWidth = min(style.letterKeyWidth(for: width),
+                               max(1, (style.spaceKeyWidth - 1) / extraKeyCount - style.horizontalGap))
+    let auxiliaryWidth = punctuationWidth
+    let spaceWidth = style.spaceKeyWidth - extraKeyCount * (punctuationWidth + style.horizontalGap)
     if let prefix, auxiliaryKeySide == .left {
       keys.append(RimeKeyboardKey(kind: .character(prefix),
                                   frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
                                   label: prefix, accessibilityLabel: "辅码前导键 \(prefix)"))
       x += auxiliaryWidth + style.horizontalGap
     }
+    // Send the ASCII keysym through the normal character path so Rime's active
+    // punctuation table and full_shape/ascii_punct options determine the output.
+    keys.append(RimeKeyboardKey(kind: .character(","),
+                                frame: CGRect(x: x, y: 0, width: punctuationWidth, height: style.keyHeight),
+                                label: ",", accessibilityLabel: ","))
+    x += punctuationWidth + style.horizontalGap
     keys.append(RimeKeyboardKey(kind: .space,
                                 frame: CGRect(x: x, y: 0, width: spaceWidth,
                                               height: style.keyHeight),

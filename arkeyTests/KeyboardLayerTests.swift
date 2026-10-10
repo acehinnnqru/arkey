@@ -136,9 +136,8 @@ final class KeyboardLayerTests: XCTestCase {
   func testTheLanguageKeyFlipsTheStateItNames() throws {
     let controller = booted()
     let grid = try grid(controller)
-    try XCTSkipIf(languageButton(grid) == nil,
-                  "the bundled tracer schema declares no ascii_mode switch, so the controller draws no 中/英 key; "
-                    + "a profile that does (rime-ice) is what the device run installs")
+    XCTAssertFalse(buttons(grid).contains { $0.key == .emoji },
+                   "missing schema labels must not replace the language key with an input-mode switch")
     let before = try XCTUnwrap(languageButton(grid)?.title)
 
     languageButton(grid)?.sendActions(for: .primaryActionTriggered)

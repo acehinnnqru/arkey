@@ -15,7 +15,7 @@ extension RimeAppModel {
     guard let id = settingsSchemaID else { return }
     do {
       let patch = RimePatch(engine: engine, configID: id)
-      _ = try patch.set(.string(preset.importPreset), at: "punctuator/import_preset")
+      recordConfigChange(try patch.setPunctuationPreset(preset))
       await deploy(profileID: activeProfileID ?? id)
       await refreshSettings()
     } catch {

@@ -34,6 +34,38 @@ enum KeyboardEngine {
   /// bar is the only place a user can read them, and the probe log is the only place we can.
   static let setup: Result<Setup, Error> = makeSetup()
 
+  enum InputSessionError: Error, CustomStringConvertible {
+    case noUsableSchema([String])
+
+    var description: String {
+      switch self {
+      case .noUsableSchema(let schemas):
+        return "No usable input schema. Open Arkey and redeploy the active profile. Enabled schemas: "
+          + (schemas.isEmpty ? "none" : schemas.joined(separator: ", "))
+      }
+    }
+  }
+
+  /// Creating a Rime session can succeed with a placeholder or a named schema whose
+  /// compiled configuration is missing. Both decline letters even when ascii_mode is false.
+  /// Recover an enabled schema
+  /// before reporting the keyboard as ready; never deploy inside the extension.
+  @discardableResult
+  static func ensureInputSchema(_ engine: RimeEngine) throws -> RimeStatusSnapshot {
+    func usable(_ status: RimeStatusSnapshot?) -> Bool {
+      guard let status, let id = status.schemaID else { return false }
+      return !status.isDisabled && !id.isEmpty && id != ".default"
+        && (try? engine.hasInputProcessors(schemaID: id)) == true
+    }
+    let current = try engine.refresh().status
+    if let current, usable(current) { return current }
+    let schemas = try engine.schemaIDs().filter { !$0.isEmpty && $0 != ".default" }
+    for id in schemas {
+      if let status = try? engine.selectSchema(id).status, usable(status) { return status }
+    }
+    throw InputSessionError.noUsableSchema(schemas)
+  }
+
   private static func makeSetup() -> Result<Setup, Error> {
     do {
       guard let shared = RimeDirectories.bundledSharedDataURL() else {
@@ -146,6 +178,11 @@ enum KeyboardEngine {
     parts.append("origin=" + setup.resolved.origin.rawValue)
     parts.append("profile=" + (setup.resolved.profileID ?? "bundled"))
     parts.append("generation=" + String(setup.resolved.generation ?? 0))
+    if let status = try? setup.engine.refresh().status {
+      parts.append("schema=" + (status.schemaID ?? "none"))
+      parts.append("asciiMode=" + String(status.isAsciiMode))
+      parts.append("disabled=" + String(status.isDisabled))
+    }
     if let reason = setup.resolved.fallbackReason {
       parts.append("fallback=" + reason)
     }

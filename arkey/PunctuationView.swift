@@ -37,7 +37,7 @@ struct PunctuationView: View {
       } header: {
         Text("符号表")
       } footer: {
-        Text("写入 punctuator/import_preset 并重新部署。全角/半角与中英标点在「方案与输入」的开关一节里，它们不是表。")
+        Text("Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches.")
       }
       SettingsDeployFooter(model: model)
       if let error = model.errorMessage { UserFacing.errorRow(error) }

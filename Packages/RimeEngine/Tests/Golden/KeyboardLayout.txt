@@ -39,7 +39,8 @@ width 430.0 layer letters shift off size 430.0x384.0 candidate 0.0,0.0 430.0x39.
   row 3 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -78,7 +79,8 @@ width 430.0 layer letters shift on size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 3 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -117,7 +119,8 @@ width 430.0 layer letters shift caps size 430.0x384.0 candidate 0.0,0.0 430.0x39
   row 3 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -155,7 +158,8 @@ width 430.0 layer numbers shift off size 430.0x384.0 candidate 0.0,0.0 430.0x39.
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -193,7 +197,8 @@ width 430.0 layer numbers shift on size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -231,7 +236,8 @@ width 430.0 layer numbers shift caps size 430.0x384.0 candidate 0.0,0.0 430.0x39
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -269,7 +275,8 @@ width 430.0 layer symbols shift off size 430.0x384.0 candidate 0.0,0.0 430.0x39.
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -307,7 +314,8 @@ width 430.0 layer symbols shift on size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -345,7 +353,8 @@ width 430.0 layer symbols shift caps size 430.0x384.0 candidate 0.0,0.0 430.0x39
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -384,7 +393,8 @@ width 320.0 layer letters shift off size 320.0x384.0 candidate 0.0,0.0 320.0x39.
   row 3 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -423,7 +433,8 @@ width 320.0 layer letters shift on size 320.0x384.0 candidate 0.0,0.0 320.0x39.7
   row 3 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -462,7 +473,8 @@ width 320.0 layer letters shift caps size 320.0x384.0 candidate 0.0,0.0 320.0x39
   row 3 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -500,7 +512,8 @@ width 320.0 layer numbers shift off size 320.0x384.0 candidate 0.0,0.0 320.0x39.
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -538,7 +551,8 @@ width 320.0 layer numbers shift on size 320.0x384.0 candidate 0.0,0.0 320.0x39.7
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -576,7 +590,8 @@ width 320.0 layer numbers shift caps size 320.0x384.0 candidate 0.0,0.0 320.0x39
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -614,7 +629,8 @@ width 320.0 layer symbols shift off size 320.0x384.0 candidate 0.0,0.0 320.0x39.
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -652,7 +668,8 @@ width 320.0 layer symbols shift on size 320.0x384.0 candidate 0.0,0.0 320.0x39.7
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -690,7 +707,8 @@ width 320.0 layer symbols shift caps size 320.0x384.0 candidate 0.0,0.0 320.0x39
   row 3 0.0,207.7 430.0x45.0
     layer(letters) ABC 8.3,207.7 43.4x45.0 字母
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 21.6x45.0 ,
+    space  145.5,207.7 170.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 4 0.0,263.7 38.2x40.0
     globe 🌐 8.3,263.7 21.6x40.0 下一个键盘
@@ -700,7 +718,8 @@ variant return newline enabled true globe true size 430.0x384.0 candidate 0.0,0.
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 换行 325.3,207.7 96.4x45.0 换行
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -718,13 +737,15 @@ variant return newline enabled true globe false size 430.0x333.0 candidate 0.0,0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 换行 325.3,207.7 96.4x45.0 换行
 variant return newline enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 换行 325.3,207.7 96.4x45.0 换行
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -742,13 +763,15 @@ variant return newline enabled false globe false size 430.0x333.0 candidate 0.0,
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 换行 325.3,207.7 96.4x45.0 换行
 variant return search enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -766,13 +789,15 @@ variant return search enabled true globe false size 430.0x333.0 candidate 0.0,0.
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
 variant return search enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -790,13 +815,15 @@ variant return search enabled false globe false size 430.0x333.0 candidate 0.0,0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 搜索 325.3,207.7 96.4x45.0 搜索
 variant return send enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 发送 325.3,207.7 96.4x45.0 发送
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -814,13 +841,15 @@ variant return send enabled true globe false size 430.0x333.0 candidate 0.0,0.0 
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 发送 325.3,207.7 96.4x45.0 发送
 variant return send enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 发送 325.3,207.7 96.4x45.0 发送
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -838,13 +867,15 @@ variant return send enabled false globe false size 430.0x333.0 candidate 0.0,0.0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 发送 325.3,207.7 96.4x45.0 发送
 variant return go enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 前往 325.3,207.7 96.4x45.0 前往
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -862,13 +893,15 @@ variant return go enabled true globe false size 430.0x333.0 candidate 0.0,0.0 43
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 前往 325.3,207.7 96.4x45.0 前往
 variant return go enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 前往 325.3,207.7 96.4x45.0 前往
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -886,13 +919,15 @@ variant return go enabled false globe false size 430.0x333.0 candidate 0.0,0.0 4
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 前往 325.3,207.7 96.4x45.0 前往
 variant return done enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 完成 325.3,207.7 96.4x45.0 完成
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -910,13 +945,15 @@ variant return done enabled true globe false size 430.0x333.0 candidate 0.0,0.0 
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 完成 325.3,207.7 96.4x45.0 完成
 variant return done enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 完成 325.3,207.7 96.4x45.0 完成
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -934,13 +971,15 @@ variant return done enabled false globe false size 430.0x333.0 candidate 0.0,0.0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 完成 325.3,207.7 96.4x45.0 完成
 variant return join enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 加入 325.3,207.7 96.4x45.0 加入
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -958,13 +997,15 @@ variant return join enabled true globe false size 430.0x333.0 candidate 0.0,0.0 
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 加入 325.3,207.7 96.4x45.0 加入
 variant return join enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 加入 325.3,207.7 96.4x45.0 加入
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -982,13 +1023,15 @@ variant return join enabled false globe false size 430.0x333.0 candidate 0.0,0.0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 加入 325.3,207.7 96.4x45.0 加入
 variant return next enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 下一项 325.3,207.7 96.4x45.0 下一项
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1006,13 +1049,15 @@ variant return next enabled true globe false size 430.0x333.0 candidate 0.0,0.0 
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 下一项 325.3,207.7 96.4x45.0 下一项
 variant return next enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 下一项 325.3,207.7 96.4x45.0 下一项
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1030,13 +1075,15 @@ variant return next enabled false globe false size 430.0x333.0 candidate 0.0,0.0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 下一项 325.3,207.7 96.4x45.0 下一项
 variant return route enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 路线 325.3,207.7 96.4x45.0 路线
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1054,13 +1101,15 @@ variant return route enabled true globe false size 430.0x333.0 candidate 0.0,0.0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 路线 325.3,207.7 96.4x45.0 路线
 variant return route enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 路线 325.3,207.7 96.4x45.0 路线
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1078,13 +1127,15 @@ variant return route enabled false globe false size 430.0x333.0 candidate 0.0,0.
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 路线 325.3,207.7 96.4x45.0 路线
 variant return continueKey enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 继续 325.3,207.7 96.4x45.0 继续
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1102,13 +1153,15 @@ variant return continueKey enabled true globe false size 430.0x333.0 candidate 0
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 继续 325.3,207.7 96.4x45.0 继续
 variant return continueKey enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 继续 325.3,207.7 96.4x45.0 继续
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1126,13 +1179,15 @@ variant return continueKey enabled false globe false size 430.0x333.0 candidate 
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 继续 325.3,207.7 96.4x45.0 继续
 variant return emergencyCall enabled true globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 紧急呼叫 325.3,207.7 96.4x45.0 紧急呼叫
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1150,13 +1205,15 @@ variant return emergencyCall enabled true globe false size 430.0x333.0 candidate
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 紧急呼叫 325.3,207.7 96.4x45.0 紧急呼叫
 variant return emergencyCall enabled false globe true size 430.0x384.0 candidate 0.0,0.0 430.0x39.7
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 紧急呼叫 325.3,207.7 96.4x45.0 紧急呼叫
   row 0.0,263.7 49.2x40.0
     globe 🌐 8.3,263.7 32.6x40.0 下一个键盘
@@ -1174,18 +1231,21 @@ variant return emergencyCall enabled false globe false size 430.0x333.0 candidat
   row 0.0,207.7 430.0x45.0
     layer(numbers) 123 8.3,207.7 43.4x45.0 数字
     language(中文,false) 中文 61.4,207.7 43.1x45.0 切换到英文
-    space  114.2,207.7 201.4x45.0 空格
+    character(,) , 114.2,207.7 32.6x45.0 ,
+    space  156.5,207.7 159.1x45.0 空格
     return 紧急呼叫 325.3,207.7 96.4x45.0 紧急呼叫
 variant no-language size 430.0x333.0 candidate 0.0,0.0 430.0x39.7
   layer(numbers) 123 8.3,207.7 43.4x45.0 数字
   emoji ☺ 61.4,207.7 43.1x45.0 表情符号
-  space  114.2,207.7 201.4x45.0 空格
+  character(,) , 114.2,207.7 32.6x45.0 ,
+  space  156.5,207.7 159.1x45.0 空格
   return 换行 325.3,207.7 96.4x45.0 换行
 variant no-candidate-slot size 430.0x344.3 candidate 0.0,0.0 430.0x0.0
   row 0.0,168.0 430.0x45.0
     layer(numbers) 123 8.3,168.0 43.4x45.0 数字
     emoji ☺ 61.4,168.0 43.1x45.0 表情符号
-    space  114.2,168.0 201.4x45.0 空格
+    character(,) , 114.2,168.0 32.6x45.0 ,
+    space  156.5,168.0 159.1x45.0 空格
     return 换行 325.3,168.0 96.4x45.0 换行
   row 0.0,224.0 49.2x40.0
     globe 🌐 8.3,224.0 32.6x40.0 下一个键盘

@@ -189,6 +189,58 @@ extension RimeEngine {
 
   // MARK: - Diagnostics
 
+  /// A schema ID alone is not proof that librime loaded a usable configuration.
+  /// Missing schema files still create named sessions, but those sessions decline every letter.
+  public func hasInputProcessors(schemaID: String) throws -> Bool {
+    try withSchemaConfig(schemaID) { config in
+      !(config.value("engine/processors")?.listValue ?? []).isEmpty
+    }
+  }
+
+  /// Check the published files directly, bypassing librime's cached schema objects.
+  /// This also works immediately after maintenance, before any session has been created.
+  public func unusableDeployedSchemaIDs() throws -> [String] {
+    try perform {
+      let root = URL(fileURLWithPath: directories.prebuiltDataDir)
+      let defaults = try configFromYAML(String(contentsOf: root.appendingPathComponent("default.yaml"),
+                                               encoding: .utf8))
+      defer { defaults.close() }
+      let ids = defaults.value("schema_list")?.listValue?.compactMap {
+        $0.mapValue?["schema"]?.stringValue
+      } ?? []
+      return ids.filter { id in
+        guard let yaml = try? String(contentsOf: root.appendingPathComponent(id + ".schema.yaml"),
+                                     encoding: .utf8),
+              let config = try? configFromYAML(yaml) else { return true }
+        defer { config.close() }
+        return (config.value("engine/processors")?.listValue ?? []).isEmpty
+      }
+    }
+  }
+
+  /// Configuration structure only: never includes composition, candidates, or committed text.
+  public func inputConfigurationSummary() throws -> String {
+    try perform {
+      guard let schema = try currentSchema() else { return "schema=none" }
+      return try withSchemaConfig(schema) { config in
+        var parts = ["schema=" + schema]
+        for key in ["engine/processors", "engine/segmentors", "engine/translators", "engine/filters"] {
+          let names = config.value(key)?.listValue?.compactMap(\.stringValue) ?? []
+          parts.append(key + "=[" + names.joined(separator: ",") + "]")
+        }
+        parts.append("alphabet=" + (config.string("speller/alphabet") ?? "missing"))
+        parts.append("dictionary=" + (config.string("translator/dictionary") ?? "missing"))
+        for (name, root) in [("prebuilt", directories.prebuiltDataDir),
+                             ("staging", directories.stagingDir)] {
+          let file = URL(fileURLWithPath: root).appendingPathComponent(schema + ".schema.yaml")
+          let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+          parts.append(name + "SchemaBytes=" + (size.map(String.init) ?? "missing"))
+        }
+        return parts.joined(separator: " ")
+      }
+    }
+  }
+
   /// What the resolved directories are, as one line. The tracer's rule is that a failure on a
   /// device has to be readable from the device.
   public var directorySummary: String {
