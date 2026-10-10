@@ -202,8 +202,8 @@ final class AppScreensTests: XCTestCase {
     XCTAssertTrue(((editor.value as? String) ?? "").contains("Arkey diagnostics"))
   }
 
-  /// The import buttons open a picker — the profile library's toolbar 导入 and its 导入设置… row, and the
-  /// dictionary screen's 选择同步文件夹…. Nothing tapped them, so the round-189 report that 导入 did nothing
+  /// The import buttons open a picker: the profile library's file import and settings import rows, and the
+  /// dictionary screen's sync folder picker. Nothing tapped them, so the round-189 report that import did nothing
   /// shipped unnoticed: both screens stacked two fileImporters on one view and neither presented.
   ///
   /// Each button is checked from a fresh launch. The picker belongs to the system and this test cannot reliably
@@ -211,7 +211,7 @@ final class AppScreensTests: XCTestCase {
   /// file sharing, so the picker opens inside a location where there is no Cancel at all. Relaunching is the
   /// reset that does not depend on the picker's location.
   func testTheImportButtonsOpenAPicker() {
-    assertAPickerOpens(menu: "配置库", button: "导入")
+    assertAPickerOpens(menu: "配置库", button: "profile-file-import-button")
     assertAPickerOpens(menu: "配置库", button: "导入设置…")
     assertAPickerOpens(menu: "用户词库", button: "选择同步文件夹…")
   }

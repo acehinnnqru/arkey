@@ -54,15 +54,6 @@ struct ProfileLibraryView: View {
     .navigationTitle(RimeLocalization.text("Profile library"))
     .accessibilityIdentifier("profile-library")
     .toolbar {
-      ToolbarItem(placement: .topBarLeading) {
-        Button {
-          pickKind = .profile
-          isPicking = true
-        } label: {
-          Label(RimeLocalization.text("Import"), systemImage: "square.and.arrow.down")
-        }
-        .disabled(model.isDeploying || model.isImporting || model.isDownloading)
-      }
       ToolbarItem(placement: .topBarTrailing) {
         if model.isImporting {
           ProgressView().accessibilityLabel(RimeLocalization.text("Importing profile"))
@@ -202,6 +193,7 @@ struct ProfileLibraryView: View {
       } label: {
         Label(RimeLocalization.text("Import ZIP from Files"), systemImage: "doc.zipper")
       }
+      .accessibilityIdentifier("profile-file-import-button")
       .disabled(model.isDeploying || model.isImporting || model.isDownloading)
       Button {
         showingURLImport = true

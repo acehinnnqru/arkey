@@ -24,7 +24,9 @@ final class ImportPickerTests: XCTestCase {
     let file = try exportASettingsArchive(app)
 
     openProfileLibrary(app)
-    app.buttons["导入"].firstMatch.tap()
+    let profileImport = app.buttons["profile-file-import-button"].firstMatch
+    XCTAssertTrue(profileImport.waitForExistence(timeout: 10), "no profile file import button")
+    profileImport.tap()
     try choose(file, in: app)
 
     let answer = self.answer(app, beginningWith: "导入失败")
