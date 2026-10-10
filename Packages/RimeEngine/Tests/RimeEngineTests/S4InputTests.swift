@@ -207,7 +207,7 @@ final class S4InputTests: XCTestCase {
     _ = try type("nihao", into: driver)
     let edited = try driver.handle(.backspace)
     XCTAssertEqual(edited.effect, .composing)
-    XCTAssertEqual(edited.markedText, "niha")
+    XCTAssertEqual(edited.markedText, "ni ha")
     XCTAssertFalse(edited.deleteBackward)
 
     // Back to the start of the composition.

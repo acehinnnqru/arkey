@@ -20,9 +20,18 @@ struct RimeCompositionDisplay {
     let split = composition.selectionStart
     guard (0...bytes.count).contains(split),
           let prefix = String(bytes: bytes[..<split], encoding: .utf8),
-          let remaining = String(bytes: bytes[split...], encoding: .utf8) else {
+          var remaining = String(bytes: bytes[split...], encoding: .utf8) else {
       self = Self()
       return preedit
+    }
+
+    // Undoing a selection can leave an untranslated tail directly after the active segment
+    // (for example, "ni haoaa"). Rime still reports that boundary in UTF-8 bytes.
+    let end = composition.selectionEnd
+    if end > split, end < bytes.count,
+       let active = String(bytes: bytes[split..<end], encoding: .utf8),
+       let tail = String(bytes: bytes[end...], encoding: .utf8) {
+      remaining = active + " " + tail
     }
 
     let sameSchema = schemaID == previousSchemaID

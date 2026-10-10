@@ -61,7 +61,9 @@ Rules:
   and prompts fall back to the original keys. The schema-output preference displays the full preedit instead.
   After a partial selection, preserve Rime's converted prefix: `ni hc aa` becomes `你 hc aa`, then
   `你好 aa`. Previously validated raw boundaries identify the remaining keys; if those boundaries are
-  unavailable, preserve the engine's prefix and remaining preedit. Display spaces
+  unavailable, preserve the engine's prefix and remaining preedit. Use the engine's selection-end
+  boundary when the active segment touches an untranslated tail without a separator. Undoing `你好`
+  in `你好 aa` restores `ni hc aa`; the next Backspace displays `ni hc a`. Display spaces
   never enter the raw input or the commit path; Return still commits the engine's raw-input result.
 - The marked range is set with the caret at the end; UIKit draws the underline the native keyboard has.
 - **Mid-composition editing** is in scope for cursor movement only: tapping inside the composition and

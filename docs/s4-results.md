@@ -24,8 +24,14 @@ selecting `你` displays `你 hc aa`, selecting `好` displays `你好 aa`, and 
 UTF-8 length of selected Chinese text. Refresh, continued typing, deletion, cancellation and session
 reset are covered. Return after selecting `你` in `nihc` commits `你hc`, exactly as the engine returns it.
 
+Selecting `你好` directly and pressing Backspace undoes the selection without deleting a key.
+The engine returns `ni haoaa` with `selectionEnd` at byte 6; that boundary separates the active
+segment from the untranslated tail. Original-key display uses it to restore `ni hc aa`, then
+`ni hc a` on the next Backspace. Refresh preserves the spacing, and Return commits `nihca`.
+
 Covered by `testTappingACandidateCommitsWhatLibrimeCommits`,
-`testSelectingFlypyPrefixesKeepsConvertedTextAndRemainingKeysVisible`, and
+`testSelectingFlypyPrefixesKeepsConvertedTextAndRemainingKeysVisible`,
+`testDeletingSelectedPhraseRestoresRawSyllableBoundaries`, and
 `testPartialSelectionSurvivesEditingAndReturnPreservesSelectedPrefix`.
 
 ### S4 §4.1 — punctuation, both halves

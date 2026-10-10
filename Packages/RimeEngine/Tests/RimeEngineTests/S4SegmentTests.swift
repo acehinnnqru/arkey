@@ -188,8 +188,8 @@ final class S4SegmentTests: XCTestCase {
     let index = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "你" })
     XCTAssertEqual(try engine.selectCandidate(at: index).segmentedInput, "你 hc")
     XCTAssertEqual(try engine.processKeys("aa").segmentedInput, "你 hc aa")
-    // With completion disabled the unfinished tail has no usable segmentation; keep the selected text.
-    XCTAssertEqual(try engine.processKey(RimeKey.backSpace).segmentedInput, "你 hca")
+    // The active segment's end separates the unfinished tail even with completion disabled.
+    XCTAssertEqual(try engine.processKey(RimeKey.backSpace).segmentedInput, "你 hc a")
     XCTAssertEqual(try engine.processKey(RimeKey.backSpace).segmentedInput, "你 hc")
     XCTAssertEqual(try engine.processKey(RimeKey.returnKey).commit, "你hc")
 
@@ -202,6 +202,30 @@ final class S4SegmentTests: XCTestCase {
     engine.closeSession()
     try engine.openSession()
     XCTAssertEqual(try engine.processKeys("nihc").segmentedInput, "ni hc")
+  }
+
+  func testDeletingSelectedPhraseRestoresRawSyllableBoundaries() throws {
+    let engine = try engine(doublePinyin: true, expandedPreedit: true)
+    defer { engine.shutdown() }
+    try engine.openSession()
+    let initial = try engine.processKeys("nihcaa")
+    XCTAssertEqual(initial.segmentedInput, "ni hc aa")
+    let index = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "你好" })
+    XCTAssertEqual(try engine.selectCandidate(at: index).segmentedInput, "你好 aa")
+
+    let reverted = try engine.processKey(RimeKey.backSpace)
+    XCTAssertNil(reverted.commit)
+    XCTAssertEqual(reverted.input, "nihcaa")
+    XCTAssertEqual(reverted.preedit, "ni haoaa")
+    XCTAssertEqual(reverted.composition?.selectionEnd, 6)
+    XCTAssertEqual(reverted.segmentedInput, "ni hc aa", String(describing: reverted.composition))
+    XCTAssertEqual(RimeKeyboardPreferences.standard.markedText(for: reverted), "ni hc aa")
+    XCTAssertEqual(RimeKeyboardPreferences(compositionDisplay: .preedit).markedText(for: reverted), "ni haoaa")
+    XCTAssertEqual(try engine.refresh().segmentedInput, "ni hc aa")
+    let deleted = try engine.processKey(RimeKey.backSpace)
+    XCTAssertEqual(deleted.input, "nihca")
+    XCTAssertEqual(deleted.segmentedInput, "ni hc a", String(describing: deleted.composition))
+    XCTAssertEqual(try engine.processKey(RimeKey.returnKey).commit, "nihca")
   }
 
   func testAnUnfinishedSyllableLeavesTheRowEmpty() throws {
