@@ -112,8 +112,8 @@ final class S3AppearanceTests: XCTestCase {
   /// clipped by the candidate slot and the keyboard owes it the difference.
   func testTheCalloutNeverEscapesTheKeyboardAndTheFirstRowIsClipped() throws {
     let bounds = CGRect(x: 0, y: 0, width: 430, height: layout().height)
-    XCTAssertEqual(RimeCalloutGeometry.requiredTopSlot(feedback: feedback), 55)
-    XCTAssertEqual(feedback.calloutSlotShortfall(candidateSlotHeight: 39.7), 15.3, accuracy: 0.01,
+    XCTAssertEqual(RimeCalloutGeometry.requiredTopSlot(feedback: feedback), 64)
+    XCTAssertEqual(feedback.calloutSlotShortfall(candidateSlotHeight: 39.7), 24.3, accuracy: 0.01,
                    "the measured slot cannot hold a full-height callout; the keyboard must grow")
 
     for layer in RimeKeyboardLayer.allCases {
@@ -129,7 +129,7 @@ final class S3AppearanceTests: XCTestCase {
       }
     }
 
-    // The first letter row: 39.7 pt of room, so 39.7 pt of callout rather than 55.
+    // The first letter row: 39.7 pt of room, so 39.7 pt of callout rather than 64.
     let firstRow = try XCTUnwrap(layout().rows.first)
     let firstKey = try XCTUnwrap(firstRow.keys.first)
     let callout = RimeCalloutGeometry.frame(for: firstKey, in: bounds, feedback: feedback)
@@ -142,7 +142,7 @@ final class S3AppearanceTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(RimeCalloutGeometry.availableHeight(for: secondKey, in: bounds),
                                 feedback.calloutMinimumHeight)
     XCTAssertEqual(RimeCalloutGeometry.frame(for: secondKey, in: bounds, feedback: feedback).height,
-                   55, accuracy: 0.01)
+                   64, accuracy: 0.01)
   }
 
   func testTheCalloutIsClampedHorizontallyAtTheEdges() throws {
@@ -150,7 +150,7 @@ final class S3AppearanceTests: XCTestCase {
     let keys = layout().keys
 
     // A letter key sits far enough from the edge that its centred callout needs no clamping.
-    let letter = try XCTUnwrap(keys.first { $0.isCharacter })
+    let letter = try XCTUnwrap(keys.first { $0.kind == .character(.init("e")) })
     let letterCallout = RimeCalloutGeometry.frame(for: letter, in: bounds, feedback: feedback)
     XCTAssertEqual(letterCallout.minX, letter.frame.midX - letterCallout.width / 2, accuracy: 0.01)
 
@@ -171,7 +171,8 @@ final class S3AppearanceTests: XCTestCase {
     let key = try XCTUnwrap(layout().keys.first { $0.kind == .character(.init("q")) })
 
     let centred = RimeCalloutGeometry.frame(for: key, in: bounds, feedback: feedback)
-    XCTAssertEqual(centred.minX, key.frame.midX - centred.width / 2, accuracy: 0.01)
+    XCTAssertEqual(centred.minX, bounds.minX, accuracy: 0.01,
+                   "the enlarged callout for q is clamped to the left edge")
 
     // A finger to the right of the key moves the callout right, still clamped inside.
     let right = RimeCalloutGeometry.frame(for: key, in: bounds, fingerX: key.frame.midX + 60,

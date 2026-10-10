@@ -21,6 +21,7 @@ final class KeyCalloutView: UIView {
     layer.shadowRadius = 2
 
     label.textAlignment = .center
+    label.font = .systemFont(ofSize: 32, weight: .medium)
     label.adjustsFontSizeToFitWidth = true
     label.minimumScaleFactor = 0.5
     label.translatesAutoresizingMaskIntoConstraints = false
@@ -47,6 +48,10 @@ final class KeyCalloutView: UIView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    // The first row has less vertical room; keep the enlarged glyph inside its label.
+    let preferredFont = UIFont.systemFont(ofSize: 32, weight: .medium)
+    let scale = min(1, max(0, label.bounds.height) / preferredFont.lineHeight)
+    label.font = .systemFont(ofSize: max(1, floor(32 * scale)), weight: .medium)
     layer.cornerRadius = RimeKeyFeedback.standard.calloutRadius
     tail.layer.cornerRadius = 1
   }

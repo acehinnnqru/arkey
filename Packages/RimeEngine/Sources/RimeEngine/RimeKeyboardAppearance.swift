@@ -164,8 +164,8 @@ public struct RimeKeyFeedback: Sendable, Equatable {
               deleteRepeatInterval: TimeInterval = 0.1,
               slideOffDistance: CGFloat = 50,
               calloutRadius: CGFloat = 10,
-              calloutMinimumHeight: CGFloat = 55,
-              calloutWidthScale: CGFloat = 1.25,
+              calloutMinimumHeight: CGFloat = 64,
+              calloutWidthScale: CGFloat = 1.6,
               calloutOnPhoneClassOnly: Bool = true,
               calloutForModifierKeys: Bool = false,
               calloutWhileRepeatingDelete: Bool = false) {
@@ -226,14 +226,14 @@ public enum RimeKeyFeedbackPolicy {
 /// An extension cannot draw outside its frame, so this is not a nicety: a callout that escapes is
 /// either clipped by the system or, worse, moves the keyboard's frame. R10's consequence is in
 /// `availableHeight`: on the first letter row the room above the key is the candidate slot, 39.7 pt,
-/// which is **less** than the callout's 55 pt.
+/// which is **less** than the callout's preferred height.
 public enum RimeCalloutGeometry {
   public static func availableHeight(for key: RimeKeyboardKey, in bounds: CGRect) -> CGFloat {
     max(0, key.frame.minY - bounds.minY)
   }
 
   /// The frame the callout is drawn in: above the key where there is room, otherwise as tall as the
-  /// room allows — never outside `bounds`, and never taller than the key's own row.
+  /// room allows — never outside `bounds` or overlapping the key itself.
   ///
   /// `fingerX` makes it follow the finger across the grid (S3 §5): the callout is centred on the
   /// touch rather than on the key, and clamped the same way, so dragging towards an edge slides it to
