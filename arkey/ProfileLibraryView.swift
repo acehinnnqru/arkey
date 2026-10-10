@@ -22,7 +22,13 @@ struct ProfileLibraryView: View {
   }
   @State private var isPicking = false
   @State private var pickKind: ImportKind = .profile
-  @State private var adoptUserData = false
+  private struct UserDataImportConfirmation {
+    let candidates: [RimeUserDataCandidate]
+    let continuation: CheckedContinuation<Bool?, Never>
+  }
+  @State private var pendingUserDataImport: UserDataImportConfirmation?
+  @State private var showingUserDataImportConfirmation = false
+  @State private var fileImportTask: Task<Void, Never>?
   @State private var pendingDeletion: RimeAppModel.LibraryEntry?
   @State private var pendingDictionaryDeletion: RimeAppModel.LibraryEntry?
   @State private var dictionariesToDelete: [String] = []
@@ -66,7 +72,7 @@ struct ProfileLibraryView: View {
     // The union of both kinds' types; the handler refuses what the kind does not accept, which is what a
     // second importer was standing in for. The kind is read here, not from the presentation state.
     .fileImporter(isPresented: $isPicking,
-                  allowedContentTypes: [.zip, .folder],
+                  allowedContentTypes: pickKind == .profile ? [.zip, .folder] : [.zip],
                   allowsMultipleSelection: false) { result in
       switch pickKind {
       case .profile:
@@ -74,6 +80,19 @@ struct ProfileLibraryView: View {
       case .settings:
         handleSettingsImport(result)
       }
+    }
+    .alert(RimeLocalization.text("Import user settings?"),
+           isPresented: $showingUserDataImportConfirmation,
+           presenting: pendingUserDataImport) { _ in
+      Button(RimeLocalization.text("Import with user settings")) { resolveUserDataImport(true) }
+      Button(RimeLocalization.text("Import profile only")) { resolveUserDataImport(false) }
+      Button(RimeLocalization.text("Cancel"), role: .cancel) { resolveUserDataImport(nil) }
+    } message: { confirmation in
+      Text(RimeLocalization.text("This profile contains user settings: \(confirmation.candidates.map(\.relativePath).joined(separator: ", ")). Importing them replaces matching files in your user directory. Include them?"))
+    }
+    .onDisappear {
+      fileImportTask?.cancel()
+      resolveUserDataImport(nil)
     }
     .confirmationDialog(RimeLocalization.text("Delete profile?"),
                         isPresented: Binding(get: { pendingDeletion != nil },
@@ -162,11 +181,13 @@ struct ProfileLibraryView: View {
         Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
       }
       .accessibilityIdentifier("profile-downloads-link")
-      NavigationLink {
-        fileImportView
+      Button {
+        pickKind = .profile
+        isPicking = true
       } label: {
         Label(RimeLocalization.text("Import ZIP from Files"), systemImage: "doc.zipper")
       }
+      .disabled(model.isDeploying || model.isImporting || model.isDownloading)
       NavigationLink {
         zipURLImportView
       } label: {
@@ -177,19 +198,6 @@ struct ProfileLibraryView: View {
     } footer: {
       Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
     }
-  }
-
-  private var fileImportView: some View {
-    Form {
-      Button(RimeLocalization.text("Import ZIP from Files")) {
-        pickKind = .profile
-        isPicking = true
-      }
-      Toggle(RimeLocalization.text("Include user settings when importing (*.custom.yaml, custom_phrase.txt)"), isOn: $adoptUserData)
-        .font(.footnote)
-    }
-    .navigationTitle(RimeLocalization.text("Import ZIP from Files"))
-    .disabled(model.isDeploying || model.isImporting || model.isDownloading)
   }
 
   private var zipURLImportView: some View {
@@ -356,8 +364,22 @@ struct ProfileLibraryView: View {
       model.errorMessage = RimeLocalization.message("Failed to select a file: \(String(describing: error))")
     case .success(let urls):
       guard let url = urls.first else { return }
-      Task { await model.importPayload(at: url, displayName: nil, adoptUserData: adoptUserData) }
+      fileImportTask = Task {
+        await model.importPayload(at: url, displayName: nil, adoptUserData: false) { candidates in
+          guard !Task.isCancelled else { return nil }
+          return await withCheckedContinuation { continuation in
+            pendingUserDataImport = UserDataImportConfirmation(candidates: candidates, continuation: continuation)
+            showingUserDataImportConfirmation = true
+          }
+        }
+      }
     }
+  }
+
+  private func resolveUserDataImport(_ decision: Bool?) {
+    guard let pending = pendingUserDataImport else { return }
+    pendingUserDataImport = nil
+    pending.continuation.resume(returning: decision)
   }
 
   /// The settings import takes a zip and nothing else, which the shared picker has to say for itself.

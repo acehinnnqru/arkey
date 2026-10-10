@@ -467,3 +467,7 @@
 "Installing profile" = "Installing profile";
 "View installed profiles" = "View installed profiles";
 "Download failed" = "Download failed";
+"Import user settings?" = "Import user settings?";
+"Import with user settings" = "Import with user settings";
+"Import profile only" = "Import profile only";
+"This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?" = "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?";

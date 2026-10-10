@@ -284,6 +284,62 @@ final class S1ImportTests: XCTestCase {
       .appendingPathComponent("default.custom.yaml").path))
   }
 
+  func testPreparedZIPWaitsForUserDataDecisionAndImportsTheInspectedSnapshot() throws {
+    let tree = try makeConfigTree()
+    let patch = Data("patch:\n  menu:\n    page_size: 7\n".utf8)
+    var writer = RimeZipWriter()
+    for file in ["default.yaml", "tracer.schema.yaml", "tracer.dict.yaml"] {
+      try writer.addFile(path: "config/" + file, contents: Data(contentsOf: tree.appendingPathComponent(file)))
+    }
+    try writer.addFile(path: "config/default.custom.yaml", contents: patch)
+    let zip = scratch.appendingPathComponent("confirm.zip")
+    try writer.write(to: zip)
+    let target = workspace.userData.appendingPathComponent("default.custom.yaml")
+    let original = Data("patch: {}\n".utf8)
+    try original.write(to: target)
+
+    let prepared = try importer().prepare(payload: zip, options: options())
+    XCTAssertEqual(prepared.userDataCandidates.map(\.relativePath), ["default.custom.yaml"])
+    XCTAssertEqual(try Data(contentsOf: target), original)
+    XCTAssertTrue(try workspace.loadMetadataList().isEmpty)
+
+    // The picker URL is no longer needed after inspection; confirmation uses the same snapshot.
+    try FileManager.default.removeItem(at: zip)
+    var adopting = options()
+    adopting.adoptUserData = true
+    let outcome = try importer().import(prepared: prepared, options: adopting)
+    XCTAssertEqual(try Data(contentsOf: target), patch)
+    XCTAssertEqual(outcome.userDataCandidates.count, 1)
+    XCTAssertEqual(stagingEntryCount(), 0)
+  }
+
+  func testAbandoningPreparedImportRemovesStagingWithoutInstallingAnything() throws {
+    let tree = try makeConfigTree()
+    try Data("patch: {}\n".utf8).write(to: tree.appendingPathComponent("default.custom.yaml"))
+    var prepared: RimePreparedImport? = try importer().prepare(payload: tree, options: options())
+    XCTAssertEqual(prepared?.userDataCandidates.count, 1)
+    XCTAssertEqual(stagingEntryCount(), 1)
+    prepared = nil
+    XCTAssertEqual(stagingEntryCount(), 0)
+    XCTAssertTrue(try workspace.loadMetadataList().isEmpty)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.userData
+      .appendingPathComponent("default.custom.yaml").path))
+  }
+
+  func testImportingPreparedProfileWithoutUserDataKeepsExistingSettings() throws {
+    let tree = try makeConfigTree()
+    try Data("patch:\n  menu:\n    page_size: 7\n".utf8)
+      .write(to: tree.appendingPathComponent("default.custom.yaml"))
+    let target = workspace.userData.appendingPathComponent("default.custom.yaml")
+    let original = Data("patch: {}\n".utf8)
+    try original.write(to: target)
+    let prepared = try importer().prepare(payload: tree, options: options())
+    _ = try importer().import(prepared: prepared, options: options())
+    XCTAssertEqual(try Data(contentsOf: target), original)
+    XCTAssertEqual(try workspace.loadMetadataList().count, 1)
+    XCTAssertEqual(stagingEntryCount(), 0)
+  }
+
   // MARK: Validation
 
   func testValidationNamesEveryBrokenFile() throws {

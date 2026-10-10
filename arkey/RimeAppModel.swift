@@ -306,7 +306,8 @@ final class RimeAppModel: ObservableObject {
   /// The picker hands back a security-scoped URL; the scope is held for the whole pipeline.
   func importPayload(at url: URL, displayName: String?, adoptUserData: Bool,
                      source: RimeProfileSource? = nil, license: RimeProfileLicense? = nil,
-                     removedImportTables: [String] = []) async {
+                     removedImportTables: [String] = [],
+                     confirmUserData: (@MainActor ([RimeUserDataCandidate]) async -> Bool?)? = nil) async {
     guard !isImporting, !isDeploying, !isDownloading || source?.kind == .download else {
       errorMessage = RimeLocalization.message("Wait for the current download, import, or deployment to finish.")
       return
@@ -322,17 +323,32 @@ final class RimeAppModel: ObservableObject {
     let engine = self.engine
     let bundledSharedData = self.bundledSharedData
     let outcome: RimeImportOutcome
+    var includedUserData = adoptUserData
     do {
+      var options = RimeImportOptions(
+        displayName: displayName ?? url.deletingPathExtension().lastPathComponent,
+        tag: source?.releaseTag,
+        origin: source ?? RimeProfileSource(kind: .files, url: url.absoluteString, retrievedAt: Date()),
+        license: license ?? RimeProfileLicense.unknown,
+        adoptUserData: adoptUserData, removedImportTables: removedImportTables)
+      let preparationOptions = options
+      let prepared = try await Task.detached(priority: .userInitiated) {
+        try RimeImporter(workspace: workspace, engine: engine).prepare(payload: url, options: preparationOptions)
+      }.value
+      try Task.checkCancellation()
+      if let confirmUserData, !prepared.userDataCandidates.isEmpty {
+        guard let decision = await confirmUserData(prepared.userDataCandidates) else { return }
+        includedUserData = decision
+        options.adoptUserData = decision
+      }
+      try Task.checkCancellation()
+      let importOptions = options
       outcome = try await Task.detached(priority: .userInitiated) {
         return try RimeImporter(workspace: workspace, engine: engine).import(
-          payload: url,
-          options: RimeImportOptions(
-            displayName: displayName ?? url.deletingPathExtension().lastPathComponent,
-            tag: source?.releaseTag,
-            origin: source ?? RimeProfileSource(kind: .files, url: url.absoluteString, retrievedAt: Date()),
-            license: license ?? RimeProfileLicense.unknown,
-            adoptUserData: adoptUserData, removedImportTables: removedImportTables))
+          prepared: prepared, options: importOptions)
       }.value
+    } catch is CancellationError {
+      return
     } catch {
       errorMessage = RimeLocalization.message("Import failed: \(String(describing: error))")
       return
@@ -341,7 +357,7 @@ final class RimeAppModel: ObservableObject {
     importResultProfileID = outcome.metadata.id
     importWarnings = outcome.warnings.map { RimeLocalizedMessage(verbatim: $0.description) }
     if !outcome.userDataCandidates.isEmpty {
-      importWarnings.append(RimeLocalization.message("Found user settings: \(String(outcome.userDataCandidates.count)) files: \(outcome.userDataCandidates.map(\.relativePath).joined(separator: ", "))\((adoptUserData ? RimeLocalization.message(" (imported)") : RimeLocalization.message(" (kept in profile; not copied to user directory)")))"))
+      importWarnings.append(RimeLocalization.message("Found user settings: \(String(outcome.userDataCandidates.count)) files: \(outcome.userDataCandidates.map(\.relativePath).joined(separator: ", "))\((includedUserData ? RimeLocalization.message(" (imported)") : RimeLocalization.message(" (kept in profile; not copied to user directory)")))"))
     }
     if outcome.generatedDefaultYAML != nil {
       importWarnings.append(RimeLocalization.message("This profile has no default.yaml; generated one containing \(String(outcome.metadata.stats.schemaIDs.count)) schemes"))

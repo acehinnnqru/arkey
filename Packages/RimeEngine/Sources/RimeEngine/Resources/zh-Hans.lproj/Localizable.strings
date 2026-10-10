@@ -467,3 +467,7 @@
 "Installing profile" = "正在安装配置";
 "View installed profiles" = "查看已安装的配置";
 "Download failed" = "下载失败";
+"Import user settings?" = "导入用户配置？";
+"Import with user settings" = "一并导入用户配置";
+"Import profile only" = "仅导入方案";
+"This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?" = "此配置包含用户配置文件：{0}。导入后会替换用户目录中的同名文件。是否一并导入？";

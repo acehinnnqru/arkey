@@ -132,6 +132,61 @@ final class RimeAppModelTests: XCTestCase {
       atPath: model.workspace.profile(profile.id).build.path), "no build was written")
   }
 
+  func testFileImportAsksBeforeInstallingOrCopyingUserSettings() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    let source = try makeSourceFolder()
+    let filename = "confirmation-" + UUID().uuidString + ".custom.yaml"
+    let target = model.workspace.userData.appendingPathComponent(filename)
+    let contents = Data("patch: {}\n".utf8)
+    try contents.write(to: source.appendingPathComponent(filename))
+    userFiles = [target]
+    var decisions = 0
+    await model.importPayload(at: source, displayName: "Confirmed file import", adoptUserData: false) { candidates in
+      decisions += 1
+      XCTAssertEqual(candidates.map(\.relativePath), [filename])
+      XCTAssertTrue(model.isImporting)
+      XCTAssertFalse(model.profiles.contains { $0.displayName == "Confirmed file import" })
+      XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+      return true
+    }
+    imported = model.profiles.first { $0.displayName == "Confirmed file import" }?.id
+    XCTAssertEqual(decisions, 1)
+    XCTAssertNil(model.errorMessage)
+    XCTAssertNotNil(imported)
+    XCTAssertEqual(try Data(contentsOf: target), contents)
+    XCTAssertFalse(model.isImporting)
+  }
+
+  func testCancellingUserSettingsConfirmationAbandonsTheImport() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    let source = try makeSourceFolder()
+    let filename = "confirmation-" + UUID().uuidString + ".custom.yaml"
+    try Data("patch: {}\n".utf8).write(to: source.appendingPathComponent(filename))
+    let existingIDs = model.profiles.map(\.id)
+    await model.importPayload(at: source, displayName: "Cancelled file import", adoptUserData: false) { _ in nil }
+    imported = model.profiles.first { $0.displayName == "Cancelled file import" }?.id
+    XCTAssertNil(imported)
+    XCTAssertEqual(model.profiles.map(\.id), existingIDs)
+    XCTAssertNil(model.errorMessage)
+    XCTAssertFalse(model.isImporting)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: model.workspace.userData.appendingPathComponent(filename).path))
+    XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: model.workspace.staging.path).isEmpty)
+  }
+
+  func testFileImportWithoutUserSettingsSkipsConfirmation() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    await model.importPayload(at: try makeSourceFolder(), displayName: "Plain file import", adoptUserData: false) { _ in
+      XCTFail("a profile without user settings must import without another prompt")
+      return nil
+    }
+    imported = model.profiles.first { $0.displayName == "Plain file import" }?.id
+    XCTAssertNotNil(imported)
+    XCTAssertNil(model.errorMessage)
+  }
+
   func testDeletingADownloadedProfileClearsInstallationAndDeploymentState() async throws {
     let model = RimeAppModel()
     await model.bootstrap()

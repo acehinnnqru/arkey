@@ -307,11 +307,30 @@ public enum RimeImportError: Error, CustomStringConvertible, Sendable {
   }
 }
 
-/// S1 §5.1's pipeline, one path for every entry point.
-///
-/// Nothing is written outside `staging/` until the last stage, and staging is removed on every
-/// exit — including the failing ones, which is what makes a failed import something the user can
-/// simply retry.
+/// A staged snapshot held while the caller asks whether to include its user settings.
+/// Its immutable paths and classification cross tasks; the file manager is used only for cleanup
+/// after the final owner releases the snapshot, never concurrently through this object.
+public final class RimePreparedImport: @unchecked Sendable {
+  fileprivate let staging: URL
+  fileprivate let root: URL
+  fileprivate let classification: RimeTreeClassification
+  private let fileManager: FileManager
+
+  public var userDataCandidates: [RimeUserDataCandidate] { classification.userData }
+
+  fileprivate init(staging: URL, root: URL, classification: RimeTreeClassification,
+                   fileManager: FileManager) {
+    self.staging = staging
+    self.root = root
+    self.classification = classification
+    self.fileManager = fileManager
+  }
+
+  deinit { try? fileManager.removeItem(at: staging) }
+}
+
+/// S1 §5.1's pipeline, one path for every entry point. Nothing is installed until the last stage,
+/// and staging is removed on success, failure, or when the prepared snapshot is abandoned.
 public struct RimeImporter {
   public let workspace: RimeWorkspace
   public let engine: RimeEngine
@@ -324,10 +343,18 @@ public struct RimeImporter {
   }
 
   public func `import`(payload: URL, options: RimeImportOptions) throws -> RimeImportOutcome {
+    let prepared = try prepare(payload: payload, options: options)
+    return try self.import(prepared: prepared, options: options)
+  }
+
+  /// Unpack and classify without installing a profile or applying user settings. The prepared
+  /// snapshot owns its staging directory until the caller finishes or abandons the import.
+  public func prepare(payload: URL, options: RimeImportOptions) throws -> RimePreparedImport {
     try workspace.createDirectories(fileManager: fileManager)
     let staging = workspace.staging.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
-    defer { try? fileManager.removeItem(at: staging) }
+    var preparedSuccessfully = false
+    defer { if !preparedSuccessfully { try? fileManager.removeItem(at: staging) } }
 
     // 1 and 2. Acquire and unpack. The caller holds any security-scoped access; by the time we are
     // here the payload is a plain file URL.
@@ -344,6 +371,17 @@ public struct RimeImporter {
       }
       throw RimeImportError.configRootNotFound
     }
+
+    preparedSuccessfully = true
+    return RimePreparedImport(staging: staging, root: root, classification: classification,
+                              fileManager: fileManager)
+  }
+
+  public func `import`(prepared: RimePreparedImport, options: RimeImportOptions) throws -> RimeImportOutcome {
+    let staging = prepared.staging
+    let root = prepared.root
+    let classification = prepared.classification
+    defer { try? fileManager.removeItem(at: staging) }
 
     // 5 and 6. Materialise the profile half, then ask librime whether it will load.
     let source = staging.appendingPathComponent("source", isDirectory: true)
