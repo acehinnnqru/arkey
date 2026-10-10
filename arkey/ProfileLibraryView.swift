@@ -29,6 +29,8 @@ struct ProfileLibraryView: View {
   @State private var pendingUserDataImport: UserDataImportConfirmation?
   @State private var showingUserDataImportConfirmation = false
   @State private var fileImportTask: Task<Void, Never>?
+  @State private var isVisible = false
+  @State private var showingURLImport = false
   @State private var pendingDeletion: RimeAppModel.LibraryEntry?
   @State private var pendingDictionaryDeletion: RimeAppModel.LibraryEntry?
   @State private var dictionariesToDelete: [String] = []
@@ -81,6 +83,18 @@ struct ProfileLibraryView: View {
         handleSettingsImport(result)
       }
     }
+    .alert(RimeLocalization.text("Download ZIP from URL"), isPresented: $showingURLImport) {
+      TextField(RimeLocalization.text("HTTPS ZIP download URL"), text: $zipDownloadURL)
+        .keyboardType(.URL)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .accessibilityIdentifier("zip-download-url")
+      Button(RimeLocalization.text("Download")) {
+        model.startDownload(zipURL: zipDownloadURL, confirmUserData: confirmUserDataImport)
+      }
+      .disabled(zipDownloadURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      Button(RimeLocalization.text("Cancel"), role: .cancel) {}
+    }
     .alert(RimeLocalization.text("Import user settings?"),
            isPresented: $showingUserDataImportConfirmation,
            presenting: pendingUserDataImport) { _ in
@@ -90,7 +104,9 @@ struct ProfileLibraryView: View {
     } message: { confirmation in
       Text(RimeLocalization.text("This profile contains user settings: \(confirmation.candidates.map(\.relativePath).joined(separator: ", ")). Importing them replaces matching files in your user directory. Include them?"))
     }
+    .onAppear { isVisible = true }
     .onDisappear {
+      isVisible = false
       fileImportTask?.cancel()
       resolveUserDataImport(nil)
     }
@@ -188,35 +204,18 @@ struct ProfileLibraryView: View {
         Label(RimeLocalization.text("Import ZIP from Files"), systemImage: "doc.zipper")
       }
       .disabled(model.isDeploying || model.isImporting || model.isDownloading)
-      NavigationLink {
-        zipURLImportView
+      Button {
+        showingURLImport = true
       } label: {
         Label(RimeLocalization.text("Download ZIP from URL"), systemImage: "link")
       }
+      .accessibilityIdentifier("profile-url-import-button")
+      .disabled(model.isDeploying || model.isImporting || model.isDownloading)
     } header: {
       Text(RimeLocalization.text("Add profiles"))
     } footer: {
       Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
     }
-  }
-
-  private var zipURLImportView: some View {
-    Form {
-      Section {
-        TextField(RimeLocalization.text("HTTPS ZIP download URL"), text: $zipDownloadURL)
-          .keyboardType(.URL)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled()
-          .accessibilityIdentifier("zip-download-url")
-        Button(RimeLocalization.text("Download ZIP from URL")) {
-          model.startDownload(zipURL: zipDownloadURL)
-        }
-        .disabled(zipDownloadURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      }
-      .disabled(model.isDeploying || model.isImporting || model.isDownloading)
-      downloadStatusSection
-    }
-    .navigationTitle(RimeLocalization.text("Download ZIP from URL"))
   }
 
   @ViewBuilder
@@ -365,14 +364,17 @@ struct ProfileLibraryView: View {
     case .success(let urls):
       guard let url = urls.first else { return }
       fileImportTask = Task {
-        await model.importPayload(at: url, displayName: nil, adoptUserData: false) { candidates in
-          guard !Task.isCancelled else { return nil }
-          return await withCheckedContinuation { continuation in
-            pendingUserDataImport = UserDataImportConfirmation(candidates: candidates, continuation: continuation)
-            showingUserDataImportConfirmation = true
-          }
-        }
+        await model.importPayload(at: url, displayName: nil, adoptUserData: false,
+                                  confirmUserData: confirmUserDataImport)
       }
+    }
+  }
+
+  private func confirmUserDataImport(_ candidates: [RimeUserDataCandidate]) async -> Bool? {
+    guard isVisible, !Task.isCancelled else { return nil }
+    return await withCheckedContinuation { continuation in
+      pendingUserDataImport = UserDataImportConfirmation(candidates: candidates, continuation: continuation)
+      showingUserDataImportConfirmation = true
     }
   }
 

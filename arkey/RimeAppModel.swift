@@ -379,7 +379,8 @@ final class RimeAppModel: ObservableObject {
   }
 
   /// Acquisition installs a separate library entry. It never calls deployment or activation.
-  func startDownload(entry: RimeCatalogEntry? = nil, zipURL: String? = nil) {
+  func startDownload(entry: RimeCatalogEntry? = nil, zipURL: String? = nil,
+                     confirmUserData: (@MainActor ([RimeUserDataCandidate]) async -> Bool?)? = nil) {
     guard !isDownloading, !isImporting, !isDeploying else { return }
     clearDownloadStatus()
     importWarnings = []
@@ -452,10 +453,15 @@ final class RimeAppModel: ObservableObject {
         let name = entry.map { "Rime Ice " + $0.id.replacingOccurrences(of: "rime-ice-", with: "") }
           ?? requested.deletingPathExtension().lastPathComponent
         await importPayload(at: payload, displayName: name, adoptUserData: false,
-          source: origin, license: entry?.license, removedImportTables: entry?.removedImportTables ?? [])
-        if errorMessage == nil {
+          source: origin, license: entry?.license, removedImportTables: entry?.removedImportTables ?? [],
+          confirmUserData: confirmUserData)
+        try Task.checkCancellation()
+        if errorMessage == nil, downloadResultProfileID != nil {
           downloadPhase = .installed
           downloadMessage = RimeLocalization.message("Installed in Profile library. Deploy it separately when ready. The active profile has not changed.")
+        } else if errorMessage == nil {
+          downloadPhase = .cancelled
+          downloadMessage = RimeLocalization.message("Download cancelled.")
         } else {
           downloadPhase = .failed
           downloadMessage = RimeLocalization.message("Download completed, but installation failed.")

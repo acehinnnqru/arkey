@@ -187,6 +187,46 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertNil(model.errorMessage)
   }
 
+  func testDownloadedZIPConfirmsCustomSettingsBeforeInstallation() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    let source = try makeSourceFolder()
+    let filename = "download-confirmation-" + UUID().uuidString + ".custom.yaml"
+    let contents = Data("patch: {}\n".utf8)
+    let target = model.workspace.userData.appendingPathComponent(filename)
+    userFiles = [target]
+    var writer = RimeZipWriter()
+    for file in ["default.yaml", "tracer.schema.yaml", "tracer.dict.yaml"] {
+      try writer.addFile(path: file, contents: Data(contentsOf: source.appendingPathComponent(file)))
+    }
+    try writer.addFile(path: filename, contents: contents)
+    let payload = source.appendingPathComponent("download.zip")
+    try writer.write(to: payload)
+    let origin = RimeProfileSource(kind: .download, url: "https://example.com/profile.zip")
+
+    await model.importPayload(at: payload, displayName: "Cancelled URL import", adoptUserData: false,
+                              source: origin) { _ in nil }
+    XCTAssertNil(model.downloadResultProfileID)
+    XCTAssertFalse(model.profiles.contains { $0.displayName == "Cancelled URL import" })
+    XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+
+    var confirmations = 0
+    await model.importPayload(at: payload, displayName: "Confirmed URL import", adoptUserData: false,
+                              source: origin) { candidates in
+      confirmations += 1
+      XCTAssertEqual(candidates.map(\.relativePath), [filename])
+      XCTAssertNil(model.downloadResultProfileID)
+      XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+      return true
+    }
+    imported = model.profiles.first { $0.displayName == "Confirmed URL import" }?.id
+    XCTAssertEqual(confirmations, 1)
+    XCTAssertNotNil(imported)
+    XCTAssertEqual(model.downloadResultProfileID, imported)
+    XCTAssertEqual(try Data(contentsOf: target), contents)
+    XCTAssertNil(model.errorMessage)
+  }
+
   func testDeletingADownloadedProfileClearsInstallationAndDeploymentState() async throws {
     let model = RimeAppModel()
     await model.bootstrap()

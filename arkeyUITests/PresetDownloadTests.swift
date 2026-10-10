@@ -1,6 +1,26 @@
 import XCTest
 
 final class PresetDownloadTests: XCTestCase {
+  func testURLImportOpensAnInputAlertAndCancelKeepsTheLibraryOpen() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launch()
+    app.openSettingsPage("配置库")
+    app.buttons["profile-url-import-button"].tap()
+    let alert = app.alerts["从链接下载 ZIP"]
+    XCTAssertTrue(alert.waitForExistence(timeout: 5))
+    let field = alert.textFields["zip-download-url"]
+    XCTAssertTrue(field.exists)
+    XCTAssertFalse(alert.buttons["下载"].isEnabled)
+    field.tap()
+    field.typeText("https://example.com/profile.zip")
+    XCTAssertTrue(alert.buttons["下载"].isEnabled)
+    alert.buttons["取消"].tap()
+    XCTAssertFalse(alert.exists)
+    XCTAssertTrue(app.navigationBars["配置库"].exists)
+    XCTAssertFalse(app.staticTexts["下载状态"].exists)
+  }
+
   func testProfileLibraryOwnsDownloadNavigation() {
     continueAfterFailure = false
     let app = XCUIApplication()
