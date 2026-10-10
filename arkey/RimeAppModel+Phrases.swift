@@ -14,12 +14,26 @@ extension RimeAppModel {
     workspace.userData.appendingPathComponent("custom_phrase.txt")
   }
 
-  func refreshCustomPhrases() {
+  func refreshCustomPhrases() async {
+    let url = customPhraseURL
+    let revision = configurationRevision
     do {
-      let result = try RimeCustomPhraseFile.load(from: customPhraseURL)
+      let result = try await Task.detached(priority: .userInitiated) {
+        try RimeCustomPhraseFile.load(from: url)
+      }.value
+      guard !Task.isCancelled else { return }
+      if revision != configurationRevision {
+        await refreshCustomPhrases()
+        return
+      }
       customPhrases = result.phrases
       rejectedPhraseLines = result.rejected
     } catch {
+      guard !Task.isCancelled else { return }
+      if revision != configurationRevision {
+        await refreshCustomPhrases()
+        return
+      }
       customPhrases = []
       rejectedPhraseLines = []
       errorMessage = "读取自定义短语失败：" + String(describing: error)
@@ -29,11 +43,12 @@ extension RimeAppModel {
   /// Writes the whole file and deploys: a phrase that is not deployed does not exist as far as the
   /// keyboard is concerned.
   func saveCustomPhrases(_ phrases: [RimeCustomPhrase]) async {
+    configurationRevision += 1
     do {
       try RimeCustomPhraseFile.save(phrases, to: customPhraseURL)
       customPhrases = phrases
       await deploy(profileID: activeProfileID ?? profiles.first?.id ?? "")
-      refreshCustomPhrases()
+      await refreshCustomPhrases()
     } catch {
       errorMessage = "写入自定义短语失败：" + String(describing: error)
     }

@@ -5,16 +5,18 @@ import RimeEngine
 /// schema rather than hard-coded per screen.
 struct SchemaSettingsView: View {
   @ObservedObject var model: RimeAppModel
+  @State private var isLoading = true
 
   var body: some View {
     List {
+      if isLoading { ProgressView("Loading settings…") }
       schemaSection
       if let descriptor = model.schemaDescriptor {
         switchSection(descriptor)
         inputSection(descriptor)
         fuzzySection
         footerSection(descriptor)
-      } else {
+      } else if !isLoading {
         Section {
           Text("还没有可设置的方案。先到配置库导入并部署一个配置。")
             .font(.footnote)
@@ -23,13 +25,18 @@ struct SchemaSettingsView: View {
       }
       if let error = model.errorMessage { errorSection(error) }
     }
+    .disabled(isLoading)
     .navigationTitle("方案")
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button("刷新") { model.refreshSettings() }
+        Button("刷新") { Task { await model.refreshSettings() } }
       }
     }
-    .task { model.refreshSettings() }
+    .task {
+      isLoading = true
+      await model.refreshSettings()
+      isLoading = false
+    }
   }
 
   // MARK: Sections

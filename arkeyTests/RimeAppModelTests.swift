@@ -15,6 +15,59 @@ final class RimeAppModelTests: XCTestCase {
   private var userFiles: [URL] = []
   private var exports: [URL] = []
 
+  /// A busy engine must delay page data, never the main actor that animates navigation.
+  func testSettingsPageReadsKeepTheMainActorResponsive() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    let engine = model.engine
+    let readers: [(String, @MainActor () async -> Void)] = [
+      ("schema", { await model.refreshSettings() }),
+      ("keyboard", { await model.refreshPreferences() }),
+      ("keys", { await model.refreshKeyBindings() }),
+      ("dictionaries", { await model.refreshDictionariesInBackground() }),
+    ]
+    for (name, load) in readers {
+      let engineHeld = expectation(description: name + " engine held")
+      let release = DispatchSemaphore(value: 0)
+      let blocker = Task.detached {
+        try engine.withConfig("default") { _ in
+          engineHeld.fulfill()
+          // A bounded wait also lets the old blocking implementation fail without deadlocking the test.
+          _ = release.wait(timeout: .now() + 2)
+        }
+      }
+      await fulfillment(of: [engineHeld], timeout: 5)
+      let started = expectation(description: name + " read started")
+      let begin = Date()
+      let read = Task { @MainActor in
+        started.fulfill()
+        await load()
+      }
+      await fulfillment(of: [started], timeout: 5)
+      // The punctuation body must also remain a memory-only read while librime is busy.
+      _ = model.currentPunctuationPreset
+      _ = model.punctuationChoices
+      _ = model.syncDisabledReason
+      _ = model.libraryEntries
+      let mainActorDelay = Date().timeIntervalSince(begin)
+      release.signal()
+      await read.value
+      try await blocker.value
+      XCTAssertLessThan(mainActorDelay, 0.5, name + " blocked navigation on the engine queue")
+    }
+    XCTAssertFalse(model.schemaRows.isEmpty, "the background read never published the schema rows")
+  }
+
+  func testCancelledSettingsPageReadDoesNotPublishItsSnapshot() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    model.schemaRows = ["cached-row"]
+    let read = Task { @MainActor in await model.refreshSettings() }
+    read.cancel()
+    await read.value
+    XCTAssertEqual(model.schemaRows, ["cached-row"])
+  }
+
   override func tearDownWithError() throws {
     let model = RimeAppModel()
     if let imported {
@@ -109,7 +162,7 @@ final class RimeAppModelTests: XCTestCase {
     // only thing that makes the change real.
     await model.waitForSettingsWrites()
     XCTAssertNil(model.errorMessage, "the write reported: " + (model.errorMessage ?? ""))
-    model.refreshSettings()
+    await model.refreshSettings()
     XCTAssertFalse(model.schemaOrderIDs.contains(schema),
                    "the change was written and never deployed: "
                      + model.schemaOrderIDs.joined(separator: ", "))
@@ -131,7 +184,7 @@ final class RimeAppModelTests: XCTestCase {
 
     await model.waitForSettingsWrites()
     XCTAssertNil(model.errorMessage, "the writes reported: " + (model.errorMessage ?? ""))
-    model.refreshSettings()
+    await model.refreshSettings()
     XCTAssertTrue(model.schemaOrderIDs.contains(schema),
                   "the last tap never reached the deployed configuration: "
                     + model.schemaOrderIDs.joined(separator: ", "))
@@ -159,7 +212,7 @@ final class RimeAppModelTests: XCTestCase {
                                   + model.profiles.map { $0.displayName }.joined(separator: ", "))
     imported = profile.id
     await model.deploy(profileID: profile.id)
-    model.refreshSettings()
+    await model.refreshSettings()
     return profile
   }
 
@@ -287,7 +340,7 @@ final class RimeAppModelTests: XCTestCase {
       XCTAssertNil(model.errorMessage, "the write reported: " + (model.errorMessage ?? ""))
       XCTAssertEqual(model.keyboardPreferences.paletteMode, .fixed,
                      "the settings were not saved through the app group")
-      model.resetPreferences()
+      await model.resetPreferences()
     }
     XCTAssertEqual(model.settingsFooter, .unchanged,
                    "a keyboard setting asked for a deploy: " + String(describing: model.settingsFooter))

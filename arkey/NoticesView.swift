@@ -28,7 +28,7 @@ struct NoticesView: View {
         }
       }
     }
-    .task { model.refreshNotices() }
+    .task { await model.refreshNotices() }
   }
 
   private var text: String {

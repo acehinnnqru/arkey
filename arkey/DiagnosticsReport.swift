@@ -3,7 +3,7 @@ import RimeEngine
 
 enum DiagnosticsReport {
   /// Fold older per-frame traces for display/export without deleting the raw log.
-  static func compact(_ records: [RimeProbeRecord]) -> [RimeProbeRecord] {
+  nonisolated static func compact(_ records: [RimeProbeRecord]) -> [RimeProbeRecord] {
     var result: [RimeProbeRecord] = []
     var legacy: [String: (count: Int, first: RimeProbeRecord, last: RimeProbeRecord)] = [:]
     for record in records {

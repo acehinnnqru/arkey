@@ -10,10 +10,12 @@ struct CustomPhraseView: View {
   @State private var newCode = ""
   @State private var newWeight = ""
   @State private var isImporting = false
+  @State private var isLoading = true
   @State private var mergeStrategy: RimeCustomPhraseMerge = .appendNew
 
   var body: some View {
     List {
+      if isLoading { ProgressView("Loading phrases…") }
       Section {
         TextField("词条（例如 你好）", text: $newText)
         TextField("编码（例如 ni hao）", text: $newCode)
@@ -81,6 +83,7 @@ struct CustomPhraseView: View {
         UserFacing.errorRow(error)
       }
     }
+    .disabled(isLoading)
     .navigationTitle("自定义短语")
     .fileImporter(isPresented: $isImporting, allowedContentTypes: [.plainText, .text],
                   allowsMultipleSelection: false) { result in
@@ -92,7 +95,11 @@ struct CustomPhraseView: View {
         Task { await model.importCustomPhrases(from: url, strategy: mergeStrategy) }
       }
     }
-    .task { model.refreshCustomPhrases() }
+    .task {
+      isLoading = true
+      await model.refreshCustomPhrases()
+      isLoading = false
+    }
   }
 
   /// Built in steps: as one expression the type checker gives up on it.

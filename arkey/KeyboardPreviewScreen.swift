@@ -20,7 +20,7 @@ struct KeyboardPreviewScreen: View {
       .padding()
     }
     .navigationTitle("键盘预览")
-    .onAppear { model.refreshPreferences() }
+    .task { await model.refreshPreferences() }
   }
 }
 

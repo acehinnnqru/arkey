@@ -8,18 +8,22 @@ private struct DictionarySnapshot: Sendable {
   let report: RimeUserDictionaryReport?
   let backups: [String: [URL]]
   let error: String?
+  let syncDisabledReason: String?
 
   nonisolated static func load(workspace: RimeWorkspace, engine: RimeEngine) -> Self {
     let service = RimeSyncService(workspace: workspace, engine: engine)
     let choice = workspace.loadSyncChoice()
+    let reason = RimeAppModel.dictionarySyncDisabledReason(engine: engine)
     do {
       let report = try service.report()
       let backups = Dictionary(uniqueKeysWithValues: report.dictionaries.map { entry in
         (entry.name, service.backups(for: entry.name))
       })
-      return Self(choice: choice, report: report, backups: backups, error: nil)
+      return Self(choice: choice, report: report, backups: backups, error: nil,
+                  syncDisabledReason: reason)
     } catch {
-      return Self(choice: choice, report: nil, backups: [:], error: String(describing: error))
+      return Self(choice: choice, report: nil, backups: [:], error: String(describing: error),
+                  syncDisabledReason: reason)
     }
   }
 }
@@ -39,47 +43,51 @@ extension RimeAppModel {
     return schemas.first
   }
 
-  /// Reads the configuration back into the state the 方案 screen draws.
-  ///
-  /// Called when the screen opens, by its 刷新 button, and after every settings write — never from a body
-  /// pass. Every read here is a synchronous call on the engine's queue, and a deploy holds that queue for its
-  /// whole duration, so a body pass that made one would freeze the screen for the length of that deploy. That
-  /// is the half of the reported 方案的开关特别卡 that has nothing to do with the switch itself.
-  ///
-  /// A choice that has been made and not deployed yet is laid back over that answer: it is what the user last
-  /// said, the footer says it is waiting, and without it a redraw in the middle of a deploy would put the
-  /// control back where the engine still is.
-  func refreshSettings() {
-    // Every read below is a synchronous call on the engine's queue, and a deploy holds that queue for its whole
-    // duration — so a read asked for while one runs waits for it, on the main actor. That is the freeze the 方案
-    // switches were reported as, and it is reachable without touching a switch: the screen's own `.task` runs
-    // when it is entered, and 刷新 is a button. The values would be out of date by the time the deploy ended in
-    // any case, so the screen keeps what it has and the deploy that refused the read hands it the answer.
+  /// A SwiftUI task inherits the main actor; only the detached read may wait on librime or disk.
+  /// Pending choices are applied to the snapshot before it becomes visible.
+  func refreshSettings() async {
+    guard deployInFlight == nil else {
+      settingsRefreshDeferred = true
+      return
+    }
+    let readID = UUID()
+    settingsReadID = readID
+    let revision = configurationRevision
+    let engine = self.engine
+    let source = settingsSource
+    let punctuationSource = activeProfileID.map { workspace.profile($0).source }
+    let snapshot = await Task.detached(priority: .userInitiated) {
+      RimeSettingsSnapshot.load(engine: engine, source: source, punctuationSource: punctuationSource)
+    }.value
+    guard !Task.isCancelled, settingsReadID == readID else { return }
+    if configurationRevision != revision {
+      await refreshSettings()
+      return
+    }
     guard deployInFlight == nil else {
       settingsRefreshDeferred = true
       return
     }
     settingsRefreshDeferred = false
+    applySettingsSnapshot(snapshot)
+  }
 
-    schemas = (try? engine.schemaIDs()) ?? []
-    let editor = schemaListEditor()
-    let deployedOrder = (try? editor.effective()) ?? []
-    let offered = (try? editor.available()) ?? installedSchemaIDs
-    schemaRows = offered + deployedOrder.filter { !offered.contains($0) }
+  private var settingsSource: URL? {
+    (activeProfileID ?? profiles.first?.id).map { workspace.profile($0).source }
+  }
 
-    var descriptor: RimeSchemaDescriptor?
-    let schemaID = settingsSchemaID
-    if let schemaID {
-      do {
-        descriptor = try RimeSettingsModel.describeSchema(schemaID, engine: engine)
-      } catch {
-        descriptor = nil
-        errorMessage = "读取方案设置失败：" + String(describing: error)
-      }
+  private func applySettingsSnapshot(_ snapshot: RimeSettingsSnapshot) {
+    schemas = snapshot.schemas
+    schemaRows = snapshot.rows
+    punctuationChoices = snapshot.punctuationChoices
+    currentPunctuationPreset = snapshot.punctuationPreset
+    var descriptor = snapshot.descriptor
+    if let error = snapshot.error {
+      errorMessage = "Failed to read schema settings: " + error
     }
 
     // The queue is the overlay, so the two cannot disagree: what is queued is exactly what is not deployed.
-    var order = deployedOrder
+    var order = snapshot.order
     var fuzzy: [String]?
     for intent in pendingSettingsWrites {
       switch intent {
@@ -100,15 +108,7 @@ extension RimeAppModel {
 
     schemaDescriptor = descriptor
     schemaOrderIDs = order
-    enabledFuzzyPresets = fuzzy ?? deployedFuzzyPresets(schemaID: schemaID)
-  }
-
-  /// The presets the deployed algebra carries, so the screen can show the state it wrote.
-  private func deployedFuzzyPresets(schemaID: String?) -> [String] {
-    guard let schemaID,
-          let algebra = try? engine.schemaValue("speller/algebra", schemaID: schemaID)?.listValue
-    else { return [] }
-    return RimeFuzzyPinyin.enabledPresets(in: algebra.compactMap(\.stringValue))
+    enabledFuzzyPresets = fuzzy ?? snapshot.fuzzyPresets
   }
 
   /// Writes one translator setting and redeploys, which is the only path S2 allows: shipped sources are
@@ -226,6 +226,7 @@ extension RimeAppModel {
   // MARK: - User dictionary (S5)
 
   func refreshDictionaries() {
+    dictionaryReadID = UUID()
     applyDictionarySnapshot(DictionarySnapshot.load(workspace: workspace, engine: engine))
   }
 
@@ -310,11 +311,19 @@ extension RimeAppModel {
   }
 
   func refreshDictionariesInBackground() async {
+    let readID = UUID()
+    dictionaryReadID = readID
+    let revision = configurationRevision
     let workspace = self.workspace
     let engine = self.engine
     let snapshot = await Task.detached(priority: .userInitiated) {
       DictionarySnapshot.load(workspace: workspace, engine: engine)
     }.value
+    guard !Task.isCancelled, dictionaryReadID == readID else { return }
+    if revision != configurationRevision {
+      await refreshDictionariesInBackground()
+      return
+    }
     applyDictionarySnapshot(snapshot)
   }
 
@@ -322,6 +331,7 @@ extension RimeAppModel {
     syncChoice = snapshot.choice
     dictionaryReport = snapshot.report
     dictionaryBackups = snapshot.backups
+    syncDisabledReason = snapshot.syncDisabledReason
     if let error = snapshot.error {
       errorMessage = "读取用户词库失败：" + error
     }
@@ -458,7 +468,18 @@ extension RimeAppModel {
 
   // MARK: - Notices (S6)
 
-  func refreshNotices() {
-    notices = RimeNoticesBuilder.build(workspace: workspace, engine: engine)
+  func refreshNotices() async {
+    let workspace = self.workspace
+    let engine = self.engine
+    let revision = configurationRevision
+    let snapshot = await Task.detached(priority: .userInitiated) {
+      RimeNoticesBuilder.build(workspace: workspace, engine: engine)
+    }.value
+    guard !Task.isCancelled else { return }
+    if revision != configurationRevision {
+      await refreshNotices()
+      return
+    }
+    notices = snapshot
   }
 }

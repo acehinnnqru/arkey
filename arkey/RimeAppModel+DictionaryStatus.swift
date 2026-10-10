@@ -7,9 +7,11 @@ import SwiftUI
 /// than showing an error. S2 owns the switch; this is the consequence.
 @MainActor
 extension RimeAppModel {
-  /// The sentence the dictionary screen shows when sync has nothing to do, or nil when it has.
-  var syncDisabledReason: String? {
-    guard let id = settingsSchemaID else { return nil }
+  /// Read with the dictionary snapshot, never while SwiftUI is drawing the page.
+  nonisolated static func dictionarySyncDisabledReason(engine: RimeEngine) -> String? {
+    let current = try? engine.currentSchema()
+    guard let id = current.flatMap({ $0.isEmpty ? nil : $0 }) ?? (try? engine.schemaIDs().first)
+    else { return nil }
     // The lookup is the engine's (`RimeUserDictionaryLearning`), so the key name and the meaning of false are
     // tested rather than repeated in a sentence here.
     let enabled = try? RimeUserDictionaryLearning.isEnabled(engine: engine, schemaID: id)

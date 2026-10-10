@@ -7,9 +7,11 @@ import RimeEngine
 /// one says so instead of duplicating them.
 struct PunctuationView: View {
   @ObservedObject var model: RimeAppModel
+  @State private var isLoading = true
 
   var body: some View {
     List {
+      if isLoading { ProgressView("Loading settings…") }
       Section {
         ForEach(model.punctuationChoices, id: \.preset.id) { choice in
           Button {
@@ -40,7 +42,12 @@ struct PunctuationView: View {
       SettingsDeployFooter(model: model)
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
+    .disabled(isLoading)
     .navigationTitle("标点")
-    .task { model.refreshSettings() }
+    .task {
+      isLoading = true
+      await model.refreshSettings()
+      isLoading = false
+    }
   }
 }

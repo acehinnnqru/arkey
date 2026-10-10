@@ -8,15 +8,15 @@ import Foundation
 /// its Documents directory: opening the app is then enough for the log to be fetchable over USB,
 /// without anyone copying text by hand.
 enum ProbeLogLocation {
-  static let appGroupID = "group.com.acehinnnqru.arkey"
+  nonisolated static let appGroupID = "group.com.acehinnnqru.arkey"
 
-  static var groupLogURL: URL? {
+  nonisolated static var groupLogURL: URL? {
     FileManager.default
       .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
       .appendingPathComponent("rime/log/probe.jsonl")
   }
 
-  static var mirroredURL: URL? {
+  nonisolated static var mirroredURL: URL? {
     FileManager.default
       .urls(for: .documentDirectory, in: .userDomainMask)
       .first?
@@ -24,7 +24,7 @@ enum ProbeLogLocation {
   }
 
   /// Copies the shared log into the app container. Cheap enough to call on every app launch.
-  static func mirrorIntoAppContainer() {
+  nonisolated static func mirrorIntoAppContainer() {
     guard let source = groupLogURL, let destination = mirroredURL else { return }
     guard let data = try? Data(contentsOf: source) else { return }
     try? data.write(to: destination, options: .atomic)

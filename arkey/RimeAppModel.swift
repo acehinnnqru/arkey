@@ -23,6 +23,7 @@ private struct LibrarySnapshot: Sendable {
   let storage: RimeStorageReport
   let activeProfileID: String?
   let resolved: RimeResolvedProfile
+  let usableBuilds: Set<String>
 
   nonisolated static func load(workspace: RimeWorkspace, bundledSharedData: URL) throws -> Self {
     let profiles = try workspace.loadMetadataList()
@@ -31,7 +32,10 @@ private struct LibrarySnapshot: Sendable {
     let resolved = RimeWorkspaceResolver.resolve(workspace: workspace,
                                                  bundledSharedData: bundledSharedData)
     return Self(profiles: profiles, storage: storage, activeProfileID: activeProfileID,
-                resolved: resolved)
+                resolved: resolved, usableBuilds: Set(profiles.filter {
+                  let layout = workspace.profile($0.id)
+                  return layout.buildIsUsable(layout.build)
+                }.map(\.id)))
   }
 }
 
@@ -47,6 +51,7 @@ final class RimeAppModel: ObservableObject {
   @Published private(set) var profiles: [RimeProfileMetadata] = []
   @Published private(set) var storage: RimeStorageReport?
   @Published private(set) var activeProfileID: String?
+  @Published private var usableBuilds: Set<String> = []
   @Published private(set) var resolvedSummary = "尚未解析"
   @Published private(set) var engineStatus = "引擎尚未启动"
   @Published private(set) var isDeploying = false
@@ -72,6 +77,7 @@ final class RimeAppModel: ObservableObject {
   /// The 模糊音 presets in force, published rather than asked of the engine per redraw.
   @Published var enabledFuzzyPresets: [String] = []
   @Published var dictionaryReport: RimeUserDictionaryReport?
+  @Published var syncDisabledReason: String?
   /// S5 §4's timestamped backups, per dictionary, newest first. Refreshed with the report rather than
   /// listed on every body pass: the files live in the sync folder, which may be iCloud Drive.
   @Published var dictionaryBackups: [String: [URL]] = [:]
@@ -83,6 +89,16 @@ final class RimeAppModel: ObservableObject {
   @Published var customPhrases: [RimeCustomPhrase] = []
   @Published var rejectedPhraseLines: [RimeCustomPhraseFile.RejectedLine] = []
   @Published var enabledKeyBindingOptions: [String] = []
+  @Published var punctuationChoices = RimePunctuation.presets.map {
+    (preset: $0, isAvailable: $0.requiresFile == nil)
+  }
+  @Published var currentPunctuationPreset: String?
+
+  /// Invalidate background reads when configuration changes while a page is loading.
+  var configurationRevision = 0
+  var settingsReadID = UUID()
+  var preferencesReadID = UUID()
+  var dictionaryReadID = UUID()
 
   /// The settings writes the user has made and the engine has not been told yet, in the order they were made.
   ///
@@ -202,10 +218,15 @@ final class RimeAppModel: ObservableObject {
   // MARK: - Library
 
   func refresh() {
+    configurationRevision += 1
     do {
       profiles = try workspace.loadMetadataList()
       storage = try workspace.storageReport()
       activeProfileID = try workspace.loadActiveProfile()?.profileID
+      usableBuilds = Set(profiles.filter {
+        let layout = workspace.profile($0.id)
+        return layout.buildIsUsable(layout.build)
+      }.map(\.id))
     } catch {
       errorMessage = "读取配置库失败：" + String(describing: error)
     }
@@ -217,9 +238,8 @@ final class RimeAppModel: ObservableObject {
   var libraryEntries: [LibraryEntry] {
     let buildBytes = Dictionary(uniqueKeysWithValues: (storage?.profiles ?? []).map { ($0.id, $0.buildBytes) })
     return profiles.map { metadata in
-      let layout = workspace.profile(metadata.id)
       return LibraryEntry(metadata: metadata,
-                          buildBytes: layout.buildIsUsable(layout.build)
+                          buildBytes: usableBuilds.contains(metadata.id)
                             ? (buildBytes[metadata.id] ?? 0) : 0,
                           isActive: metadata.id == activeProfileID)
     }
@@ -277,6 +297,7 @@ final class RimeAppModel: ObservableObject {
       profiles = snapshot.profiles
       storage = snapshot.storage
       activeProfileID = snapshot.activeProfileID
+      usableBuilds = snapshot.usableBuilds
       resolved = snapshot.resolved
       resolvedSummary = Self.describe(snapshot.resolved)
     } catch {
@@ -315,7 +336,7 @@ final class RimeAppModel: ObservableObject {
       deployInFlight = nil
       // A screen that asked for a settings read while this deploy ran was told to keep what it had rather than
       // wait for the deploy. It gets the answer here, now that the engine's queue is free.
-      if settingsRefreshDeferred { refreshSettings() }
+      if settingsRefreshDeferred { await refreshSettings() }
     }
   }
 

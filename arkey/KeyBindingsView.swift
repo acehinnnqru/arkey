@@ -8,9 +8,11 @@ import RimeEngine
 /// and toggling twice cannot accumulate duplicates.
 struct KeyBindingsView: View {
   @ObservedObject var model: RimeAppModel
+  @State private var isLoading = true
 
   var body: some View {
     List {
+      if isLoading { ProgressView("Loading settings…") }
       Section {
         ForEach(RimeKeyBindings.options) { option in
           Toggle(option.displayName, isOn: Binding(
@@ -36,7 +38,12 @@ struct KeyBindingsView: View {
       SettingsDeployFooter(model: model)
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
+    .disabled(isLoading)
     .navigationTitle("按键")
-    .task { model.refreshKeyBindings() }
+    .task {
+      isLoading = true
+      await model.refreshKeyBindings()
+      isLoading = false
+    }
   }
 }

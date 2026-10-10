@@ -63,6 +63,7 @@ extension RimeAppModel {
 
   /// Takes one settings change and returns at once, with the screen already showing the choice.
   func enqueueSettingsWrite(_ intent: RimeSettingsIntent) {
+    configurationRevision += 1
     // The newest intent for a control replaces the one still waiting behind it: every write here is the whole
     // value, so an earlier one that has not started is already out of date.
     if let waiting = pendingSettingsWrites.firstIndex(where: { $0.slot == intent.slot }) {
@@ -121,8 +122,8 @@ extension RimeAppModel {
         settingsFooter = .failed(String(describing: failure))
       }
       // The engine's own answer, with whatever is still queued laid back over it.
-      refreshSettings()
-      refreshPreferences()
+      await refreshSettings()
+      await refreshPreferences()
     }
   }
 

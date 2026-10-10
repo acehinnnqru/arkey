@@ -8,9 +8,11 @@ import RimeEngine
 struct KeyboardSettingsView: View {
   @ObservedObject var model: RimeAppModel
   @State private var auxiliaryPrefixDraft = ","
+  @State private var isLoading = true
 
   var body: some View {
     List {
+      if isLoading { ProgressView("Loading settings…") }
       auxiliarySection
       SettingsDeployFooter(model: model)
       compositionSection
@@ -24,10 +26,13 @@ struct KeyboardSettingsView: View {
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
+    .disabled(isLoading)
     .navigationTitle("键盘")
     .task {
-      model.refreshPreferences()
+      isLoading = true
+      await model.refreshPreferences()
       auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
+      isLoading = false
     }
   }
 
@@ -148,8 +153,10 @@ struct KeyboardSettingsView: View {
   private var resetSection: some View {
     Section {
       Button("恢复默认") {
-        model.resetPreferences()
-        auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
+        Task {
+          await model.resetPreferences()
+          auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
+        }
       }
     } footer: {
       Text("恢复键盘外观与按键设置；Rime 方案中的辅码前导符和辅码拼写保持当前配置。")

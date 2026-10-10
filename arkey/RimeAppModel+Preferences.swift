@@ -13,30 +13,31 @@ extension RimeAppModel {
     RimeKeyboardPreferencesStore.appGroup()
   }
 
-  func refreshPreferences() {
+  func refreshPreferences() async {
     keyboardPreferences = preferencesStore?.value ?? .standard
-    refreshAuxiliarySpelling()
-    if deployInFlight == nil, let schemaID = settingsSchemaID ?? (try? engine.schemaIDs().first),
-       let prefix = try? engine.schemaValue("key_binder/search", schemaID: schemaID)?.stringValue,
-       let normalized = RimeKeyboardPreferences.normalizedAuxiliaryPrefix(prefix) {
-      keyboardPreferences.auxiliaryPrefix = normalized
-    }
-  }
-
-  func refreshAuxiliarySpelling() {
     guard deployInFlight == nil else { return }
-    let patch = RimePatch(engine: engine, configID: "radical_pinyin")
-    if let value = try? patch.userValue("speller/algebra"),
-       case .map(let entries) = value,
-       let include = entries["__include"]?.stringValue,
-       let spelling = RimeAuxiliarySpelling.allCases.first(where: { $0.includePath == include }) {
-      auxiliarySpelling = spelling
+    let readID = UUID()
+    preferencesReadID = readID
+    let revision = configurationRevision
+    let engine = self.engine
+    let snapshot = await Task.detached(priority: .userInitiated) {
+      RimeKeyboardSettingsSnapshot.load(engine: engine)
+    }.value
+    guard !Task.isCancelled, preferencesReadID == readID else { return }
+    if configurationRevision != revision {
+      await refreshPreferences()
       return
     }
-    guard let effective = try? engine.schemaValue("speller/algebra", schemaID: "radical_pinyin") else { return }
-    auxiliarySpelling = RimeAuxiliarySpelling.allCases.first {
-      (try? engine.schemaValue($0.algebraKey, schemaID: "radical_pinyin")) == effective
-    } ?? .fullPinyin
+    guard deployInFlight == nil else { return }
+    auxiliarySpelling = snapshot.spelling
+    if let prefix = snapshot.prefix { keyboardPreferences.auxiliaryPrefix = prefix }
+    for intent in pendingSettingsWrites {
+      switch intent {
+      case .auxiliaryPrefix(_, let prefix): keyboardPreferences.auxiliaryPrefix = prefix
+      case .auxiliarySpelling(let spelling): auxiliarySpelling = spelling
+      default: break
+      }
+    }
   }
 
   func setAuxiliarySpelling(_ spelling: RimeAuxiliarySpelling) {
@@ -49,6 +50,7 @@ extension RimeAppModel {
   }
 
   func updatePreferences(_ transform: (inout RimeKeyboardPreferences) -> Void) {
+    preferencesReadID = UUID()
     guard let store = preferencesStore else {
       errorMessage = "拿不到 App Group，键盘设置无法共享给键盘。"
       return
@@ -80,8 +82,8 @@ extension RimeAppModel {
     enqueueSettingsWrite(.auxiliaryPrefix(schemaID: schemaID, prefix: prefix))
   }
 
-  func resetPreferences() {
+  func resetPreferences() async {
     preferencesStore?.reset()
-    refreshPreferences()
+    await refreshPreferences()
   }
 }

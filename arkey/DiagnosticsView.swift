@@ -12,6 +12,7 @@ struct DiagnosticsView: View {
   @State private var showingClearConfirmation = false
   @State private var showingCopyResult = false
   @State private var copyResult = ""
+  @State private var logReadID = UUID()
 
   var body: some View {
     List {
@@ -79,7 +80,7 @@ struct DiagnosticsView: View {
     .navigationTitle("诊断")
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
-        Button("刷新") { load() }
+        Button("刷新") { Task { await loadInBackground() } }
       }
       ToolbarItemGroup(placement: .topBarTrailing) {
         Button("清理") { showingClearConfirmation = true }
@@ -101,7 +102,7 @@ struct DiagnosticsView: View {
     } message: {
       Text(copyResult)
     }
-    .task { load() }
+    .task { await loadInBackground() }
   }
 
   // MARK: - Log access
@@ -129,6 +130,7 @@ struct DiagnosticsView: View {
   }
 
   private func load() {
+    logReadID = UUID()
     guard let url = logURL else {
       status = "拿不到 App Group 容器：请在键盘设置里打开“允许完全访问”，然后重新打开键盘。"
       records = []
@@ -139,6 +141,23 @@ struct DiagnosticsView: View {
     status = records.isEmpty
       ? url.path + "（暂无记录）"
       : url.path
+  }
+
+  private func loadInBackground() async {
+    guard let url = logURL else {
+      load()
+      return
+    }
+    let readID = UUID()
+    logReadID = readID
+    let loaded = await Task.detached(priority: .userInitiated) {
+      let records = DiagnosticsReport.compact(RimeProbeLog(url: url).readAll())
+      ProbeLogLocation.mirrorIntoAppContainer()
+      return records
+    }.value
+    guard !Task.isCancelled, logReadID == readID else { return }
+    records = loaded
+    status = loaded.isEmpty ? url.path + " (no records)" : url.path
   }
 
   private func copyAll() {

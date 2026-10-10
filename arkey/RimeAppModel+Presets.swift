@@ -10,32 +10,14 @@ import SwiftUI
 extension RimeAppModel {
   // MARK: Punctuation
 
-  /// The presets, each marked with whether this profile actually ships the table it names. Importing
-  /// a preset whose file is missing leaves the schema with no punctuation at all, so the screen has
-  /// to say which ones are available instead of offering all three equally.
-  var punctuationChoices: [(preset: RimePunctuationPreset, isAvailable: Bool)] {
-    // The decision is the engine's now (RimePunctuation.choices): a preset whose table the profile does not
-    // ship is offered as unavailable rather than as a trap.
-    guard let source = activeProfileID.map({ workspace.profile($0).source }) else {
-      // No profile at all: the same rule with nothing to look in, so only the preset that needs no table is
-      // offered. Borrowing another directory here would have been a decision made by accident.
-      return RimePunctuation.presets.map { ($0, $0.requiresFile == nil) }
-    }
-    return RimePunctuation.choices(inSource: source).map { ($0.preset, $0.isAvailable) }
-  }
-
-  var currentPunctuationPreset: String? {
-    guard let id = settingsSchemaID else { return nil }
-    let value = try? engine.schemaValue("punctuator/import_preset", schemaID: id)?.stringValue
-    return value ?? nil
-  }
-
   func setPunctuationPreset(_ preset: RimePunctuationPreset) async {
+    configurationRevision += 1
     guard let id = settingsSchemaID else { return }
     do {
       let patch = RimePatch(engine: engine, configID: id)
       _ = try patch.set(.string(preset.importPreset), at: "punctuator/import_preset")
       await deploy(profileID: activeProfileID ?? id)
+      await refreshSettings()
     } catch {
       errorMessage = "写入标点设置失败：" + String(describing: error)
     }
@@ -43,17 +25,27 @@ extension RimeAppModel {
 
   // MARK: Key bindings
 
-  func refreshKeyBindings() {
-    guard let id = settingsSchemaID,
-          let bindings = try? engine.schemaValue("key_binder/bindings", schemaID: id)?.listValue
-    else {
-      enabledKeyBindingOptions = []
+  func refreshKeyBindings() async {
+    let engine = self.engine
+    let fallback = schemas.first
+    let revision = configurationRevision
+    let enabled = await Task.detached(priority: .userInitiated) {
+      let current = try? engine.currentSchema()
+      guard let id = current.flatMap({ $0.isEmpty ? nil : $0 }) ?? fallback,
+            let bindings = try? engine.schemaValue("key_binder/bindings", schemaID: id)?.listValue
+      else { return [String]() }
+      return RimeKeyBindings.enabledOptions(in: bindings)
+    }.value
+    guard !Task.isCancelled else { return }
+    if revision != configurationRevision {
+      await refreshKeyBindings()
       return
     }
-    enabledKeyBindingOptions = RimeKeyBindings.enabledOptions(in: bindings)
+    enabledKeyBindingOptions = enabled
   }
 
   func setKeyBindingOptions(_ enabled: [String]) async {
+    configurationRevision += 1
     guard let id = settingsSchemaID else { return }
     do {
       // The base is the *deployed* list, so a previous composition is replaced rather than stacked.
