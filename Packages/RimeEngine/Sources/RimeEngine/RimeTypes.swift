@@ -92,15 +92,19 @@ public struct RimeOutput: Sendable {
   public let status: RimeStatusSnapshot?
   /// What the user typed, without the spaces librime's preedit inserts between syllables.
   public let input: String?
+  /// Original-key display with any already-selected prefix preserved. This is never commit text.
+  public let rawCompositionText: String?
 
   public init(handled: Bool, commit: String?, composition: RimeCompositionInfo?,
-              page: RimePage?, status: RimeStatusSnapshot?, input: String? = nil) {
+              page: RimePage?, status: RimeStatusSnapshot?, input: String? = nil,
+              rawCompositionText: String? = nil) {
     self.handled = handled
     self.commit = commit
     self.composition = composition
     self.page = page
     self.status = status
     self.input = input
+    self.rawCompositionText = rawCompositionText
   }
 
   public var preedit: String? { composition?.preedit }
@@ -111,7 +115,7 @@ public struct RimeOutput: Sendable {
   /// Expanded Flypy syllables are matched back to the typed keys before displaying their boundaries.
   /// Display separators never enter `input` or `commit`.
   public var segmentedInput: String? {
-    let text = syllables?.joined(separator: " ") ?? input ?? preedit
+    let text = rawCompositionText ?? syllables?.joined(separator: " ") ?? input ?? preedit
     return text?.isEmpty == false ? text : nil
   }
 

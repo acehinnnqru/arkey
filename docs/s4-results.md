@@ -13,18 +13,20 @@ of it is model-tested and type-checked; none of it has run on a device.
 
 ### S4 §4.1 — a candidate tap commits only what librime commits
 
-Measured, and it corrects the row: for `nihao` the candidates are `[你好, 你]`, and selecting index 1
-(你) is **accepted** — `select_candidate` returns true and so does
-`select_candidate_on_current_page` — while producing **no commit at all** and leaving the input
-exactly as it was. "A prefix commit leaves the rest composing" does not describe this build: there is
-no prefix commit to speak of.
+For `nihao`, selecting the shorter candidate `你` produces no commit and retains the original input,
+but the preedit becomes `你hao` and the next candidate is `好`. The earlier interpretation that nothing
+changed overlooked this converted prefix. Original-key display now shows `你 hao`; selecting `好`
+then commits `你好`.
 
-The design consequence is the interesting part: the candidate UI must be driven by what came back
-from the engine (commit text, then the page and the raw input), never by what a tap was expected to
-do. A tap that produces nothing must leave the composition and the bar untouched rather than
-optimistically clearing them.
+The Flypy fixture exercises the same flow with an expanded preedit: `nihcaa` displays `ni hc aa`,
+selecting `你` displays `你 hc aa`, selecting `好` displays `你好 aa`, and selecting `啊` commits
+`你好啊`. Display state retains validated raw boundaries rather than inferring an offset from the
+UTF-8 length of selected Chinese text. Refresh, continued typing, deletion, cancellation and session
+reset are covered. Return after selecting `你` in `nihc` commits `你hc`, exactly as the engine returns it.
 
-Covered by `testTappingACandidateCommitsWhatLibrimeCommits`.
+Covered by `testTappingACandidateCommitsWhatLibrimeCommits`,
+`testSelectingFlypyPrefixesKeepsConvertedTextAndRemainingKeysVisible`, and
+`testPartialSelectionSurvivesEditingAndReturnPreservesSelectedPrefix`.
 
 ### S4 §4.1 — punctuation, both halves
 

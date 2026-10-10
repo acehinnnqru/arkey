@@ -147,18 +147,15 @@ final class S4InputTests: XCTestCase {
     XCTAssertEqual(fresh.page?.candidates.map(\.text), ["你"])
     XCTAssertEqual(try driver.handle(.selectCandidate(0)).effect, .committed("你"))
 
-    // Measured, and it corrects S4 §4.1's "a prefix commit leaves the rest composing": for
-    // "nihao" the second candidate (你) is accepted by librime — handled is true — but produces
-    // *no* commit and leaves the input exactly as it was, through select_candidate and
-    // select_candidate_on_current_page alike. The UI must therefore drive itself from what came
-    // back rather than from what a tap was expected to do: no commit means the composition and the
-    // bar stay exactly as they are.
+    // A prefix selection converts the preedit and advances the candidates without committing yet.
+    // The raw keys remain in the engine until the rest of the sentence is selected.
     _ = try type("nihao", into: driver)
     XCTAssertEqual(try engine.refresh().page?.candidates.map(\.text), ["你好", "你"])
     let second = try driver.handle(.selectCandidate(1))
     XCTAssertNil(second.insertText)
     XCTAssertEqual(second.effect, .composing)
-    XCTAssertEqual(second.markedText, "nihao", "a converted prefix cannot supply raw spelling boundaries")
+    XCTAssertEqual(second.markedText, "你 hao")
+    XCTAssertEqual(second.page?.candidates.first?.text, "好")
     XCTAssertTrue(driver.isComposing)
 
     // The candidate librime does commit ends the composition.
@@ -358,21 +355,18 @@ final class S4InputTests: XCTestCase {
                    "pressing the first label did not select " + first.text)
     XCTAssertNil(committed.markedText, "the composition should be gone once the key selected")
 
-    // And the row's measured caveat: a selection librime will not commit is accepted, produces no commit, and
-    // leaves the composition and the bar untouched.
+    // Selecting a shorter candidate retains its converted prefix and offers the remaining syllable.
     _ = try type("nihao", into: driver)
     let again = try XCTUnwrap(try driver.refresh().page, "no page after retyping")
     XCTAssertGreaterThan(again.candidates.count, 1, "one candidate, so there is nothing to decline")
-    let declinedCandidate = again.candidates[1]
     let secondKey = try XCTUnwrap(again.selectLabels.dropFirst().first?.first?.asciiValue,
                                   "no label for the second candidate")
 
-    let declined = try driver.handle(.character(UInt16(secondKey)))
-    XCTAssertEqual(declined.effect, .composing,
-                   "librime committed a candidate the tracer cannot: " + String(describing: declined.effect))
-    XCTAssertEqual(declined.markedText, "nihao", "a converted prefix cannot supply raw spelling boundaries")
-    // The page after a declined selection is librime's business and the measured note in s4-results records
-    // what it does; what matters here is that the key was accepted and nothing was committed.
+    let partial = try driver.handle(.character(UInt16(secondKey)))
+    XCTAssertEqual(partial.effect, .composing)
+    XCTAssertNil(partial.insertText)
+    XCTAssertEqual(partial.markedText, "你 hao")
+    XCTAssertEqual(partial.page?.candidates.first?.text, "好")
   }
 
   /// S4 §11's candidate-deletion intent has two halves. The declared test covers one of them — librime accepts a

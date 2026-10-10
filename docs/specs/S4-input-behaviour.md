@@ -57,9 +57,11 @@ Rules:
   `get_input()` stays `nihao` while marked text displays `ni hao`. A double-pinyin preedit of `ni hc`
   likewise displays the engine's boundaries for `nihc`. For `pinyin_flypy` and `double_pinyin_flypy`,
   expanded preedit such as `ni hao a` is aligned with the typed Flypy codes to display `ni hc aa`.
-  Accept only a unique alignment that reproduces the full input; ambiguous mappings, converted prefixes,
-  unsupported schemas and prompts fall back to the original keys. The schema-output preference displays
-  the full preedit instead. Display spaces
+  Accept only a unique alignment that reproduces the full input; ambiguous mappings, unsupported schemas
+  and prompts fall back to the original keys. The schema-output preference displays the full preedit instead.
+  After a partial selection, preserve Rime's converted prefix: `ni hc aa` becomes `你 hc aa`, then
+  `你好 aa`. Previously validated raw boundaries identify the remaining keys; if those boundaries are
+  unavailable, preserve the engine's prefix and remaining preedit. Display spaces
   never enter the raw input or the commit path; Return still commits the engine's raw-input result.
 - The marked range is set with the caret at the end; UIKit draws the underline the native keyboard has.
 - **Mid-composition editing** is in scope for cursor movement only: tapping inside the composition and
@@ -72,8 +74,8 @@ Rules:
 | Input | Librime's part | Our part |
 | --- | --- | --- |
 | Space | commits the highlighted candidate, or the raw input when there is none | insert `commit`, clear the composition |
-| Return / 换行 | process `Return` when composing to commit the raw input | insert only the commit; insert a newline only when no composition was active before the key press |
-| Tap a candidate | selects that candidate | insert `commit`; **measured**: a selection librime will not commit is accepted, produces no commit, and leaves the composition and the bar untouched (see [s4-results.md](../s4-results.md)) |
+| Return / 换行 | process `Return`; the fixture preserves selected text and commits remaining raw keys (`你 hc` → `你hc`) | insert only the engine's commit; insert a newline only when no composition was active before the key press |
+| Tap a candidate | selects that candidate; a prefix selection advances the preedit and menu without committing the sentence yet | preserve the selected prefix alongside remaining keys, update the candidates, and insert only an actual `commit` (see [s4-results.md](../s4-results.md)) |
 | Select key (digit/letter) | `select_candidate_on_current_page` | same as a tap |
 | Punctuation | schema's `punctuator` commits it | if the key is declined, type the literal character |
 | Escape | clears the composition | clear marked text, keep the raw input? No: clear both |

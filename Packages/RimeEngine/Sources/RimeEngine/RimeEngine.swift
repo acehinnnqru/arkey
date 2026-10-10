@@ -48,6 +48,7 @@ public final class RimeEngine: @unchecked Sendable {
   var allocatedStrings: [CStringBox] = []
   var api: UnsafeMutablePointer<rime_api_t>?
   var session: RimeSessionId?
+  private var compositionDisplay = RimeCompositionDisplay()
   var isStarted = false
   let dictionaryLeaseStore: RimeLeaseStore?
   let dictionaryHost: String
@@ -270,6 +271,7 @@ public final class RimeEngine: @unchecked Sendable {
     let created = create()
     guard created != 0 else { throw RimeEngineError.sessionCreationFailed }
     session = created
+    compositionDisplay = RimeCompositionDisplay()
   }
 
   /// Idle -> owned -> session/operation -> closed -> idle, all on the engine queue.
@@ -315,6 +317,7 @@ public final class RimeEngine: @unchecked Sendable {
   }
 
   func closeSessionLocked() {
+    compositionDisplay = RimeCompositionDisplay()
     defer { releaseDictionaryOwnershipIfIdle() }
     guard let api, let session, let destroy = api.pointee.destroy_session else { return }
     _ = destroy(session)
@@ -460,7 +463,9 @@ public final class RimeEngine: @unchecked Sendable {
       input = String(cString: text)
     }
     return RimeOutput(handled: handled, commit: commitText, composition: composition,
-                      page: page, status: status, input: input)
+                      page: page, status: status, input: input,
+                      rawCompositionText: compositionDisplay.text(input: input, composition: composition,
+                                                                  schemaID: status?.schemaID))
   }
 
   func readContext(api: UnsafeMutablePointer<rime_api_t>,

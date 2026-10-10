@@ -4,8 +4,15 @@ import Foundation
 /// callers keep the engine's input and commit untouched. Never infer boundaries from key count alone.
 enum RimePreeditSegmentation {
   static func syllables(input: String, preedit: String, schemaID: String?) -> [String]? {
+    guard let parts = alignedParts(input: input, preedit: preedit, schemaID: schemaID),
+          parts.count > 1 else { return nil }
+    return parts
+  }
+
+  /// Also accepts one syllable, which is needed after earlier syllables have been selected.
+  static func alignedParts(input: String, preedit: String, schemaID: String?) -> [String]? {
     let parts = preedit.split(separator: " ").map(String.init)
-    guard parts.count > 1, !input.isEmpty else { return nil }
+    guard !parts.isEmpty, !input.isEmpty else { return nil }
     if parts.joined() == input { return parts }
     guard ["pinyin_flypy", "double_pinyin_flypy"].contains(schemaID ?? ""),
           input.utf8.allSatisfy({ (97...122).contains($0) }) else { return nil }

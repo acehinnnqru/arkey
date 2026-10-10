@@ -156,6 +156,54 @@ final class S4SegmentTests: XCTestCase {
     XCTAssertNil(output.syllables, "one syllable is not a division")
   }
 
+  func testSelectingFlypyPrefixesKeepsConvertedTextAndRemainingKeysVisible() throws {
+    let engine = try engine(doublePinyin: true, expandedPreedit: true)
+    defer { engine.shutdown() }
+    try engine.openSession()
+    let initial = try engine.processKeys("nihcaa")
+    let firstIndex = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "你" })
+    let first = try engine.selectCandidate(at: firstIndex)
+    XCTAssertNil(first.commit)
+    XCTAssertEqual(first.segmentedInput, "你 hc aa", String(describing: first.composition))
+    XCTAssertEqual(first.input, "nihcaa")
+    XCTAssertEqual(RimeKeyboardPreferences.standard.markedText(for: first), "你 hc aa")
+    XCTAssertEqual(RimeKeyboardPreferences(compositionDisplay: .preedit).markedText(for: first), "你hao a")
+    XCTAssertEqual(try engine.refresh().segmentedInput, "你 hc aa")
+    let secondIndex = try XCTUnwrap(first.candidates.firstIndex { $0.text == "好" },
+                                  first.candidates.map(\.text).joined(separator: ","))
+    let second = try engine.selectCandidate(at: secondIndex)
+    XCTAssertNil(second.commit)
+    XCTAssertEqual(second.segmentedInput, "你好 aa", String(describing: second.composition))
+    let finalIndex = try XCTUnwrap(second.candidates.firstIndex { $0.text == "啊" })
+    let final = try engine.selectCandidate(at: finalIndex)
+    XCTAssertEqual(final.commit, "你好啊")
+    XCTAssertNil(final.segmentedInput)
+  }
+
+  func testPartialSelectionSurvivesEditingAndReturnPreservesSelectedPrefix() throws {
+    let engine = try engine(doublePinyin: true, expandedPreedit: true)
+    defer { engine.shutdown() }
+    try engine.openSession()
+    let initial = try engine.processKeys("nihc")
+    let index = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "你" })
+    XCTAssertEqual(try engine.selectCandidate(at: index).segmentedInput, "你 hc")
+    XCTAssertEqual(try engine.processKeys("aa").segmentedInput, "你 hc aa")
+    // With completion disabled the unfinished tail has no usable segmentation; keep the selected text.
+    XCTAssertEqual(try engine.processKey(RimeKey.backSpace).segmentedInput, "你 hca")
+    XCTAssertEqual(try engine.processKey(RimeKey.backSpace).segmentedInput, "你 hc")
+    XCTAssertEqual(try engine.processKey(RimeKey.returnKey).commit, "你hc")
+
+    let again = try engine.processKeys("nihcaa")
+    XCTAssertEqual(again.segmentedInput, "ni hc aa")
+    _ = try engine.selectCandidate(at: XCTUnwrap(again.candidates.firstIndex { $0.text == "你" }))
+    try engine.clearComposition()
+    XCTAssertNil(try engine.refresh().segmentedInput)
+    XCTAssertEqual(try engine.processKeys("nihcaa").segmentedInput, "ni hc aa")
+    engine.closeSession()
+    try engine.openSession()
+    XCTAssertEqual(try engine.processKeys("nihc").segmentedInput, "ni hc")
+  }
+
   func testAnUnfinishedSyllableLeavesTheRowEmpty() throws {
     let engine = try engine()
     defer { engine.shutdown() }
