@@ -67,11 +67,16 @@ final class RimeAppModel: ObservableObject {
   @Published var syncChoiceProblem: RimeLocalizedMessage?
   @Published var importWarnings: [RimeLocalizedMessage] = []
   @Published private(set) var isImporting = false
+  enum DownloadPhase: Equatable { case idle, checking, downloading, installing, installed, cancelled, failed }
+  enum CatalogDownloadAction: Equatable { case download, update, installed, retry, downloading, installing }
+  @Published private(set) var downloadPhase: DownloadPhase = .idle
   @Published private(set) var isDownloading = false
   @Published private(set) var downloadMessage: RimeLocalizedMessage?
   @Published private(set) var downloadProgress: Double?
   @Published private(set) var downloadEntryID: String?
   @Published private(set) var checkedReleases: [RimeGitHubReleaseChannel: RimeGitHubRelease] = [:]
+  private var importResultProfileID: String?
+  private(set) var downloadResultProfileID: String?
   private var downloadTask: Task<Void, Never>?
 
   @Published var errorMessage: RimeLocalizedMessage?
@@ -307,6 +312,8 @@ final class RimeAppModel: ObservableObject {
       return
     }
     errorMessage = nil
+    importWarnings = []
+    importResultProfileID = nil
     isImporting = true
     defer { isImporting = false }
     let scoped = url.startAccessingSecurityScopedResource()
@@ -330,6 +337,8 @@ final class RimeAppModel: ObservableObject {
       errorMessage = RimeLocalization.message("Import failed: \(String(describing: error))")
       return
     }
+    if source?.kind == .download { downloadResultProfileID = outcome.metadata.id }
+    importResultProfileID = outcome.metadata.id
     importWarnings = outcome.warnings.map { RimeLocalizedMessage(verbatim: $0.description) }
     if !outcome.userDataCandidates.isEmpty {
       importWarnings.append(RimeLocalization.message("Found user settings: \(String(outcome.userDataCandidates.count)) files: \(outcome.userDataCandidates.map(\.relativePath).joined(separator: ", "))\((adoptUserData ? RimeLocalization.message(" (imported)") : RimeLocalization.message(" (kept in profile; not copied to user directory)")))"))
@@ -356,15 +365,17 @@ final class RimeAppModel: ObservableObject {
   /// Acquisition installs a separate library entry. It never calls deployment or activation.
   func startDownload(entry: RimeCatalogEntry? = nil, zipURL: String? = nil) {
     guard !isDownloading, !isImporting, !isDeploying else { return }
+    clearDownloadStatus()
+    importWarnings = []
     isDownloading = true
     downloadEntryID = entry?.id
     downloadProgress = nil
     errorMessage = nil
+    downloadPhase = .checking
     downloadMessage = RimeLocalization.message("Checking download…")
     downloadTask = Task {
       defer {
         isDownloading = false
-        downloadEntryID = nil
         downloadProgress = nil
         downloadTask = nil
       }
@@ -377,6 +388,13 @@ final class RimeAppModel: ObservableObject {
         if let entry, let channel = entry.releaseChannel {
           release = try await RimeProfileDownloader.release(channel: channel, staging: staging)
           checkedReleases[channel] = release
+          try Task.checkCancellation()
+          if let current = currentCatalogProfile(for: entry) {
+            downloadResultProfileID = current.id
+            downloadPhase = .installed
+            downloadMessage = RimeLocalization.message("Installed in Profile library. Deploy it separately when ready. The active profile has not changed.")
+            return
+          }
           guard let asset = release?.sourceArchive else { throw RimeProfileDownloadError.releaseUnavailable }
           guard asset.size <= RimeCatalogLimits.standard.maxBytes else {
             throw RimeCatalogError.tooLarge(asset.size, RimeCatalogLimits.standard.maxBytes)
@@ -388,16 +406,18 @@ final class RimeAppModel: ObservableObject {
         }
         try Task.checkCancellation()
         let payload = staging.appendingPathComponent("profile.zip")
+        downloadPhase = .downloading
         downloadMessage = RimeLocalization.message("Downloading ZIP…")
         let resolved = try await RimeProfileDownloader(destination: payload,
           maxBytes: RimeCatalogLimits.standard.maxBytes) { [weak self] written, expected in
             guard let model = self else { return }
             Task { @MainActor in
-              guard model.isDownloading, !model.isImporting else { return }
+              guard model.downloadPhase == .downloading, model.downloadEntryID == entry?.id else { return }
               model.downloadProgress = expected > 0 ? Double(written) / Double(expected) : nil
             }
           }.fetch(requested)
         try Task.checkCancellation()
+        downloadPhase = .installing
         downloadMessage = RimeLocalization.message("Validating and installing…")
         let data = try Data(contentsOf: payload)
         guard data.count >= RimeCatalogLimits.standard.minBytes else {
@@ -418,15 +438,19 @@ final class RimeAppModel: ObservableObject {
         await importPayload(at: payload, displayName: name, adoptUserData: false,
           source: origin, license: entry?.license, removedImportTables: entry?.removedImportTables ?? [])
         if errorMessage == nil {
+          downloadPhase = .installed
           downloadMessage = RimeLocalization.message("Installed in Profile library. Deploy it separately when ready. The active profile has not changed.")
         } else {
+          downloadPhase = .failed
           downloadMessage = RimeLocalization.message("Download completed, but installation failed.")
         }
       } catch {
         if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+          downloadPhase = .cancelled
           downloadMessage = RimeLocalization.message("Download cancelled.")
         } else {
           let message = RimeLocalization.message("Download failed: \(String(describing: error))")
+          downloadPhase = .failed
           errorMessage = message
           downloadMessage = message
         }
@@ -435,6 +459,40 @@ final class RimeAppModel: ObservableObject {
   }
 
   func cancelDownload() { downloadTask?.cancel() }
+
+  func clearDownloadStatus() {
+    guard !isDownloading else { return }
+    if errorMessage == downloadMessage { errorMessage = nil }
+    downloadPhase = .idle
+    downloadMessage = nil
+    downloadProgress = nil
+    downloadEntryID = nil
+    downloadResultProfileID = nil
+  }
+
+  func catalogDownloadAction(for entry: RimeCatalogEntry) -> CatalogDownloadAction {
+    if downloadEntryID == entry.id {
+      switch downloadPhase {
+      case .checking, .downloading: return .downloading
+      case .installing: return .installing
+      case .failed: return .retry
+      case .idle, .installed, .cancelled: break
+      }
+    }
+    let installed = profiles.filter { catalogEntry(for: $0)?.id == entry.id }
+    guard !installed.isEmpty else { return .download }
+    return currentCatalogProfile(for: entry) == nil ? .update : .installed
+  }
+
+  private func currentCatalogProfile(for entry: RimeCatalogEntry) -> RimeProfileMetadata? {
+    guard let channel = entry.releaseChannel, let release = checkedReleases[channel],
+          let asset = release.sourceArchive else { return nil }
+    return profiles.first {
+      catalogEntry(for: $0)?.id == entry.id && $0.source.releaseTag == release.tagName
+        && $0.source.releaseAssetID == asset.id && $0.source.releaseAssetUpdatedAt == asset.updatedAt
+        && $0.source.transformationVersion == (entry.removedImportTables.isEmpty ? nil : 1)
+    }
+  }
 
   func catalogEntry(for metadata: RimeProfileMetadata) -> RimeCatalogEntry? {
     if let id = metadata.source.catalogEntryID { return RimeCatalog.standard.entry(id: id) }
@@ -577,10 +635,40 @@ final class RimeAppModel: ObservableObject {
   }
 
   func delete(profileID: String, removingUserDictionaries: [String] = []) {
+    guard !isDownloading, !isImporting, !isDeploying else { return }
+    let wasActive = activeProfileID == profileID
+    errorMessage = nil
+    // Dictionary cleanup can fail after the profile itself has been removed. Reconcile the library
+    // and transient results in either case, so a partial failure never leaves an installed badge.
+    defer {
+      refresh()
+      if !FileManager.default.fileExists(atPath: workspace.profile(profileID).directory.path) {
+        if downloadResultProfileID == profileID { clearDownloadStatus() }
+        if importResultProfileID == profileID {
+          importWarnings = []
+          importResultProfileID = nil
+        }
+        if latestDeployment?.profileID == profileID { latestDeployment = nil }
+        if wasActive, activeProfileID != profileID {
+          deployMessage = nil
+          settingsFooter = .unchanged
+          if let resolved {
+            do {
+              _ = try engine.rebind(to: resolved.directories)
+              Task { await refreshSettings() }
+            } catch {
+              if errorMessage == nil {
+                errorMessage = RimeLocalization.message("Failed to switch: \(String(describing: error))")
+              }
+            }
+          }
+        }
+        if !removingUserDictionaries.isEmpty { refreshDictionaries() }
+      }
+    }
     do {
       try RimeDeploymentCoordinator(workspace: workspace, engine: engine)
         .delete(profileID: profileID, removingUserDictionaries: removingUserDictionaries)
-      refresh()
     } catch {
       errorMessage = RimeLocalization.message("Delete failed: \(String(describing: error))")
     }

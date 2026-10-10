@@ -455,3 +455,15 @@
 "Validating and installing…" = "正在校验并安装…";
 "Wait for the current download, import, or deployment to finish." = "请等待当前下载、导入或部署完成。";
 "Release notes" = "版本更新说明";
+"Installed in Profile library" = "已安装到配置库";
+"Add profiles" = "添加配置";
+"Delete shared user dictionaries?" = "删除共享用户词典？";
+"These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: {0}. User settings, custom phrases, and sync backups will be kept." = "这些共享词典可能被其他配置使用，其中的学习记录将被永久删除：{0}。用户设置、自定义短语和同步备份会保留。";
+"Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default." = "删除 {0} 会清除它的源文件、编译文件和上一版构建。默认保留用户词典、设置、自定义短语和同步备份。";
+"{0} This is the active profile. The keyboard will use built-in data the next time it opens." = "{0} 这是当前生效的配置，键盘下次打开时将使用内置数据。";
+"Update" = "更新";
+"Installed" = "已安装";
+"Retry" = "重试";
+"Installing profile" = "正在安装配置";
+"View installed profiles" = "查看已安装的配置";
+"Download failed" = "下载失败";

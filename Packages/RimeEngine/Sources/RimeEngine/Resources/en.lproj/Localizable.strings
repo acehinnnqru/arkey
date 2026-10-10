@@ -455,3 +455,15 @@
 "Validating and installing…" = "Validating and installing…";
 "Wait for the current download, import, or deployment to finish." = "Wait for the current download, import, or deployment to finish.";
 "Release notes" = "Release notes";
+"Installed in Profile library" = "Installed in Profile library";
+"Add profiles" = "Add profiles";
+"Delete shared user dictionaries?" = "Delete shared user dictionaries?";
+"These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: {0}. User settings, custom phrases, and sync backups will be kept." = "These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: {0}. User settings, custom phrases, and sync backups will be kept.";
+"Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default." = "Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default.";
+"{0} This is the active profile. The keyboard will use built-in data the next time it opens." = "{0} This is the active profile. The keyboard will use built-in data the next time it opens.";
+"Update" = "Update";
+"Installed" = "Installed";
+"Retry" = "Retry";
+"Installing profile" = "Installing profile";
+"View installed profiles" = "View installed profiles";
+"Download failed" = "Download failed";

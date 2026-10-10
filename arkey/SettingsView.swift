@@ -11,7 +11,7 @@ struct SettingsView: View {
 
   private enum Page: Hashable {
     case schema, keyboard, punctuation, keys, phrases, dictionaries
-    case profiles, catalog, notices, diagnostics
+    case profiles, notices, diagnostics
   }
 
   var body: some View {
@@ -42,9 +42,6 @@ struct SettingsView: View {
         Section(RimeLocalization.text("Profiles")) {
           NavigationLink(value: Page.profiles) {
             Label(RimeLocalization.text("Profile library"), systemImage: "folder")
-          }
-          NavigationLink(value: Page.catalog) {
-            Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
           }
         }
 
@@ -85,7 +82,6 @@ struct SettingsView: View {
         case .phrases: CustomPhraseView(model: model)
         case .dictionaries: UserDictionaryView(model: model)
         case .profiles: ProfileLibraryView(model: model)
-        case .catalog: CatalogView(model: model)
         case .notices: NoticesView(model: model)
         case .diagnostics: DiagnosticsView()
         }

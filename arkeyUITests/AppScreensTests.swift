@@ -16,7 +16,6 @@ final class AppScreensTests: XCTestCase {
   /// The settings entry, the title the screen gives itself, and a line only that screen carries.
   private static let screens: [(menu: String, title: String, content: String)] = [
     ("配置库", "配置库", "当前生效"),
-    ("下载配置", "下载配置", "预设下载"),
     ("方案与输入", "方案", "第一个是默认方案"),
     ("用户词库", "用户词库", "用户词典"),
     ("键盘", "键盘", "外观"),
@@ -96,7 +95,7 @@ final class AppScreensTests: XCTestCase {
       add(shot)
 
       bar.buttons.element(boundBy: 0).tap()
-      XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10),
+      XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 10),
                     "did not return to settings from " + screen.menu)
       app.buttons["settings-close"].tap()
       XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 10),

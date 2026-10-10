@@ -369,17 +369,17 @@ public struct RimeWorkspace: Sendable {
                             removingUserDictionaries dictionaryNames: [String] = [],
                             fileManager: FileManager = .default) throws {
     let layout = profile(id)
+    let wasActive = try loadActiveProfile()?.profileID == id
     if fileManager.fileExists(atPath: layout.directory.path) {
       try fileManager.removeItem(at: layout.directory)
     }
+    // Clear activation before optional dictionary cleanup, which can fail independently.
+    if wasActive { try removeActiveProfile(fileManager: fileManager) }
     for name in dictionaryNames {
       let database = userData.appendingPathComponent(name + ".userdb", isDirectory: true)
       if fileManager.fileExists(atPath: database.path) {
         try fileManager.removeItem(at: database)
       }
-    }
-    if let active = try loadActiveProfile(), active.profileID == id {
-      try removeActiveProfile(fileManager: fileManager)
     }
   }
 

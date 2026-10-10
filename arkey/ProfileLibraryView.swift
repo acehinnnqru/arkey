@@ -2,7 +2,7 @@ import SwiftUI
 import RimeEngine
 import UniformTypeIdentifiers
 
-/// The 配置库 screen: what is installed, what is deployed, and the one action that changes what the
+/// The profile library screen: what is installed, what is deployed, and the one action that changes what the
 /// keyboard types. Every write goes through the model, which owns the app's single engine.
 struct ProfileLibraryView: View {
   @Environment(\.locale) private var interfaceLocale
@@ -24,7 +24,8 @@ struct ProfileLibraryView: View {
   @State private var pickKind: ImportKind = .profile
   @State private var adoptUserData = false
   @State private var pendingDeletion: RimeAppModel.LibraryEntry?
-  @State private var deleteDictionaries = false
+  @State private var pendingDictionaryDeletion: RimeAppModel.LibraryEntry?
+  @State private var dictionariesToDelete: [String] = []
   @State private var busyProfileID: String?
   @State private var exported: URL?
   @State private var zipDownloadURL = ""
@@ -33,9 +34,10 @@ struct ProfileLibraryView: View {
     let _ = interfaceLocale
     List {
       activeSection
-      deploymentSection
-      acquisitionSection
+      addProfilesSection
       installedSection
+      acquisitionSection
+      deploymentSection
       settingsSection
       if !model.importWarnings.isEmpty { warningsSection }
       if let error = model.errorMessage { errorSection(error) }
@@ -82,13 +84,32 @@ struct ProfileLibraryView: View {
         model.delete(profileID: entry.metadata.id)
         pendingDeletion = nil
       }
-      Button(RimeLocalization.text("Delete profile and user dictionaries"), role: .destructive) {
-        model.delete(profileID: entry.metadata.id, removingUserDictionaries: model.userDatabaseNames)
-        pendingDeletion = nil
+      if !model.userDatabaseNames.isEmpty {
+        Button(RimeLocalization.text("Delete profile and user dictionaries"), role: .destructive) {
+          dictionariesToDelete = model.userDatabaseNames
+          pendingDictionaryDeletion = entry
+          pendingDeletion = nil
+        }
       }
       Button(RimeLocalization.text("Cancel"), role: .cancel) { pendingDeletion = nil }
     } message: { entry in
-      Text(dictionaryNote(for: entry))
+      Text(deletionNote(for: entry))
+    }
+    .alert(RimeLocalization.text("Delete shared user dictionaries?"),
+           isPresented: Binding(get: { pendingDictionaryDeletion != nil },
+                                set: { if !$0 { pendingDictionaryDeletion = nil } }),
+           presenting: pendingDictionaryDeletion) { entry in
+      Button(RimeLocalization.text("Delete profile and user dictionaries"), role: .destructive) {
+        model.delete(profileID: entry.id, removingUserDictionaries: dictionariesToDelete)
+        pendingDictionaryDeletion = nil
+        dictionariesToDelete = []
+      }
+      Button(RimeLocalization.text("Cancel"), role: .cancel) {
+        pendingDictionaryDeletion = nil
+        dictionariesToDelete = []
+      }
+    } message: { _ in
+      Text(RimeLocalization.text("These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: \(dictionariesToDelete.joined(separator: ", ")). User settings, custom phrases, and sync backups will be kept."))
     }
   }
 
@@ -107,8 +128,6 @@ struct ProfileLibraryView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
       }
-      Toggle(RimeLocalization.text("Include user settings when importing (*.custom.yaml, custom_phrase.txt)"), isOn: $adoptUserData)
-        .font(.footnote)
     }
   }
 
@@ -135,20 +154,26 @@ struct ProfileLibraryView: View {
     }
   }
 
-  @ViewBuilder
-  private var acquisitionSection: some View {
-    Section(RimeLocalization.text("Preset downloads")) {
+  private var addProfilesSection: some View {
+    Section(RimeLocalization.text("Add profiles")) {
       NavigationLink {
         CatalogView(model: model)
       } label: {
         Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
       }
+      .accessibilityIdentifier("profile-downloads-link")
     }
+  }
+
+  @ViewBuilder
+  private var acquisitionSection: some View {
     Section {
       Button(RimeLocalization.text("Import ZIP from Files")) {
         pickKind = .profile
         isPicking = true
       }
+      Toggle(RimeLocalization.text("Include user settings when importing (*.custom.yaml, custom_phrase.txt)"), isOn: $adoptUserData)
+        .font(.footnote)
       TextField(RimeLocalization.text("HTTPS ZIP download URL"), text: $zipDownloadURL)
         .keyboardType(.URL)
         .textInputAutocapitalization(.never)
@@ -164,7 +189,7 @@ struct ProfileLibraryView: View {
       Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
     }
     .disabled(model.isDeploying || model.isImporting || model.isDownloading)
-    if let message = model.downloadMessage {
+    if model.downloadEntryID == nil, let message = model.downloadMessage {
       Section(RimeLocalization.text("Download status")) {
         Text(message.text).font(.footnote)
         if model.isDownloading {
@@ -172,6 +197,8 @@ struct ProfileLibraryView: View {
           else { ProgressView() }
           Button(RimeLocalization.text("Cancel download")) { model.cancelDownload() }
             .disabled(model.isImporting)
+        } else {
+          Button(RimeLocalization.text("Clear")) { model.clearDownloadStatus() }
         }
       }
     }
@@ -206,10 +233,10 @@ struct ProfileLibraryView: View {
         Text(RimeLocalization.text("Release: \(tag)")).font(.caption).foregroundStyle(.secondary)
       }
       if let preset = model.catalogEntry(for: entry.metadata) {
-        Button(RimeLocalization.text("Download latest version")) { model.startDownload(entry: preset) }
-          .font(.caption)
-          .buttonStyle(.borderless)
-          .disabled(model.isDeploying || model.isImporting || model.isDownloading)
+        HStack {
+          Spacer()
+          ProfileDownloadButton(model: model, entry: preset)
+        }
         Text(RimeLocalization.text("Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible."))
           .font(.caption2).foregroundStyle(.secondary)
       }
@@ -221,7 +248,6 @@ struct ProfileLibraryView: View {
           Button(RimeLocalization.text("Roll back")) { model.rollback(profileID: entry.metadata.id) }
         }
         Button(RimeLocalization.text("Delete"), role: .destructive) {
-          deleteDictionaries = false
           pendingDeletion = entry
         }
       }
@@ -325,10 +351,13 @@ struct ProfileLibraryView: View {
     }
   }
 
-  private func dictionaryNote(for entry: RimeAppModel.LibraryEntry) -> String {
-    let names = model.userDatabaseNames
-    let base = RimeLocalization.text("User dictionaries belong to dictionary names. Deleting a profile keeps them by default, preserving learned words when you switch back.")
-    return names.isEmpty ? base : RimeLocalization.text("\(base) Currently contains: \(names.joined(separator: "、"))")
+  private func deletionNote(for entry: RimeAppModel.LibraryEntry) -> String {
+    let name = model.catalogEntry(for: entry.metadata)?.displayName ?? entry.metadata.displayName
+    let message = RimeLocalization.message("Deleting \(name) removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default.")
+    if entry.isActive {
+      return RimeLocalization.text("\(message) This is the active profile. The keyboard will use built-in data the next time it opens.")
+    }
+    return message.text
   }
 
   private func detail(_ entry: RimeAppModel.LibraryEntry) -> String {

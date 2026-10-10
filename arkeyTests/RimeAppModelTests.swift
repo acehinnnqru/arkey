@@ -132,6 +132,53 @@ final class RimeAppModelTests: XCTestCase {
       atPath: model.workspace.profile(profile.id).build.path), "no build was written")
   }
 
+  func testDeletingADownloadedProfileClearsInstallationAndDeploymentState() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    await model.importPayload(at: try makeSourceFolder(), displayName: "Downloaded deletion test",
+      adoptUserData: false,
+      source: RimeProfileSource(kind: .download, catalogEntryID: "rime-ice-full"))
+    let profile = try XCTUnwrap(model.profiles.first { $0.displayName == "Downloaded deletion test" })
+    imported = profile.id
+    XCTAssertEqual(model.downloadResultProfileID, profile.id)
+    let catalogEntry = try XCTUnwrap(RimeCatalog.standard.entry(id: "rime-ice-full"))
+    XCTAssertEqual(model.catalogEntry(for: profile)?.id, catalogEntry.id)
+    XCTAssertEqual(model.catalogDownloadAction(for: catalogEntry), .update)
+    await model.deploy(profileID: profile.id)
+    XCTAssertEqual(model.activeProfileID, profile.id)
+    XCTAssertNotNil(model.latestDeployment)
+
+    // A later manual import owns its own warnings; deleting the earlier download must retain them.
+    let source = try XCTUnwrap(scratch)
+    try Data("patch: {}".utf8).write(to: source.appendingPathComponent("default.custom.yaml"))
+    await model.importPayload(at: source, displayName: "Later manual import", adoptUserData: false)
+    let later = try XCTUnwrap(model.profiles.first { $0.displayName == "Later manual import" })
+    defer { model.delete(profileID: later.id) }
+    XCTAssertNotEqual(profile.id, later.id)
+    let laterWarnings = model.importWarnings
+    XCTAssertFalse(laterWarnings.isEmpty)
+
+    model.delete(profileID: profile.id)
+
+    XCTAssertNil(model.errorMessage)
+    XCTAssertFalse(model.profiles.contains { $0.id == profile.id })
+    XCTAssertFalse(model.storage?.profiles.contains { $0.id == profile.id } ?? true)
+    XCTAssertNil(model.downloadResultProfileID)
+    XCTAssertEqual(model.catalogDownloadAction(for: catalogEntry), .download)
+    XCTAssertEqual(model.downloadPhase, .idle)
+    XCTAssertNil(model.downloadMessage)
+    XCTAssertEqual(model.importWarnings, laterWarnings)
+    XCTAssertNil(model.latestDeployment)
+    XCTAssertNil(model.deployMessage)
+    XCTAssertNil(model.activeProfileID)
+    XCTAssertEqual(model.settingsFooter, .unchanged)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: model.workspace.profile(profile.id).directory.path))
+    XCTAssertEqual(model.resolved?.origin, .bundled)
+    try model.engine.openSession()
+    defer { model.engine.closeSession() }
+    XCTAssertEqual(try model.engine.currentSchema(), "tracer")
+  }
+
   /// Selecting a scheme stays responsive and replaces an imported list with one enabled scheme.
   func testTheSchemaSwitchMovesOnTheTapAndNotWhenTheDeployEnds() async throws {
     let model = RimeAppModel()
