@@ -422,3 +422,36 @@
 "—— Engine and components ——" = "—— 引擎与其组件 ——";
 
 "Follow System" = "跟随系统";
+
+/* User-initiated profile acquisition. */
+"Cancel download" = "取消下载";
+"Checking download…" = "正在检查下载…";
+"Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it." = "选择 ZIP 文件、从其他应用分享 ZIP 到 Arkey，或填写 HTTPS ZIP 链接。导入只安装配置，不会部署。";
+"Download" = "下载";
+"Download ZIP from URL" = "从链接下载 ZIP";
+"Download cancelled." = "已取消下载。";
+"Download completed, but installation failed." = "下载已完成，但配置安装失败。";
+"Download failed: {0}" = "下载失败：{0}";
+"Download latest version" = "下载最新版本";
+"Download status" = "下载状态";
+"Downloading ZIP…" = "正在下载 ZIP…";
+"HTTPS ZIP download URL" = "HTTPS ZIP 下载链接";
+"Import ZIP from Files" = "从文件导入 ZIP";
+"Installed in Profile library. Deploy it separately when ready. The active profile has not changed." = "已安装到配置库，可在准备好后单独部署。当前启用的配置未改变。";
+"Latest development build with the full dictionary. Frequent updates may require changes to existing settings." = "跟随 nightly 开发构建，保留完整词库。更新频繁，可能需要调整已有设置。";
+"Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks." = "跟随 nightly 开发构建，移除 大型扩展词库。部署更快，候选覆盖减少，并有开发版兼容风险。";
+"Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage." = "使用最新正式发布，保留完整词库。候选覆盖更全面，部署较慢、占用较多。";
+"Manual import" = "主动导入";
+"Preset downloads" = "预设下载";
+"Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage." = "推荐。使用最新正式发布，移除 大型扩展词库。部署更快、占用更少，部分候选覆盖减少。";
+"Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag." = "正式版使用最新稳定发布。开发版跟随 nightly 构建，独立于 GitHub 的 prerelease 标记识别。";
+"Release: {0}" = "版本：{0}";
+"Rime Ice · Nightly · Full" = "雾凇拼音 · 开发版 · 完整";
+"Rime Ice · Nightly · Slim" = "雾凇拼音 · 开发版 · 精简";
+"Rime Ice · Release · Full" = "雾凇拼音 · 正式版 · 完整";
+"Rime Ice · Release · Slim" = "雾凇拼音 · 正式版 · 精简";
+"Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action." = "精简版下载官方 full.zip 后在本地裁剪大词库，下载量与完整版相同。下载后安装到配置库，部署需单独操作。";
+"Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible." = "新版本单独安装，并保留此版本。部署成功不代表所有已有自定义补丁都兼容。";
+"Validating and installing…" = "正在校验并安装…";
+"Wait for the current download, import, or deployment to finish." = "请等待当前下载、导入或部署完成。";
+"Release notes" = "版本更新说明";

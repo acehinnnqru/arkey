@@ -7,11 +7,11 @@ the prose somebody has to paste, so the submission is not the first time it is w
 
 ## App Privacy (the nutrition label)
 
-- **Data Not Collected.** The app makes **no network requests at all**: no analytics, no accounts, no server, no
-  fetching. The 下载配置 screen is a static list whose links open the project's page, its upstream repository and
-  its licence in the **system browser**; the user imports the downloaded zip through the document picker or Files.
-  `S6NetworkTests` scans every source and fails if one opens a connection, so this is enforced rather than
-  promised.
+- **Data Not Collected.** The host app makes network requests only when the user starts a preset download
+  or supplies an HTTPS ZIP URL. Presets fetch public GitHub release metadata and the official `full.zip`;
+  slim variants are transformed locally. The download service uses ephemeral sessions and no analytics,
+  accounts, or telemetry. Download servers receive ordinary HTTPS request metadata, including the IP address.
+  `S6NetworkTests` confines networking APIs to the host download service; the keyboard never downloads.
 - **Tracking: No.**
 - The keyboard extension declares no collection of its own, and its manifest ships inside its own bundle
   (round 183: it did not, which is what review would have noticed).
@@ -23,20 +23,20 @@ the prose somebody has to paste, so the submission is not the first time it is w
 
 ## Review notes (paste into App Store Connect)
 
-> Arkey is a Rime-based Chinese input keyboard. It ships one small configuration of its own — the words are this
-> project's, a handful of entries — so the keyboard is usable before anything is imported. Everything else comes
-> from the user: they obtain a Rime configuration themselves (a zip from the project's page opened in Safari, from
-> Files, or handed over by another app) and import it, and the app deploys it locally.
+> Arkey is a Rime-based Chinese input keyboard. It ships a small configuration of its own. Users can import
+> a ZIP from Files or another app, download a ZIP from an HTTPS URL, or select one of four curated Rime Ice
+> presets (stable/nightly, full/slim). Presets download official GitHub release assets without re-hosting.
 >
-> The keyboard asks for Full Access for one reason: the shared container, so the app can deploy a configuration
-> and the keyboard can read it. Neither the app nor the keyboard makes a network request: the download list is
-> static links that open the project's page in Safari, and the user imports what they downloaded. The screen says
-> so in as many words.
+> Downloading installs a profile in the library. Deployment and activation are separate user actions;
+> acquisition never replaces the active profile or automatically adopts imported user settings. Updated
+> content is installed separately so the previous profile remains available.
 >
-> Guideline 2.5.2: the app itself downloads and executes nothing. Configurations arrive only because the user
-> imported a file they obtained outside the app, and importing is the primary path, not a convenience. The
-> catalogue screen is a short static list of the project's own URLs with licence, size and requirements shown,
-> and it opens them in Safari — the app never fetches.
+> Full Access allows the keyboard to read the app group's shared configuration. Networking occurs only in
+> the host app after an explicit user action; the keyboard extension makes no network requests.
+>
+> Imported configurations can contain Lua translators and filters executed by librime. This user-initiated
+> download feature must be reviewed under guideline 2.5.2; separating download from deployment does not
+> itself resolve that review question. No third-party configuration is bundled in the release.
 
 ## What is left
 

@@ -233,6 +233,8 @@ public struct RimeImportOptions: Sendable {
   public var license: RimeProfileLicense?
   public var limits: RimeArchiveLimits
   public var validationBudgets: RimeValidationBudgets
+  /// Tables removed from staging before validation; used by curated slim variants.
+  public var removedImportTables: [String]
   /// Copies the user-data candidates into the shared user directory. Off by default: these are the
   /// user's own settings, and S1 §5.3 says they are offered, never applied silently.
   public var adoptUserData: Bool
@@ -243,7 +245,7 @@ public struct RimeImportOptions: Sendable {
               license: RimeProfileLicense? = nil,
               limits: RimeArchiveLimits = .standard,
               validationBudgets: RimeValidationBudgets = .standard,
-              adoptUserData: Bool = false) {
+              adoptUserData: Bool = false, removedImportTables: [String] = []) {
     self.displayName = displayName
     self.tag = tag
     self.origin = origin
@@ -251,6 +253,7 @@ public struct RimeImportOptions: Sendable {
     self.limits = limits
     self.validationBudgets = validationBudgets
     self.adoptUserData = adoptUserData
+    self.removedImportTables = removedImportTables
   }
 }
 
@@ -259,8 +262,7 @@ public struct RimeImportOutcome: Sendable {
   public let userDataCandidates: [RimeUserDataCandidate]
   public let warnings: [RimeValidationIssue]
   public let sourceDigest: String
-  /// True when this import replaced an existing profile directory with the same id: an update of
-  /// the same content rather than a second copy.
+  /// True when identical content reused an existing profile, preserving its deployed generations.
   public let replacedExisting: Bool
   public let generatedDefaultYAML: String?
 
@@ -347,6 +349,13 @@ public struct RimeImporter {
     let source = staging.appendingPathComponent("source", isDirectory: true)
     let generated = try RimeTreeClassifier.materialize(root: root, classification: classification,
                                                        into: source, fileManager: fileManager)
+    if !options.removedImportTables.isEmpty {
+      let result = try RimeProfileSlimming.removeImportTables(options.removedImportTables,
+        from: source, engine: engine, fileManager: fileManager)
+      guard result.missingTables.isEmpty else {
+        throw RimeSlimmingError.tableNotFound(result.missingTables.joined(separator: ", "))
+      }
+    }
     let validation = RimeConfigValidation.validate(source: source, engine: engine,
                                                    budgets: options.validationBudgets,
                                                    fileManager: fileManager)
@@ -360,10 +369,15 @@ public struct RimeImporter {
     let id = RimeProfileIdentifier.make(displayName: displayName, tag: options.tag, digest: digest)
     let layout = workspace.profile(id)
     let replaced = fileManager.fileExists(atPath: layout.source.path)
+    if replaced, let existing = try workspace.loadMetadata(for: id),
+       RimeDigest.sha256(ofTree: layout.source, fileManager: fileManager) == digest {
+      if options.adoptUserData { try adopt(classification.userData, from: root) }
+      return RimeImportOutcome(metadata: existing, userDataCandidates: classification.userData,
+        warnings: validation.warnings, sourceDigest: digest, replacedExisting: true,
+        generatedDefaultYAML: generated)
+    }
+    guard !replaced else { throw RimeImportError.installFailed("profile identity collision") }
     do {
-      if replaced {
-        try fileManager.removeItem(at: layout.directory)
-      }
       try fileManager.createDirectory(at: layout.directory, withIntermediateDirectories: true)
       try fileManager.moveItem(at: source, to: layout.source)
     } catch {
@@ -379,7 +393,11 @@ public struct RimeImporter {
                                 releaseTag: options.tag,
                                 retrievedAt: Date(),
                                 bytes: options.origin.bytes,
-                                sha256: options.origin.sha256 ?? digest),
+                                sha256: options.origin.sha256 ?? digest,
+                                catalogEntryID: options.origin.catalogEntryID,
+                                releaseAssetID: options.origin.releaseAssetID,
+                                releaseAssetUpdatedAt: options.origin.releaseAssetUpdatedAt,
+                                transformationVersion: options.origin.transformationVersion),
       license: options.license,
       stats: RimeProfileStats(fileCount: validation.fileCount,
                               sourceBytes: validation.sourceBytes,

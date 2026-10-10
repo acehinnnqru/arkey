@@ -67,13 +67,13 @@ final class S1WorkspaceTests: XCTestCase {
     let first = RimeProfileIdentifier.make(displayName: "雾凇拼音", tag: "nightly", digest: digest)
     let second = RimeProfileIdentifier.make(displayName: "雾凇拼音", tag: "nightly", digest: digest)
     XCTAssertEqual(first, second)
-    XCTAssertTrue(first.hasSuffix("-a1b2c3d4"), first)
+    XCTAssertTrue(first.hasSuffix("-a1b2c3d4a1b2c3d4"), first)
     XCTAssertFalse(first.contains(" "), first)
 
     // Non-ASCII names cannot slug to nothing.
     let unnamed = RimeProfileIdentifier.make(displayName: "雾凇拼音", tag: nil, digest: digest)
     XCTAssertFalse(unnamed.isEmpty)
-    XCTAssertTrue(unnamed.hasSuffix("-a1b2c3d4"), unnamed)
+    XCTAssertTrue(unnamed.hasSuffix("-a1b2c3d4a1b2c3d4"), unnamed)
 
     // Different content never collides.
     let other = RimeProfileIdentifier.make(displayName: "雾凇拼音", tag: "nightly",

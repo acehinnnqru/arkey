@@ -25,7 +25,8 @@ public enum RimeProfileIdentifier {
   }
 
   public static func make(displayName: String, tag: String?, digest: String) -> String {
-    let short = String(digest.prefix(8))
+    let hash = digest.hasPrefix("sha256:") ? String(digest.dropFirst(7)) : digest
+    let short = String(hash.prefix(16))
     var parts = [slug(displayName)]
     if let tag, !tag.isEmpty {
       parts.append(slug(tag))
@@ -62,9 +63,16 @@ public struct RimeProfileSource: Codable, Sendable, Hashable {
   public var retrievedAt: Date?
   public var bytes: Int?
   public var sha256: String?
+  public var catalogEntryID: String?
+  public var releaseAssetID: Int?
+  public var releaseAssetUpdatedAt: String?
+  public var transformationVersion: Int?
+
 
   public init(kind: Kind, url: String? = nil, resolvedURL: String? = nil, releaseTag: String? = nil,
-              retrievedAt: Date? = nil, bytes: Int? = nil, sha256: String? = nil) {
+              retrievedAt: Date? = nil, bytes: Int? = nil, sha256: String? = nil,
+              catalogEntryID: String? = nil, releaseAssetID: Int? = nil,
+              releaseAssetUpdatedAt: String? = nil, transformationVersion: Int? = nil) {
     self.kind = kind
     self.url = url
     self.resolvedURL = resolvedURL
@@ -72,6 +80,10 @@ public struct RimeProfileSource: Codable, Sendable, Hashable {
     self.retrievedAt = retrievedAt
     self.bytes = bytes
     self.sha256 = sha256
+    self.catalogEntryID = catalogEntryID
+    self.releaseAssetID = releaseAssetID
+    self.releaseAssetUpdatedAt = releaseAssetUpdatedAt
+    self.transformationVersion = transformationVersion
   }
 }
 

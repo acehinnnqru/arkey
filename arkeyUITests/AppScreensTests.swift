@@ -16,7 +16,7 @@ final class AppScreensTests: XCTestCase {
   /// The settings entry, the title the screen gives itself, and a line only that screen carries.
   private static let screens: [(menu: String, title: String, content: String)] = [
     ("配置库", "配置库", "当前生效"),
-    ("下载配置", "下载配置", "可选配置"),
+    ("下载配置", "下载配置", "预设下载"),
     ("方案与输入", "方案", "第一个是默认方案"),
     ("用户词库", "用户词库", "用户词典"),
     ("键盘", "键盘", "外观"),
@@ -256,7 +256,7 @@ extension XCUIApplication {
     let settings = buttons["settings-open"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10), "the settings button is missing")
     settings.tap()
-    XCTAssertTrue(navigationBars["Settings"].waitForExistence(timeout: 10),
+    XCTAssertTrue(buttons["settings-close"].waitForExistence(timeout: 10),
                   "the settings drawer did not open")
     let list = descendants(matching: .any)["settings-list"].firstMatch
     let entry = list.buttons[title].firstMatch

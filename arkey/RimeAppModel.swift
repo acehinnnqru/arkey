@@ -67,6 +67,13 @@ final class RimeAppModel: ObservableObject {
   @Published var syncChoiceProblem: RimeLocalizedMessage?
   @Published var importWarnings: [RimeLocalizedMessage] = []
   @Published private(set) var isImporting = false
+  @Published private(set) var isDownloading = false
+  @Published private(set) var downloadMessage: RimeLocalizedMessage?
+  @Published private(set) var downloadProgress: Double?
+  @Published private(set) var downloadEntryID: String?
+  @Published private(set) var checkedReleases: [RimeGitHubReleaseChannel: RimeGitHubRelease] = [:]
+  private var downloadTask: Task<Void, Never>?
+
   @Published var errorMessage: RimeLocalizedMessage?
   @Published var schemas: [String] = []
   /// The 方案 screen's rows and their order, refreshed with the rest of the settings: reading librime
@@ -292,8 +299,14 @@ final class RimeAppModel: ObservableObject {
   // MARK: - Import
 
   /// The picker hands back a security-scoped URL; the scope is held for the whole pipeline.
-  func importPayload(at url: URL, displayName: String?, adoptUserData: Bool) async {
-    guard !isImporting else { return }
+  func importPayload(at url: URL, displayName: String?, adoptUserData: Bool,
+                     source: RimeProfileSource? = nil, license: RimeProfileLicense? = nil,
+                     removedImportTables: [String] = []) async {
+    guard !isImporting, !isDeploying, !isDownloading || source?.kind == .download else {
+      errorMessage = RimeLocalization.message("Wait for the current download, import, or deployment to finish.")
+      return
+    }
+    errorMessage = nil
     isImporting = true
     defer { isImporting = false }
     let scoped = url.startAccessingSecurityScopedResource()
@@ -308,9 +321,10 @@ final class RimeAppModel: ObservableObject {
           payload: url,
           options: RimeImportOptions(
             displayName: displayName ?? url.deletingPathExtension().lastPathComponent,
-            origin: RimeProfileSource(kind: .files, url: url.absoluteString, retrievedAt: Date()),
-            license: RimeProfileLicense.unknown,
-            adoptUserData: adoptUserData))
+            tag: source?.releaseTag,
+            origin: source ?? RimeProfileSource(kind: .files, url: url.absoluteString, retrievedAt: Date()),
+            license: license ?? RimeProfileLicense.unknown,
+            adoptUserData: adoptUserData, removedImportTables: removedImportTables))
       }.value
     } catch {
       errorMessage = RimeLocalization.message("Import failed: \(String(describing: error))")
@@ -339,6 +353,101 @@ final class RimeAppModel: ObservableObject {
     }
   }
 
+  /// Acquisition installs a separate library entry. It never calls deployment or activation.
+  func startDownload(entry: RimeCatalogEntry? = nil, zipURL: String? = nil) {
+    guard !isDownloading, !isImporting, !isDeploying else { return }
+    isDownloading = true
+    downloadEntryID = entry?.id
+    downloadProgress = nil
+    errorMessage = nil
+    downloadMessage = RimeLocalization.message("Checking download…")
+    downloadTask = Task {
+      defer {
+        isDownloading = false
+        downloadEntryID = nil
+        downloadProgress = nil
+        downloadTask = nil
+      }
+      let staging = workspace.staging.appendingPathComponent("download-" + UUID().uuidString)
+      defer { try? FileManager.default.removeItem(at: staging) }
+      do {
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        let release: RimeGitHubRelease?
+        let requested: URL
+        if let entry, let channel = entry.releaseChannel {
+          release = try await RimeProfileDownloader.release(channel: channel, staging: staging)
+          checkedReleases[channel] = release
+          guard let asset = release?.sourceArchive else { throw RimeProfileDownloadError.releaseUnavailable }
+          guard asset.size <= RimeCatalogLimits.standard.maxBytes else {
+            throw RimeCatalogError.tooLarge(asset.size, RimeCatalogLimits.standard.maxBytes)
+          }
+          requested = try RimeDownloadURL.githubAsset(asset.browserDownloadURL)
+        } else {
+          release = nil
+          requested = try RimeDownloadURL.validate(zipURL ?? "")
+        }
+        try Task.checkCancellation()
+        let payload = staging.appendingPathComponent("profile.zip")
+        downloadMessage = RimeLocalization.message("Downloading ZIP…")
+        let resolved = try await RimeProfileDownloader(destination: payload,
+          maxBytes: RimeCatalogLimits.standard.maxBytes) { [weak self] written, expected in
+            guard let model = self else { return }
+            Task { @MainActor in
+              guard model.isDownloading, !model.isImporting else { return }
+              model.downloadProgress = expected > 0 ? Double(written) / Double(expected) : nil
+            }
+          }.fetch(requested)
+        try Task.checkCancellation()
+        downloadMessage = RimeLocalization.message("Validating and installing…")
+        let data = try Data(contentsOf: payload)
+        guard data.count >= RimeCatalogLimits.standard.minBytes else {
+          throw RimeCatalogError.tooSmall(data.count)
+        }
+        let digest = RimeDigest.sha256(of: data)
+        if let expected = release?.sourceArchive?.digest, expected.hasPrefix("sha256:"), expected != digest {
+          throw RimeProfileDownloadError.digestMismatch
+        }
+        let origin = RimeProfileSource(kind: .download, url: requested.absoluteString,
+          resolvedURL: resolved, releaseTag: release?.tagName, retrievedAt: Date(), bytes: data.count,
+          sha256: digest, catalogEntryID: entry?.id, releaseAssetID: release?.sourceArchive?.id,
+          releaseAssetUpdatedAt: release?.sourceArchive?.updatedAt,
+          transformationVersion: entry?.removedImportTables.isEmpty == false ? 1 : nil)
+        // Stable English identity is independent of the current interface language.
+        let name = entry.map { "Rime Ice " + $0.id.replacingOccurrences(of: "rime-ice-", with: "") }
+          ?? requested.deletingPathExtension().lastPathComponent
+        await importPayload(at: payload, displayName: name, adoptUserData: false,
+          source: origin, license: entry?.license, removedImportTables: entry?.removedImportTables ?? [])
+        if errorMessage == nil {
+          downloadMessage = RimeLocalization.message("Installed in Profile library. Deploy it separately when ready. The active profile has not changed.")
+        } else {
+          downloadMessage = RimeLocalization.message("Download completed, but installation failed.")
+        }
+      } catch {
+        if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+          downloadMessage = RimeLocalization.message("Download cancelled.")
+        } else {
+          let message = RimeLocalization.message("Download failed: \(String(describing: error))")
+          errorMessage = message
+          downloadMessage = message
+        }
+      }
+    }
+  }
+
+  func cancelDownload() { downloadTask?.cancel() }
+
+  func catalogEntry(for metadata: RimeProfileMetadata) -> RimeCatalogEntry? {
+    if let id = metadata.source.catalogEntryID { return RimeCatalog.standard.entry(id: id) }
+    // Previously installed curated downloads used the project's own redirect pages.
+    switch metadata.source.url {
+    case "https://acehinnnqru.github.io/arkey/download/rime-ice":
+      return RimeCatalog.standard.entry(id: "rime-ice-full")
+    case "https://acehinnnqru.github.io/arkey/download/rime-ice-lite":
+      return RimeCatalog.standard.entry(id: "rime-ice-lite")
+    default: return nil
+    }
+  }
+
   func adoptUserData(at url: URL) {
     let scoped = url.startAccessingSecurityScopedResource()
     defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -357,6 +466,9 @@ final class RimeAppModel: ObservableObject {
   // MARK: - Deploy and activation
 
   func deploy(profileID: String) async {
+    // Settings may request a deployment while acquisition is running. Queue that explicit request
+    // rather than dropping it after the settings files have already been written.
+    if let pendingDownload = downloadTask { await pendingDownload.value }
     // A deploy already running is waited for, not dropped. The callers write a file and then deploy it, so a
     // dropped request leaves that file written and not live — the change looks applied on the screen and never
     // reaches the keyboard. librime runs one maintenance at a time, so this is a queue, not a courtesy.

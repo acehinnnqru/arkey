@@ -27,12 +27,14 @@ struct ProfileLibraryView: View {
   @State private var deleteDictionaries = false
   @State private var busyProfileID: String?
   @State private var exported: URL?
+  @State private var zipDownloadURL = ""
 
   var body: some View {
     let _ = interfaceLocale
     List {
       activeSection
       deploymentSection
+      acquisitionSection
       installedSection
       settingsSection
       if !model.importWarnings.isEmpty { warningsSection }
@@ -49,7 +51,7 @@ struct ProfileLibraryView: View {
         } label: {
           Label(RimeLocalization.text("Import"), systemImage: "square.and.arrow.down")
         }
-        .disabled(model.isDeploying || model.isImporting)
+        .disabled(model.isDeploying || model.isImporting || model.isDownloading)
       }
       ToolbarItem(placement: .topBarTrailing) {
         if model.isImporting {
@@ -133,6 +135,48 @@ struct ProfileLibraryView: View {
     }
   }
 
+  @ViewBuilder
+  private var acquisitionSection: some View {
+    Section(RimeLocalization.text("Preset downloads")) {
+      NavigationLink {
+        CatalogView(model: model)
+      } label: {
+        Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
+      }
+    }
+    Section {
+      Button(RimeLocalization.text("Import ZIP from Files")) {
+        pickKind = .profile
+        isPicking = true
+      }
+      TextField(RimeLocalization.text("HTTPS ZIP download URL"), text: $zipDownloadURL)
+        .keyboardType(.URL)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .accessibilityIdentifier("zip-download-url")
+      Button(RimeLocalization.text("Download ZIP from URL")) {
+        model.startDownload(zipURL: zipDownloadURL)
+      }
+      .disabled(zipDownloadURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    } header: {
+      Text(RimeLocalization.text("Manual import"))
+    } footer: {
+      Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
+    }
+    .disabled(model.isDeploying || model.isImporting || model.isDownloading)
+    if let message = model.downloadMessage {
+      Section(RimeLocalization.text("Download status")) {
+        Text(message.text).font(.footnote)
+        if model.isDownloading {
+          if let progress = model.downloadProgress { ProgressView(value: progress) }
+          else { ProgressView() }
+          Button(RimeLocalization.text("Cancel download")) { model.cancelDownload() }
+            .disabled(model.isImporting)
+        }
+      }
+    }
+  }
+
   private var installedSection: some View {
     Section(RimeLocalization.text("Installed (\(String(model.libraryEntries.count)))")) {
       if model.libraryEntries.isEmpty {
@@ -149,7 +193,7 @@ struct ProfileLibraryView: View {
   private func row(_ entry: RimeAppModel.LibraryEntry) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 6) {
-        Text(entry.metadata.displayName).font(.body.weight(.medium))
+        Text(model.catalogEntry(for: entry.metadata)?.displayName ?? entry.metadata.displayName).font(.body.weight(.medium))
         if entry.isActive {
           Text(RimeLocalization.text("Active")).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
             .background(.tint.opacity(0.15), in: Capsule())
@@ -158,6 +202,17 @@ struct ProfileLibraryView: View {
       }
       Text(entry.metadata.id).font(.caption2).foregroundStyle(.secondary)
       Text(detail(entry)).font(.caption).foregroundStyle(.secondary)
+      if let tag = entry.metadata.source.releaseTag {
+        Text(RimeLocalization.text("Release: \(tag)")).font(.caption).foregroundStyle(.secondary)
+      }
+      if let preset = model.catalogEntry(for: entry.metadata) {
+        Button(RimeLocalization.text("Download latest version")) { model.startDownload(entry: preset) }
+          .font(.caption)
+          .buttonStyle(.borderless)
+          .disabled(model.isDeploying || model.isImporting || model.isDownloading)
+        Text(RimeLocalization.text("Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible."))
+          .font(.caption2).foregroundStyle(.secondary)
+      }
       HStack(spacing: 12) {
         Button(entry.isActive ? RimeLocalization.text("Redeploy") : RimeLocalization.text("Deploy")) { deploy(entry) }
         Button(RimeLocalization.text("Activate")) { model.activate(profileID: entry.metadata.id) }
@@ -172,7 +227,7 @@ struct ProfileLibraryView: View {
       }
       .font(.caption)
       .buttonStyle(.borderless)
-      .disabled(model.isDeploying || model.isImporting)
+      .disabled(model.isDeploying || model.isImporting || model.isDownloading)
     }
     .padding(.vertical, 2)
   }
@@ -195,7 +250,7 @@ struct ProfileLibraryView: View {
       } label: {
         Text(RimeLocalization.text("Restore latest settings backup and redeploy"))
       }
-      .disabled(model.isDeploying || model.isImporting || model.profiles.isEmpty
+      .disabled(model.isDeploying || model.isImporting || model.isDownloading || model.profiles.isEmpty
                 || model.latestSettingsBackup == nil)
     } header: {
       Text(RimeLocalization.text("Settings"))

@@ -37,16 +37,14 @@ final class S1CatalogTests: XCTestCase {
     }
   }
 
-  /// The update channel, as a constraint: the app hardcodes the project's page and the page
-  /// redirects. A compiled-in GitHub asset URL would freeze the version until an App Store release.
-  func testThePageURLIsTheProjectsOwnRedirectNotAReleaseAsset() {
-    for entry in RimeCatalog.standard.entries {
-      XCTAssertFalse(entry.pageURL.hasSuffix(".zip"), entry.pageURL)
-      XCTAssertFalse(entry.pageURL.contains("github.com"), entry.pageURL)
-      XCTAssertFalse(entry.pageURL.contains("objects.githubusercontent.com"), entry.pageURL)
-      // The licence's sourceURL is the upstream project, which is a different thing from the
-      // download page and must stay visible in the notices.
-      XCTAssertNotEqual(entry.pageURL, entry.license.sourceURL)
+  func testPresetsUseUpstreamReleasesAndKeepChannelAndSizeIndependent() throws {
+    let entries = RimeCatalog.standard.entries
+    XCTAssertEqual(entries.count, 4)
+    XCTAssertEqual(entries.filter { $0.releaseChannel == .stable }.count, 2)
+    XCTAssertEqual(entries.filter { $0.releaseChannel == .nightly }.count, 2)
+    XCTAssertEqual(entries.filter { !$0.removedImportTables.isEmpty }.count, 2)
+    for entry in entries {
+      XCTAssertTrue(entry.pageURL.hasPrefix("https://github.com/iDvel/rime-ice/releases"))
     }
   }
 
@@ -138,8 +136,8 @@ final class S1CatalogTests: XCTestCase {
   func testTheLiteEntrySaysWhatItLeavesOut() throws {
     let lite = try XCTUnwrap(RimeCatalog.standard.entry(id: "rime-ice-lite"))
     let full = try XCTUnwrap(RimeCatalog.standard.entry(id: "rime-ice-full"))
-    XCTAssertLessThan(lite.approximateBytes, full.approximateBytes)
-    XCTAssertTrue(lite.notes.contains("tencent"), lite.notes)
+    XCTAssertEqual(lite.approximateBytes, full.approximateBytes)
+    XCTAssertEqual(lite.removedImportTables, ["cn_dicts/tencent"])
     XCTAssertEqual(lite.license.spdx, full.license.spdx, "the same config, the same licence")
     XCTAssertEqual(lite.requirements.schemaCount, full.requirements.schemaCount)
   }
@@ -172,8 +170,7 @@ final class S1CatalogTests: XCTestCase {
       let notice = try XCTUnwrap(entry.license.noticePath, entry.id)
       XCTAssertTrue(source.contains("github.com"), source)
       XCTAssertFalse(notice.isEmpty)
-      XCTAssertTrue(entry.notes.contains("librime") || entry.notes.contains("MB"),
-                    entry.id + " should say what the user is getting")
+      XCTAssertFalse(entry.notes.isEmpty)
     }
   }
 }

@@ -12,6 +12,7 @@ struct ContentView: View {
   @State private var text = ""
   @State private var keyboardOverlap: CGFloat = 0
   @State private var isShowingSettings = false
+  @State private var isShowingSharedImport = false
   @FocusState private var isEditing: Bool
 
   var body: some View {
@@ -88,6 +89,17 @@ struct ContentView: View {
         SettingsView(model: model)
           .presentationDetents([.large])
           .presentationDragIndicator(.visible)
+      }
+      .sheet(isPresented: $isShowingSharedImport) {
+        NavigationStack { ProfileLibraryView(model: model) }
+      }
+      .onOpenURL { url in
+        guard url.isFileURL else { return }
+        isShowingSharedImport = true
+        Task {
+          await model.importPayload(at: url, displayName: nil, adoptUserData: false,
+            source: RimeProfileSource(kind: .shareSheet, url: url.absoluteString, retrievedAt: Date()))
+        }
       }
       .onAppear {
         LaunchProbe.mark("viewAppear")

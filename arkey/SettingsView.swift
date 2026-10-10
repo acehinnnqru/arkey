@@ -85,7 +85,7 @@ struct SettingsView: View {
         case .phrases: CustomPhraseView(model: model)
         case .dictionaries: UserDictionaryView(model: model)
         case .profiles: ProfileLibraryView(model: model)
-        case .catalog: CatalogView()
+        case .catalog: CatalogView(model: model)
         case .notices: NoticesView(model: model)
         case .diagnostics: DiagnosticsView()
         }

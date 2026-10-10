@@ -115,6 +115,31 @@ final class S1ImportTests: XCTestCase {
     XCTAssertTrue(fromFolder.replacedExisting, "the second import is an update of the same content")
   }
 
+  func testReimportPreservesAnExistingDeploymentAndChangedContentInstallsSeparately() throws {
+    let tree = try makeConfigTree()
+    let first = try importer().import(payload: tree, options: options())
+    let layout = workspace.profile(first.profileID)
+    try FileManager.default.createDirectory(at: layout.build, withIntermediateDirectories: true)
+    let table = layout.build.appendingPathComponent("tracer.table.bin")
+    try Data("published build".utf8).write(to: table)
+    var metadata = first.metadata
+    metadata.deploy = RimeProfileDeployRecord(generation: 2, deployedAt: Date(),
+      engineVersion: RimeEngineVersion.pinned, durationSeconds: 1)
+    try workspace.writeMetadata(metadata)
+    let again = try importer().import(payload: tree, options: options())
+    XCTAssertEqual(again.profileID, first.profileID)
+    XCTAssertEqual(again.metadata.deploy?.generation, 2)
+    XCTAssertEqual(try Data(contentsOf: table), Data("published build".utf8))
+    let dictionary = tree.appendingPathComponent("tracer.dict.yaml")
+    var text = try String(contentsOf: dictionary, encoding: .utf8)
+    text += "newword\tnewword\t1\n"
+    try text.write(to: dictionary, atomically: true, encoding: .utf8)
+    let changed = try importer().import(payload: tree, options: options())
+    XCTAssertNotEqual(changed.profileID, first.profileID)
+    XCTAssertNil(changed.metadata.deploy)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: table.path))
+  }
+
   func testImportingATreeWithAWrappingFolderFindsTheConfigRoot() throws {
     let wrapper = scratch.appendingPathComponent("rime-ice-nightly", isDirectory: true)
     try FileManager.default.createDirectory(at: wrapper, withIntermediateDirectories: true)

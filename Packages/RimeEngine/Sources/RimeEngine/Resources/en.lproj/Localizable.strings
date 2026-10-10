@@ -422,3 +422,36 @@
 "—— Engine and components ——" = "—— Engine and components ——";
 
 "Follow System" = "Follow System";
+
+/* User-initiated profile acquisition. */
+"Cancel download" = "Cancel download";
+"Checking download…" = "Checking download…";
+"Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it." = "Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it.";
+"Download" = "Download";
+"Download ZIP from URL" = "Download ZIP from URL";
+"Download cancelled." = "Download cancelled.";
+"Download completed, but installation failed." = "Download completed, but installation failed.";
+"Download failed: {0}" = "Download failed: {0}";
+"Download latest version" = "Download latest version";
+"Download status" = "Download status";
+"Downloading ZIP…" = "Downloading ZIP…";
+"HTTPS ZIP download URL" = "HTTPS ZIP download URL";
+"Import ZIP from Files" = "Import ZIP from Files";
+"Installed in Profile library. Deploy it separately when ready. The active profile has not changed." = "Installed in Profile library. Deploy it separately when ready. The active profile has not changed.";
+"Latest development build with the full dictionary. Frequent updates may require changes to existing settings." = "Latest development build with the full dictionary. Frequent updates may require changes to existing settings.";
+"Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks." = "Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks.";
+"Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage." = "Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage.";
+"Manual import" = "Manual import";
+"Preset downloads" = "Preset downloads";
+"Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage." = "Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage.";
+"Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag." = "Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag.";
+"Release: {0}" = "Release: {0}";
+"Rime Ice · Nightly · Full" = "Rime Ice · Nightly · Full";
+"Rime Ice · Nightly · Slim" = "Rime Ice · Nightly · Slim";
+"Rime Ice · Release · Full" = "Rime Ice · Release · Full";
+"Rime Ice · Release · Slim" = "Rime Ice · Release · Slim";
+"Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action." = "Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action.";
+"Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible." = "Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible.";
+"Validating and installing…" = "Validating and installing…";
+"Wait for the current download, import, or deployment to finish." = "Wait for the current download, import, or deployment to finish.";
+"Release notes" = "Release notes";

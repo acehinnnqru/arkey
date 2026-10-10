@@ -2,14 +2,8 @@ import Foundation
 
 // MARK: - Catalog
 
-/// S1 §5's "short static catalog, with hardcoded links".
-///
-/// There is no catalog protocol and nothing to fetch: the app resolves entries from its own compiled
-/// list and never from a URL a page hands it. The page URL is the update channel — the project's page
-/// redirects to the current release, so the target version can move without an App Store release.
-///
-/// Nothing here downloads, deploys or activates anything. A receipt is produced from bytes the user
-/// asked for, and the import pipeline takes it from there.
+/// Curated upstream configurations. Fetching and installation are explicit host-app actions;
+/// the keyboard extension never downloads, and installation never deploys or activates.
 public struct RimeCatalogEntry: Sendable, Hashable {
   public struct Requirements: Sendable, Hashable {
     /// The config runs Lua translators or filters. librime-lua is merged into the pinned framework.
@@ -40,15 +34,17 @@ public struct RimeCatalogEntry: Sendable, Hashable {
   public let id: String
   public let displayName: String
   public let license: RimeProfileLicense
-  /// The project's own page. It redirects to the current release asset; the app never reads a URL
-  /// out of a page it fetched.
+  /// The upstream release page, shown alongside the preset's license and source.
   public let pageURL: String
   public let approximateBytes: Int
   public let requirements: Requirements
   public let notes: String
+  public let releaseChannel: RimeGitHubReleaseChannel?
+  public let removedImportTables: [String]
 
   public init(id: String, displayName: String, license: RimeProfileLicense, pageURL: String,
-              approximateBytes: Int, requirements: Requirements, notes: String) {
+              approximateBytes: Int, requirements: Requirements, notes: String,
+              releaseChannel: RimeGitHubReleaseChannel? = nil, removedImportTables: [String] = []) {
     self.id = id
     self.displayName = displayName
     self.license = license
@@ -56,6 +52,8 @@ public struct RimeCatalogEntry: Sendable, Hashable {
     self.approximateBytes = approximateBytes
     self.requirements = requirements
     self.notes = notes
+    self.releaseChannel = releaseChannel
+    self.removedImportTables = removedImportTables
   }
 
   public var isSecure: Bool { pageURL.hasPrefix("https://") }
@@ -72,34 +70,38 @@ public struct RimeCatalog: Sendable {
     entries.first { $0.id == id }
   }
 
-  /// What ships compiled in. One entry, because S1 asks for a *short* catalog and because a config
-  /// nobody has measured has no business being offered.
-  public static var standard: RimeCatalog { RimeCatalog(entries: [
-    RimeCatalogEntry(
-      id: "rime-ice-full",
-      displayName: RimeLocalization.text("Rime Ice (full)"),
-      license: RimeProfileLicense(spdx: "GPL-3.0-only",
-                                  name: "GNU General Public License v3.0",
-                                  url: "https://www.gnu.org/licenses/gpl-3.0.html",
-                                  sourceURL: "https://github.com/iDvel/rime-ice",
-                                  noticePath: "others/docs/Credits.md"),
-      pageURL: "https://acehinnnqru.github.io/arkey/download/rime-ice",
-      approximateBytes: 15_290_000,
-      requirements: .init(needsLua: true, schemaCount: 9),
-      notes: RimeLocalization.text("Source release, about 15 MB. Deployment is slower but compatible with this app’s pinned librime 1.17.0. The official full_compiled.zip uses upstream librime and may be incompatible.")),
-    RimeCatalogEntry(
-      id: "rime-ice-lite",
-      displayName: RimeLocalization.text("Rime Ice (lite)"),
-      license: RimeProfileLicense(spdx: "GPL-3.0-only",
-                                  name: "GNU General Public License v3.0",
-                                  url: "https://www.gnu.org/licenses/gpl-3.0.html",
-                                  sourceURL: "https://github.com/iDvel/rime-ice",
-                                  noticePath: "others/docs/Credits.md"),
-      pageURL: "https://acehinnnqru.github.io/arkey/download/rime-ice-lite",
-      approximateBytes: 5_900_000,
-      requirements: .init(needsLua: true, schemaCount: 9),
-      notes: RimeLocalization.text("Skips the 16.5 MB embedding dictionary (cn_dicts/tencent.dict.yaml) for much faster deployment. Candidate quality is slightly lower.")),
-  ]) }
+  public static var standard: RimeCatalog {
+    let license = RimeProfileLicense(spdx: "GPL-3.0-only",
+      name: "GNU General Public License v3.0",
+      url: "https://www.gnu.org/licenses/gpl-3.0.html",
+      sourceURL: "https://github.com/iDvel/rime-ice", noticePath: "LICENSE")
+    return RimeCatalog(entries: [
+      RimeCatalogEntry(id: "rime-ice-full",
+        displayName: RimeLocalization.text("Rime Ice · Release · Full"), license: license,
+        pageURL: "https://github.com/iDvel/rime-ice/releases",
+        approximateBytes: 15_290_000, requirements: .init(needsLua: true, schemaCount: 9),
+        notes: RimeLocalization.text("Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage."),
+        releaseChannel: .stable),
+      RimeCatalogEntry(id: "rime-ice-lite",
+        displayName: RimeLocalization.text("Rime Ice · Release · Slim"), license: license,
+        pageURL: "https://github.com/iDvel/rime-ice/releases",
+        approximateBytes: 15_290_000, requirements: .init(needsLua: true, schemaCount: 9),
+        notes: RimeLocalization.text("Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage."),
+        releaseChannel: .stable, removedImportTables: ["cn_dicts/tencent"]),
+      RimeCatalogEntry(id: "rime-ice-nightly-full",
+        displayName: RimeLocalization.text("Rime Ice · Nightly · Full"), license: license,
+        pageURL: "https://github.com/iDvel/rime-ice/releases/tag/nightly",
+        approximateBytes: 15_290_000, requirements: .init(needsLua: true, schemaCount: 9),
+        notes: RimeLocalization.text("Latest development build with the full dictionary. Frequent updates may require changes to existing settings."),
+        releaseChannel: .nightly),
+      RimeCatalogEntry(id: "rime-ice-nightly-slim",
+        displayName: RimeLocalization.text("Rime Ice · Nightly · Slim"), license: license,
+        pageURL: "https://github.com/iDvel/rime-ice/releases/tag/nightly",
+        approximateBytes: 15_290_000, requirements: .init(needsLua: true, schemaCount: 9),
+        notes: RimeLocalization.text("Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks."),
+        releaseChannel: .nightly, removedImportTables: ["cn_dicts/tencent"])
+    ])
+  }
 }
 
 // MARK: - Receipts
