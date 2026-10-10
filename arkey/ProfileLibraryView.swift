@@ -36,7 +36,7 @@ struct ProfileLibraryView: View {
       activeSection
       addProfilesSection
       installedSection
-      acquisitionSection
+      downloadStatusSection
       deploymentSection
       settingsSection
       if !model.importWarnings.isEmpty { warningsSection }
@@ -155,40 +155,64 @@ struct ProfileLibraryView: View {
   }
 
   private var addProfilesSection: some View {
-    Section(RimeLocalization.text("Add profiles")) {
+    Section {
       NavigationLink {
         CatalogView(model: model)
       } label: {
         Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
       }
       .accessibilityIdentifier("profile-downloads-link")
+      NavigationLink {
+        fileImportView
+      } label: {
+        Label(RimeLocalization.text("Import ZIP from Files"), systemImage: "doc.zipper")
+      }
+      NavigationLink {
+        zipURLImportView
+      } label: {
+        Label(RimeLocalization.text("Download ZIP from URL"), systemImage: "link")
+      }
+    } header: {
+      Text(RimeLocalization.text("Add profiles"))
+    } footer: {
+      Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
     }
   }
 
-  @ViewBuilder
-  private var acquisitionSection: some View {
-    Section {
+  private var fileImportView: some View {
+    Form {
       Button(RimeLocalization.text("Import ZIP from Files")) {
         pickKind = .profile
         isPicking = true
       }
       Toggle(RimeLocalization.text("Include user settings when importing (*.custom.yaml, custom_phrase.txt)"), isOn: $adoptUserData)
         .font(.footnote)
-      TextField(RimeLocalization.text("HTTPS ZIP download URL"), text: $zipDownloadURL)
-        .keyboardType(.URL)
-        .textInputAutocapitalization(.never)
-        .autocorrectionDisabled()
-        .accessibilityIdentifier("zip-download-url")
-      Button(RimeLocalization.text("Download ZIP from URL")) {
-        model.startDownload(zipURL: zipDownloadURL)
-      }
-      .disabled(zipDownloadURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-    } header: {
-      Text(RimeLocalization.text("Manual import"))
-    } footer: {
-      Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
     }
+    .navigationTitle(RimeLocalization.text("Import ZIP from Files"))
     .disabled(model.isDeploying || model.isImporting || model.isDownloading)
+  }
+
+  private var zipURLImportView: some View {
+    Form {
+      Section {
+        TextField(RimeLocalization.text("HTTPS ZIP download URL"), text: $zipDownloadURL)
+          .keyboardType(.URL)
+          .textInputAutocapitalization(.never)
+          .autocorrectionDisabled()
+          .accessibilityIdentifier("zip-download-url")
+        Button(RimeLocalization.text("Download ZIP from URL")) {
+          model.startDownload(zipURL: zipDownloadURL)
+        }
+        .disabled(zipDownloadURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+      .disabled(model.isDeploying || model.isImporting || model.isDownloading)
+      downloadStatusSection
+    }
+    .navigationTitle(RimeLocalization.text("Download ZIP from URL"))
+  }
+
+  @ViewBuilder
+  private var downloadStatusSection: some View {
     if model.downloadEntryID == nil, let message = model.downloadMessage {
       Section(RimeLocalization.text("Download status")) {
         Text(message.text).font(.footnote)
