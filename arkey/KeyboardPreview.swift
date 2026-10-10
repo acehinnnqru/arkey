@@ -18,11 +18,13 @@ struct KeyboardPreview: UIViewRepresentable {
   }
 
   func updateUIView(_ uiView: KeyboardPreviewView, context: Context) {
+    uiView.refreshLocalizedLabels()
     uiView.configure(auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
   }
 }
 
 final class KeyboardPreviewView: UIView {
+  func refreshLocalizedLabels() { candidateBar.setExpanded(false) }
   private let candidateBar = CandidateBar()
   private let keyGrid = KeyboardKeyGrid()
 
@@ -67,7 +69,7 @@ final class KeyboardPreviewView: UIView {
     keyGrid.configure(theme: KeyboardTheme.current(for: .light),
                       layer: .letters,
                       asciiMode: false,
-                      returnKeyLabel: "换行",
+                      returnKeyLabel: RimeLocalization.text("Return"),
                       showsGlobeRow: true,
                       language: RimeLanguageKey(label: "中", isASCII: false),
                       auxiliaryPrefix: auxiliaryPrefix,
@@ -82,7 +84,9 @@ final class KeyboardPreviewView: UIView {
 #if DEBUG
 /// A deterministic surface for gesture tests; it is shown only with the UI-test launch argument.
 struct CandidateScrollTestScreen: View {
+  @Environment(\.locale) private var interfaceLocale
   var body: some View {
+    let _ = interfaceLocale
     CandidateScrollTestFixture(reflow: ProcessInfo.processInfo.arguments.contains("--candidate-reflow-ui-test"))
       .frame(height: 350)
       .padding()
@@ -150,7 +154,7 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
       panel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       panel.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
-    panel.applyContinuation((0..<500).map { RimeCandidateItem(text: "候选词\($0)") }, startingAt: 0)
+    panel.applyContinuation((0..<500).map { RimeCandidateItem(text: RimeLocalization.text("Candidate \($0)")) }, startingAt: 0)
     if reflow {
       panel.isHidden = true
       panel.applyContinuation(Array(candidates.prefix(loadedCount)), startingAt: 0)

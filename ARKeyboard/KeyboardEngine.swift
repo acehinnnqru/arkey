@@ -151,16 +151,15 @@ enum KeyboardEngine {
   /// Short status for the candidate bar. Deliberately not an error-looking string when things
   /// are fine, because it is the first thing a user sees when the keyboard comes up.
   static func statusLine(_ setup: Setup, hasFullAccess: Bool) -> String {
-    let container = setup.workspace.writableRoot == .appGroup ? "共享容器" : "扩展容器"
+    let container = setup.workspace.writableRoot == .appGroup ? RimeLocalization.text("Shared container") : RimeLocalization.text("Extension container")
     let profile: String
     switch setup.resolved.origin {
     case .bundled:
-      profile = "内置数据"
+      profile = RimeLocalization.text("Built-in data")
     case .appGroup, .container:
-      profile = setup.resolved.profileID ?? "配置"
+      profile = setup.resolved.profileID ?? RimeLocalization.text("Profile")
     }
-    var line = "Arkey 就绪 · " + container + " · 完全访问" + (hasFullAccess ? "开" : "关")
-      + " · " + profile
+    var line = RimeLocalization.text("Arkey ready · \(container) · Full Access \((hasFullAccess ? RimeLocalization.text("On") : RimeLocalization.text("Off"))) · \(profile)")
     // S1 §9: a degraded activation says so where the user is already looking, and names the repair. The
     // keyboard cannot deploy, so the message points at the app — which reads the same table.
     if let recovery = RimeProfileRecovery.of(setup.resolved) {

@@ -9,35 +9,37 @@ import Foundation
 /// remain schema switch states rather than table choices.
 public struct RimePunctuationPreset: Sendable, Hashable, Identifiable {
   public let id: String
-  public let displayName: String
+  private let displayNameMessage: RimeLocalizedMessage
+  public var displayName: String { displayNameMessage.text }
   /// The config identifier used by a legacy import or a modern symbols include.
   public let importPreset: String
-  public let note: String
+  private let noteMessage: RimeLocalizedMessage
+  public var note: String { noteMessage.text }
   /// True when the schema actually ships the file this preset names. A preset whose table is not in
   /// the profile is offered only as a warning, because importing a preset that is not there leaves the
   /// schema with no punctuation at all.
   public let requiresFile: String?
 
-  public init(id: String, displayName: String, importPreset: String, note: String,
+  public init(id: String, displayName: RimeLocalizedMessage, importPreset: String, note: RimeLocalizedMessage,
               requiresFile: String? = nil) {
     self.id = id
-    self.displayName = displayName
+    self.displayNameMessage = displayName
     self.importPreset = importPreset
-    self.note = note
+    self.noteMessage = note
     self.requiresFile = requiresFile
   }
 }
 
 public enum RimePunctuation {
-  public static let presets: [RimePunctuationPreset] = [
-    .init(id: "default", displayName: "Schema default", importPreset: "default",
-          note: "Restore the active schema's punctuation settings."),
-    .init(id: "symbols", displayName: "默认符号表", importPreset: "symbols",
-          note: "配置自带的 symbols.yaml。", requiresFile: "symbols.yaml"),
-    .init(id: "symbols_v", displayName: "增强符号表", importPreset: "symbols_v",
-          note: "雾凇拼音的 symbols_v.yaml：标点更全，且带竖排符号。",
+  public static var presets: [RimePunctuationPreset] { [
+    .init(id: "default", displayName: RimeLocalization.message("Schema default"), importPreset: "default",
+          note: RimeLocalization.message("Restore the active schema's punctuation settings.")),
+    .init(id: "symbols", displayName: RimeLocalization.message("Default symbol table"), importPreset: "symbols",
+          note: RimeLocalization.message("The profile’s symbols.yaml."), requiresFile: "symbols.yaml"),
+    .init(id: "symbols_v", displayName: RimeLocalization.message("Extended symbol table"), importPreset: "symbols_v",
+          note: RimeLocalization.message("Rime Ice’s symbols_v.yaml: more punctuation and vertical symbols."),
           requiresFile: "symbols_v.yaml"),
-  ]
+  ] }
 
   public static func preset(id: String) -> RimePunctuationPreset? {
     presets.first { $0.id == id }
@@ -173,32 +175,32 @@ public struct RimeKeyBindingOption: Sendable, Hashable, Identifiable {
 }
 
 public enum RimeKeyBindings {
-  public static let options: [RimeKeyBindingOption] = [
-    .init(id: "page_minus_equal", displayName: "翻页：- 和 =",
-          note: "常见的 Rime 习惯：减号上一页，等号下一页。",
+  public static var options: [RimeKeyBindingOption] { [
+    .init(id: "page_minus_equal", displayName: RimeLocalization.text("Paging: - and ="),
+          note: RimeLocalization.text("Common Rime convention: minus for previous page, equals for next page."),
           bindings: [
             RimeKeyBindingOption.binding("paging", "-", "Page_Up"),
             RimeKeyBindingOption.binding("has_menu", "=", "Page_Down"),
           ]),
-    .init(id: "page_bracket", displayName: "翻页：[ 和 ]",
-          note: "把翻页交给方括号，减号与等号留给别处。",
+    .init(id: "page_bracket", displayName: RimeLocalization.text("Paging: [ and ]"),
+          note: RimeLocalization.text("Use brackets for paging, keeping minus and equals available."),
           bindings: [
             RimeKeyBindingOption.binding("paging", "bracketleft", "Page_Up"),
             RimeKeyBindingOption.binding("has_menu", "bracketright", "Page_Down"),
           ]),
-    .init(id: "select_semicolon_quote", displayName: "选词：; 和 '",
-          note: "分号选第二候选，引号选第三候选。",
+    .init(id: "select_semicolon_quote", displayName: RimeLocalization.text("Selection: ; and '"),
+          note: RimeLocalization.text("Semicolon selects the second candidate; apostrophe selects the third."),
           bindings: [
             RimeKeyBindingOption.binding("has_menu", "semicolon", "2"),
             RimeKeyBindingOption.binding("has_menu", "apostrophe", "3"),
           ]),
-    .init(id: "word_selection", displayName: "以词定字：[ 和 ]",
-          note: "在没有翻页冲突的方案里，方括号取词的首字与末字。",
+    .init(id: "word_selection", displayName: RimeLocalization.text("Character selection: [ and ]"),
+          note: RimeLocalization.text("Brackets select the first and last characters of a word when they do not conflict with paging."),
           bindings: [
             RimeKeyBindingOption.binding("has_menu", "bracketleft", "commit_comment"),
             RimeKeyBindingOption.binding("has_menu", "bracketright", "commit_raw_input"),
           ]),
-  ]
+  ] }
 
   public static func option(id: String) -> RimeKeyBindingOption? {
     options.first { $0.id == id }

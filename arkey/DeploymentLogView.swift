@@ -3,27 +3,29 @@ import RimeEngine
 
 /// Details of the latest attempt in this app session, including only its deployment report.
 struct DeploymentLogView: View {
+  @Environment(\.locale) private var interfaceLocale
   @ObservedObject var model: RimeAppModel
 
   var body: some View {
+    let _ = interfaceLocale
     List {
       if let attempt = model.latestDeployment {
-        Section("Deployment") {
+        Section(RimeLocalization.text("Deployment")) {
           Text(attempt.profileName)
           Text(attempt.profileID).font(.caption).foregroundStyle(.secondary)
-          LabeledContent("Started", value: attempt.startedAt.formatted(date: .abbreviated, time: .standard))
+          LabeledContent(RimeLocalization.text("Started"), value: attempt.startedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .standard).locale(interfaceLocale)))
           if let finishedAt = attempt.finishedAt {
-            LabeledContent("Finished", value: finishedAt.formatted(date: .abbreviated, time: .standard))
+            LabeledContent(RimeLocalization.text("Finished"), value: finishedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .standard).locale(interfaceLocale)))
           }
           Text(UserFacing.text(attempt.message))
             .foregroundStyle(attempt.failed ? Color.red : Color.secondary)
-          if attempt.finishedAt == nil { ProgressView("Deploying…") }
+          if attempt.finishedAt == nil { ProgressView(RimeLocalization.text("Deploying…")) }
         }
         Section {
           if attempt.logs.isEmpty {
             Text(attempt.finishedAt == nil
-                 ? "Logs will appear when this deployment finishes."
-                 : "No engine log was returned for this attempt.")
+                 ? RimeLocalization.text("Logs will appear when this deployment finishes.")
+                 : RimeLocalization.text("No engine log was returned for this attempt."))
               .foregroundStyle(.secondary)
           }
           ForEach(Array(attempt.logs.enumerated()), id: \.offset) { _, record in
@@ -33,16 +35,16 @@ struct DeploymentLogView: View {
               .textSelection(.enabled)
           }
         } header: {
-          Text("Engine log (" + String(attempt.logs.count) + ")")
+          Text(RimeLocalization.text("Engine log (\(String(attempt.logs.count)))"))
         } footer: {
-          Text("The latest deployment report from this app session. Older lines may be omitted by the engine's log buffer.")
+          Text(RimeLocalization.text("The latest deployment report from this app session. Older lines may be omitted by the engine's log buffer."))
         }
       } else {
-        ContentUnavailableView("No deployment log", systemImage: "doc.text",
-                               description: Text("Deploy a profile to see its result and engine log here. Logs are kept for this app session only."))
+        ContentUnavailableView(RimeLocalization.text("No deployment log"), systemImage: "doc.text",
+                               description: Text(RimeLocalization.text("Deploy a profile to see its result and engine log here. Logs are kept for this app session only.")))
       }
     }
-    .navigationTitle("Deployment log")
+    .navigationTitle(RimeLocalization.text("Deployment log"))
     .navigationBarTitleDisplayMode(.inline)
     .accessibilityIdentifier("deployment-log")
   }

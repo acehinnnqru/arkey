@@ -10,8 +10,7 @@ import SwiftUI
 /// has to read the list it joins, and 模糊音 has to read the algebra it composes into — all of which are
 /// engine calls, and an engine call made while a deploy is running waits for that deploy.
 enum RimeSettingsIntent: Sendable {
-  /// S2 §3's first row: which schemas the keyboard offers, in which order, and which one it starts on. One
-  /// key, written as the whole list.
+  /// The selected input scheme, written as a whole singleton list to default/schema_list.
   case schemaList([String])
   /// One switch's default state. The whole `switches` list goes into the patch, because Rime replaces a list
   /// wholesale (`RimeSettingsModel.setSwitchReset`).
@@ -118,7 +117,7 @@ extension RimeAppModel {
         await deploy(profileID: activeProfileID ?? "")
       }
       if let failure {
-        errorMessage = "写入设置失败：" + String(describing: failure)
+        errorMessage = RimeLocalization.message("Failed to save settings: \(String(describing: failure))")
         settingsFooter = .failed(String(describing: failure))
       }
       // The engine's own answer, with whatever is still queued laid back over it.
@@ -178,14 +177,14 @@ private enum AuxiliaryPrefixError: LocalizedError, CustomStringConvertible {
   case unsupportedSchema(String)
   case unsupportedSpelling(String)
 
-  var description: String { errorDescription ?? "辅码配置失败" }
+  var description: String { errorDescription ?? RimeLocalization.text("Auxiliary configuration failed", language: .english) }
 
   var errorDescription: String? {
     switch self {
     case .unsupportedSchema(let id):
-      return "方案 \(id) 没有 key_binder/search 辅码配置，无法自动联动。"
+      return RimeLocalization.text("Scheme \(id) has no key_binder/search auxiliary configuration; automatic updates are unavailable.", language: .english)
     case .unsupportedSpelling(let name):
-      return "当前配置的 radical_pinyin 没有 \(name) 辅码规则。"
+      return RimeLocalization.text("This profile’s radical_pinyin has no auxiliary rules for \(name).", language: .english)
     }
   }
 }

@@ -18,14 +18,13 @@ extension RimeAppModel {
       let portability = RimeSettingsPortability(workspace: workspace, engine: engine)
       let bundle = try portability.export(to: url)
       if bundle.files.isEmpty {
-        importWarnings = ["当前没有可导出的设置（还没有任何 *.custom.yaml 或自定义短语）。"]
+        importWarnings = [RimeLocalization.message("No settings to export yet (no *.custom.yaml or custom phrases).")]
       } else {
-        importWarnings = ["已导出 " + String(bundle.files.count) + " 个设置文件："
-                          + bundle.fileNames.joined(separator: "、")]
+        importWarnings = [RimeLocalization.message("Exported \(String(bundle.files.count)) settings files: \(bundle.fileNames.joined(separator: "、"))")]
       }
       return url
     } catch {
-      errorMessage = "导出设置失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to export settings: \(String(describing: error))")
       return nil
     }
   }
@@ -39,11 +38,10 @@ extension RimeAppModel {
       let portability = RimeSettingsPortability(workspace: workspace, engine: engine)
       let incoming = try portability.inspect(url)
       let results = try portability.importSettings(from: url, merge: .replace)
-      importWarnings = ["导入设置：" + String(results.count) + " 个文件（"
-                        + incoming.manifest.schemaIDs.joined(separator: "、") + "）"]
+      importWarnings = [RimeLocalization.message("Imported settings: \(String(results.count)) files (\(incoming.manifest.schemaIDs.joined(separator: "、")))")]
       await redeployActiveProfile()
     } catch {
-      errorMessage = "导入设置失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to import settings: \(String(describing: error))")
     }
   }
 }

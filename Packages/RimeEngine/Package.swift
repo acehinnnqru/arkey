@@ -5,6 +5,7 @@ import PackageDescription
 // macOS (swift test) against the same librime build the keyboard extension links.
 let package = Package(
   name: "RimeEngine",
+  defaultLocalization: "zh-Hans",
   platforms: [
     .macOS(.v13),
     .iOS(.v16),
@@ -29,6 +30,7 @@ let package = Package(
         // exactly one copy and the keyboard extension resolves it through its runpath.
         .product(name: "RimeDynamicStub", package: "librime-xcframework"),
       ],
+      resources: [.process("Resources")],
       swiftSettings: [.swiftLanguageMode(.v5)]
     ),
     .executableTarget(

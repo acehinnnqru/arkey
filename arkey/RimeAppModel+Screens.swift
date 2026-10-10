@@ -8,7 +8,7 @@ private struct DictionarySnapshot: Sendable {
   let report: RimeUserDictionaryReport?
   let backups: [String: [URL]]
   let error: String?
-  let syncDisabledReason: String?
+  let syncDisabledReason: RimeLocalizedMessage?
 
   nonisolated static func load(workspace: RimeWorkspace, engine: RimeEngine) -> Self {
     let service = RimeSyncService(workspace: workspace, engine: engine)
@@ -83,7 +83,7 @@ extension RimeAppModel {
     currentPunctuationPreset = snapshot.punctuationPreset
     var descriptor = snapshot.descriptor
     if let error = snapshot.error {
-      errorMessage = "Failed to read schema settings: " + error
+      errorMessage = RimeLocalization.message("Failed to read schema settings: \(error)")
     }
 
     // The queue is the overlay, so the two cannot disagree: what is queued is exactly what is not deployed.
@@ -160,42 +160,18 @@ extension RimeAppModel {
     return RimeTreeClassifier.classify(root: workspace.profile(id).source).schemaIDs
   }
 
-  /// Enable, order and default are the same key, so they are the same write (S2 §3).
-  ///
-  /// The switch moves here and the write follows it. That order is the whole fix for the reported freeze: a
-  /// switch whose value came from the *deployed* list could not move until the deploy ended, and a write made
-  /// on the tap waited on the engine's queue, which is what that deploy was holding.
-  func setSchemaList(_ ids: [String]) {
+  /// Publish the choice before queuing the write so selection never waits on the engine's deployment queue.
+  private func setSchemaList(_ ids: [String]) {
     guard ids != schemaOrderIDs else { return }
     schemaOrderIDs = ids
     enqueueSettingsWrite(.schemaList(ids))
   }
 
-  func moveSchema(_ id: String, by offset: Int) {
-    var ids = schemaOrderIDs
-    guard let index = ids.firstIndex(of: id), ids.indices.contains(index + offset) else { return }
-    ids.swapAt(index, index + offset)
-    setSchemaList(ids)
-  }
-
-  func setSchemaDefault(_ id: String) {
-    var ids = schemaOrderIDs
-    guard ids.contains(id), ids.first != id else { return }
-    ids.removeAll { $0 == id }
-    ids.insert(id, at: 0)
-    setSchemaList(ids)
-  }
-
-  func setSchema(_ id: String, enabled: Bool) {
-    var ids = schemaOrderIDs
-    if enabled {
-      guard !ids.contains(id) else { return }
-      ids.append(id)
-    } else {
-      guard ids.contains(id) else { return }
-      ids.removeAll { $0 == id }
-    }
-    setSchemaList(ids)
+  /// Selecting a row replaces the enabled list, including imported lists with multiple schemas.
+  /// Selecting the same row again cannot turn off the only input scheme.
+  func selectInputSchema(_ id: String) {
+    guard schemaRows.contains(id) else { return }
+    setSchemaList([id])
   }
 
   func schemaListEditor() -> RimeSchemaListEditor {
@@ -235,13 +211,13 @@ extension RimeAppModel {
     do {
       let service = RimeSyncService(workspace: workspace, engine: engine)
       guard try service.backup(dictionary: name) != nil else {
-        errorMessage = "备份失败：同步目录里还没有这个词库的快照，librime 也没能写出一份。"
+        errorMessage = RimeLocalization.message("Backup failed: no snapshot exists in the sync folder and librime could not create one.")
         return
       }
-      syncMessage = "已备份 " + name
+      syncMessage = RimeLocalization.message("Backed up \(name)")
       refreshDictionaries()
     } catch {
-      errorMessage = "备份失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Backup failed: \(String(describing: error))")
     }
   }
 
@@ -251,17 +227,17 @@ extension RimeAppModel {
     do {
       let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
       _ = try access.perform { try engine.restoreUserDictionary(snapshotFile: url) }
-      syncMessage = "已从 " + url.lastPathComponent + " 恢复 " + name
+      syncMessage = RimeLocalization.message("Restored from \(url.lastPathComponent) dictionary \(name)")
       refreshDictionaries()
     } catch {
-      errorMessage = "恢复失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Restore failed: \(String(describing: error))")
     }
   }
 
   func syncDictionaries() async {
     guard !isSyncing else { return }
     isSyncing = true
-    syncMessage = "正在同步…"
+    syncMessage = RimeLocalization.message("Syncing…")
     let workspace = self.workspace
     let engine = self.engine
     do {
@@ -269,11 +245,10 @@ extension RimeAppModel {
         try RimeSyncService(workspace: workspace, engine: engine).syncNow()
       }.value
       syncMessage = outcome.succeeded
-        ? "同步完成：" + String(outcome.snapshots.count) + " 个快照，"
-          + String(format: "%.1f s", outcome.duration)
-        : "同步失败：" + (outcome.failureReason ?? "")
+        ? RimeLocalization.message("Sync complete: \(String(outcome.snapshots.count)) snapshots, \(String(format: "%.1f s", outcome.duration))")
+        : RimeLocalization.message("Sync failed: \((outcome.failureReason ?? ""))")
     } catch {
-      syncMessage = "同步失败：" + String(describing: error)
+      syncMessage = RimeLocalization.message("Sync failed: \(String(describing: error))")
       errorMessage = syncMessage
     }
     await refreshDictionariesInBackground()
@@ -294,16 +269,14 @@ extension RimeAppModel {
           .mergeFromOtherDevices(devices: deviceID.map { [$0] })
       }.value
       if outcome.isEmpty {
-        syncMessage = "同步目录里还没有其他设备的快照。"
+        syncMessage = RimeLocalization.message("No snapshots from other devices exist in the sync folder.")
       } else {
         let devices = Set(outcome.entries.flatMap(\.deviceIDs)).sorted().joined(separator: "、")
         let read = outcome.entries.reduce(0) { $0 + $1.entriesRead }
-        syncMessage = "已从 " + devices + " 合并 " + String(outcome.entries.count)
-          + " 个词库：读取 " + String(read) + " 条，并入 "
-          + String(outcome.totalImported) + " 条"
+        syncMessage = RimeLocalization.message("Restored from \(devices) merged \(String(outcome.entries.count)) dictionaries: read \(String(read)) entries, added \(String(outcome.totalImported)) entries")
       }
     } catch {
-      syncMessage = "合并失败：" + String(describing: error)
+      syncMessage = RimeLocalization.message("Merge failed: \(String(describing: error))")
       errorMessage = syncMessage
     }
     await refreshDictionariesInBackground()
@@ -333,7 +306,7 @@ extension RimeAppModel {
     dictionaryBackups = snapshot.backups
     syncDisabledReason = snapshot.syncDisabledReason
     if let error = snapshot.error {
-      errorMessage = "读取用户词库失败：" + error
+      errorMessage = RimeLocalization.message("Failed to read user dictionaries: \(error)")
     }
   }
 
@@ -353,11 +326,11 @@ extension RimeAppModel {
       _ = try workspace.setSyncDirectory(validated)
       syncChoice = choice
       syncChoiceProblem = nil
-      deployMessage = "同步文件夹已改为 " + validated.path
-      settingsFooter = .applied("同步文件夹已更新")
+      deployMessage = RimeLocalization.message("Sync folder changed to \(validated.path)")
+      settingsFooter = .applied(RimeLocalization.message("Sync folder updated"))
       refreshDictionaries()
     } catch {
-      errorMessage = "选择同步文件夹失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to choose sync folder: \(String(describing: error))")
     }
   }
 
@@ -369,11 +342,11 @@ extension RimeAppModel {
       _ = try workspace.setSyncDirectory(fallback)
       syncChoice = nil
       syncChoiceProblem = nil
-      deployMessage = "同步文件夹已回到默认：" + fallback.path
-      settingsFooter = .applied("同步文件夹已更新")
+      deployMessage = RimeLocalization.message("Sync folder restored to default: \(fallback.path)")
+      settingsFooter = .applied(RimeLocalization.message("Sync folder updated"))
       refreshDictionaries()
     } catch {
-      errorMessage = "恢复默认同步文件夹失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to restore default sync folder: \(String(describing: error))")
     }
   }
 
@@ -385,7 +358,7 @@ extension RimeAppModel {
       _ = try editor.removeDictionary(name)
       refreshDictionaries()
     } catch {
-      errorMessage = "删除词库失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to delete dictionary: \(String(describing: error))")
     }
   }
 
@@ -401,7 +374,7 @@ extension RimeAppModel {
       _ = try service.exportDictionary(name, to: url)
       return url
     } catch {
-      errorMessage = "导出失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Export failed: \(String(describing: error))")
       return nil
     }
   }
@@ -419,7 +392,7 @@ extension RimeAppModel {
       guard FileManager.default.fileExists(atPath: url.path) else { return nil }
       return url
     } catch {
-      errorMessage = "导出快照失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to export snapshot: \(String(describing: error))")
       return nil
     }
   }
@@ -435,11 +408,10 @@ extension RimeAppModel {
                                               withIntermediateDirectories: true)
       let export = try RimeSyncService(workspace: workspace, engine: engine)
         .exportAllSnapshots(to: url)
-      syncMessage = "已导出 " + String(export.dictionaries.count) + " 个词库快照（"
-        + RimeProbe.formatted(bytes: UInt64(export.bytes)) + "）"
+      syncMessage = RimeLocalization.message("Exported \(String(export.dictionaries.count)) dictionary snapshots (\(RimeProbe.formatted(bytes: UInt64(export.bytes))))")
       return url
     } catch {
-      errorMessage = "导出整组快照失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to export all snapshots: \(String(describing: error))")
       return nil
     }
   }
@@ -448,20 +420,20 @@ extension RimeAppModel {
   /// rather than by which button was pressed. The engine backs the dictionary up before the import (S5-AC3),
   /// and the access gate refuses while the keyboard holds the lease. Returns the sentence to show, or "" when
   /// it failed — the error is on `errorMessage` then.
-  func importDictionary(from url: URL, into name: String) -> String {
+  func importDictionary(from url: URL, into name: String) -> RimeLocalizedMessage {
     let service = RimeSyncService(workspace: workspace, engine: engine)
     do {
       do {
         let snapshot = try service.importSnapshot(at: url)
         refreshDictionaries()
-        return "已导入快照到 " + (snapshot.dictionary ?? name) + "：" + url.lastPathComponent
+        return RimeLocalization.message("Imported snapshot into \((snapshot.dictionary ?? name)): \(url.lastPathComponent)")
       } catch RimeSyncError.notASnapshot {
         let count = try service.importExportFile(url, into: name)
         refreshDictionaries()
-        return "已导入 " + String(count) + " 条到 " + name
+        return RimeLocalization.message("Imported \(String(count)) entries into \(name)")
       }
     } catch {
-      errorMessage = "导入词库失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to import dictionary: \(String(describing: error))")
       return ""
     }
   }

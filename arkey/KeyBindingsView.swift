@@ -7,12 +7,14 @@ import RimeEngine
 /// the catalogue owns every binding it can generate, so an option that is off removes its own entries
 /// and toggling twice cannot accumulate duplicates.
 struct KeyBindingsView: View {
+  @Environment(\.locale) private var interfaceLocale
   @ObservedObject var model: RimeAppModel
   @State private var isLoading = true
 
   var body: some View {
+    let _ = interfaceLocale
     List {
-      if isLoading { ProgressView("Loading settings…") }
+      if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       Section {
         ForEach(RimeKeyBindings.options) { option in
           Toggle(option.displayName, isOn: Binding(
@@ -30,15 +32,14 @@ struct KeyBindingsView: View {
                     && model.enabledKeyBindingOptions.contains("page_bracket"))
         }
       } header: {
-        Text("按键绑定")
+        Text(RimeLocalization.text("Key bindings"))
       } footer: {
-        Text("以词定字与「翻页：[ 和 ]」冲突：同一个键不能既翻页又取字，先关掉一个。\n"
-             + "改动写入 key_binder/bindings 并重新部署。")
+        Text(RimeLocalization.text("Character selection conflicts with paging using [ and ]: disable one before using the other.\nChanges are saved to key_binder/bindings and deployed again."))
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .disabled(isLoading)
-    .navigationTitle("按键")
+    .navigationTitle(RimeLocalization.text("Keys"))
     .task {
       isLoading = true
       await model.refreshKeyBindings()

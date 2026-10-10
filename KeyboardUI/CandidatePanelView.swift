@@ -105,6 +105,12 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
 
 /// Expanded candidates use up to six aligned columns and scroll within the keyboard.
 final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
+  func refreshLocalizedLabels() {
+    leadingButton.accessibilityLabel = RimeLocalization.text("Previous page")
+    trailingButton.accessibilityLabel = RimeLocalization.text("Next page")
+    collapseButton.accessibilityLabel = RimeLocalization.text("Collapse candidates")
+  }
+
   /// A cell was tapped: the argument is librime's own candidate index, not the cell's position.
   var onSelect: ((Int) -> Void)?
   var onCollapse: (() -> Void)?
@@ -169,9 +175,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     collapseButton.setImage(UIImage(systemName: "chevron.up"), for: .normal)
     collapseButton.imageEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset,
                                                 left: 0, bottom: 0, right: 0)
-    leadingButton.accessibilityLabel = "上一页"
-    trailingButton.accessibilityLabel = "下一页"
-    collapseButton.accessibilityLabel = "收起候选面板"
+    refreshLocalizedLabels()
     leadingButton.addTarget(self, action: #selector(handleLeading), for: .touchUpInside)
     trailingButton.addTarget(self, action: #selector(handleTrailing), for: .touchUpInside)
     collapseButton.addTarget(self, action: #selector(handleCollapse), for: .touchUpInside)

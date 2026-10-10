@@ -6,19 +6,21 @@ import UIKit
 /// Reads the probe log the keyboard writes, so a failure on a device can be copied out of the
 /// app instead of guessed at from a truncated line above the keys.
 struct DiagnosticsView: View {
+  @Environment(\.locale) private var interfaceLocale
   @StateObject private var model = RimeAppModel.shared
   @State private var records: [RimeProbeRecord] = []
-  @State private var status = "读取中…"
+  @State private var status = RimeLocalization.message("Loading…")
   @State private var showingClearConfirmation = false
   @State private var showingCopyResult = false
-  @State private var copyResult = ""
+  @State private var copyResult: RimeLocalizedMessage = ""
   @State private var logReadID = UUID()
 
   var body: some View {
+    let _ = interfaceLocale
     List {
-      Section("配置") {
+      Section(RimeLocalization.text("Profile")) {
         // S1 §9: every degraded mode names the exact path this process resolves.
-        Text(model.resolvedSummary).font(.footnote)
+        Text(model.resolvedSummary.text).font(.footnote)
         if let resolved = model.resolved {
           Text("shared  " + resolved.directories.sharedDataDir)
             .font(.caption2).foregroundStyle(.secondary)
@@ -27,38 +29,38 @@ struct DiagnosticsView: View {
           Text("user  " + resolved.directories.userDataDir)
             .font(.caption2).foregroundStyle(.secondary)
         }
-        Text(model.engineStatus).font(.caption).foregroundStyle(.secondary)
+        Text(model.engineStatus.text).font(.caption).foregroundStyle(.secondary)
         // S6 §4: a bug report has to name both versions, so the screen shows both — the app's from its
         // own bundle, the engine's from the library that is linked into it.
         Text("librime " + RimeEngine.librimeVersion
-             + (RimeHostVersion.current.map { " · app " + $0 } ?? " · app 未知"))
+             + (RimeHostVersion.current.map { " · app " + $0 } ?? RimeLocalization.text(" · app unknown")))
           .font(.caption).foregroundStyle(.secondary)
-        Text("已安装配置 " + String(model.profiles.count) + " 个")
+        Text(RimeLocalization.text("Installed profiles: \(String(model.profiles.count))"))
           .font(.caption).foregroundStyle(.secondary)
       }
 
-      Section("容器") {
-        Text(status)
+      Section(RimeLocalization.text("Container")) {
+        Text(status.text)
           .font(.footnote)
           .foregroundStyle(.secondary)
       }
 
-      Section("Export") {
-        ShareLink("Share diagnostics", item: DiagnosticsReport.text(records: records, location: status))
-        Text("Recent records are shown below. Repeated legacy layout events are grouped.")
+      Section(RimeLocalization.text("Export")) {
+        ShareLink(RimeLocalization.text("Share diagnostics"), item: DiagnosticsReport.text(records: records, location: status.text))
+        Text(RimeLocalization.text("Recent records are shown below. Repeated legacy layout events are grouped."))
           .font(.caption).foregroundStyle(.secondary)
       }
 
       if records.isEmpty {
         Section {
-          Text("没有日志。先在设置里启用 Arkey 键盘、打开完全访问，敲几个键，再回到这里刷新。")
+          Text(RimeLocalization.text("No logs yet. Enable the Arkey keyboard and Full Access in Settings, type a few keys, then return and refresh."))
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
       } else {
         // S1-AC8 and S4-AC6: the numbers first, because that is what the acceptance criteria read, and
         // the raw lines under them for the case the numbers do not explain.
-        Section("统计") {
+        Section(RimeLocalization.text("Statistics")) {
           ForEach(RimeProbeSummary(records: records).orderedPhases, id: \.name) { phase in
             VStack(alignment: .leading, spacing: 2) {
               Text(phase.name).font(.footnote.bold())
@@ -67,7 +69,7 @@ struct DiagnosticsView: View {
           }
         }
 
-        Section("键盘日志（" + String(records.count) + " 条）") {
+        Section(RimeLocalization.text("Keyboard log (\(String(records.count)) records)")) {
           ForEach(Array(records.enumerated()), id: \.offset) { _, record in
             VStack(alignment: .leading, spacing: 3) {
               Text(record.phase).font(.footnote.bold())
@@ -77,30 +79,30 @@ struct DiagnosticsView: View {
         }
       }
     }
-    .navigationTitle("诊断")
+    .navigationTitle(RimeLocalization.text("Diagnostics"))
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
-        Button("刷新") { Task { await loadInBackground() } }
+        Button(RimeLocalization.text("Refresh")) { Task { await loadInBackground() } }
       }
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button("清理") { showingClearConfirmation = true }
+        Button(RimeLocalization.text("Clear")) { showingClearConfirmation = true }
           .disabled(logURL == nil)
-        Button("复制") { copyAll() }
+        Button(RimeLocalization.text("Copy")) { copyAll() }
           .accessibilityIdentifier("diagnostics-copy")
       }
     }
-    .confirmationDialog("清理键盘日志？",
+    .confirmationDialog(RimeLocalization.text("Clear keyboard logs?"),
                         isPresented: $showingClearConfirmation,
                         titleVisibility: .visible) {
-      Button("清理 " + String(records.count) + " 条记录", role: .destructive) { clear() }
-      Button("取消", role: .cancel) {}
+      Button(RimeLocalization.text("Clear \(String(records.count)) records"), role: .destructive) { clear() }
+      Button(RimeLocalization.text("Cancel"), role: .cancel) {}
     } message: {
-      Text("清空整个日志目录：探针日志与 librime 自己的日志文件。键盘、词库和用户数据都不受影响，清空后无法恢复。")
+      Text(RimeLocalization.text("This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone."))
     }
-    .alert("Diagnostics", isPresented: $showingCopyResult) {
-      Button("OK", role: .cancel) {}
+    .alert(RimeLocalization.text("Diagnostics"), isPresented: $showingCopyResult) {
+      Button(RimeLocalization.text("OK"), role: .cancel) {}
     } message: {
-      Text(copyResult)
+      Text(copyResult.text)
     }
     .task { await loadInBackground() }
   }
@@ -132,15 +134,15 @@ struct DiagnosticsView: View {
   private func load() {
     logReadID = UUID()
     guard let url = logURL else {
-      status = "拿不到 App Group 容器：请在键盘设置里打开“允许完全访问”，然后重新打开键盘。"
+      status = RimeLocalization.message("App Group container is unavailable. Enable Allow Full Access in keyboard settings, then reopen the keyboard.")
       records = []
       return
     }
     records = DiagnosticsReport.compact(RimeProbeLog(url: url).readAll())
     ProbeLogLocation.mirrorIntoAppContainer()
     status = records.isEmpty
-      ? url.path + "（暂无记录）"
-      : url.path
+      ? RimeLocalization.message("\(url.path) (no records)")
+      : RimeLocalizedMessage(verbatim: url.path)
   }
 
   private func loadInBackground() async {
@@ -157,36 +159,36 @@ struct DiagnosticsView: View {
     }.value
     guard !Task.isCancelled, logReadID == readID else { return }
     records = loaded
-    status = loaded.isEmpty ? url.path + " (no records)" : url.path
+    status = loaded.isEmpty ? RimeLocalization.message("\(url.path) (no records)") : RimeLocalizedMessage(verbatim: url.path)
   }
 
   private func copyAll() {
     load()
-    let report = DiagnosticsReport.text(records: records, location: status)
+    let report = DiagnosticsReport.text(records: records, location: status.text)
     UIPasteboard.general.string = report
     copyResult = UIPasteboard.general.string == report
-      ? "Copied the latest diagnostics. You can paste them into a message."
-      : "Copy failed. Use Share diagnostics to export the report."
+      ? RimeLocalization.message("Copied the latest diagnostics. You can paste them into a message.")
+      : RimeLocalization.message("Copy failed. Use Share diagnostics to export the report.")
     showingCopyResult = true
   }
 
   /// One phase as a line: how many samples, and the numbers a reader compares against the spec.
   private func summaryLine(_ phase: RimeProbeSummary.Phase) -> String {
-    var parts = [String(phase.count) + " 次"]
+    var parts = [RimeLocalization.text("\(String(phase.count)) samples")]
     if let median = phase.medianMilliseconds {
-      parts.append("中位 " + String(format: "%.1f", median) + " ms")
+      parts.append(RimeLocalization.text("Median \(String(format: "%.1f", locale: interfaceLocale, median)) ms"))
     }
     if let p95 = phase.p95Milliseconds {
-      parts.append("p95 " + String(format: "%.1f", p95) + " ms")
+      parts.append("p95 " + String(format: "%.1f", locale: interfaceLocale, p95) + " ms")
     }
     if let worst = phase.maxMilliseconds {
-      parts.append("最差 " + String(format: "%.1f", worst) + " ms")
+      parts.append(RimeLocalization.text("Worst \(String(format: "%.1f", locale: interfaceLocale, worst)) ms"))
     }
     if let bytes = phase.lastFootprintBytes {
-      parts.append("占用 " + RimeProbe.formatted(bytes: bytes))
+      parts.append(RimeLocalization.text("Memory \(RimeProbe.formatted(bytes: bytes))"))
     }
     if let bytes = phase.maxFootprintBytes, bytes != phase.lastFootprintBytes {
-      parts.append("峰值 " + RimeProbe.formatted(bytes: bytes))
+      parts.append(RimeLocalization.text("Peak \(RimeProbe.formatted(bytes: bytes))"))
     }
     if let message = phase.lastMessage, !phase.name.hasPrefix("keyboard.geometry.") {
       parts.append(message)
@@ -197,7 +199,7 @@ struct DiagnosticsView: View {
   private func detail(_ record: RimeProbeRecord) -> String {
     var parts = [Self.time.string(from: record.timestamp)]
     if let milliseconds = record.milliseconds {
-      parts.append(String(format: "%.1f ms", milliseconds))
+      parts.append(String(format: "%.1f ms", locale: interfaceLocale, milliseconds))
     }
     if let bytes = record.footprintBytes, bytes > 0 {
       parts.append(RimeProbe.formatted(bytes: bytes))

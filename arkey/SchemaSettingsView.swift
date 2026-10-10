@@ -4,12 +4,14 @@ import RimeEngine
 /// S2's 方案 / 输入 screens: only the knobs the schema's translator actually reads, generated from the
 /// schema rather than hard-coded per screen.
 struct SchemaSettingsView: View {
+  @Environment(\.locale) private var interfaceLocale
   @ObservedObject var model: RimeAppModel
   @State private var isLoading = true
 
   var body: some View {
+    let _ = interfaceLocale
     List {
-      if isLoading { ProgressView("Loading settings…") }
+      if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       schemaSection
       if let descriptor = model.schemaDescriptor {
         switchSection(descriptor)
@@ -18,7 +20,7 @@ struct SchemaSettingsView: View {
         footerSection(descriptor)
       } else if !isLoading {
         Section {
-          Text("还没有可设置的方案。先到配置库导入并部署一个配置。")
+          Text(RimeLocalization.text("No scheme is available. Import and deploy a profile in the profile library first."))
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
@@ -26,10 +28,10 @@ struct SchemaSettingsView: View {
       if let error = model.errorMessage { errorSection(error) }
     }
     .disabled(isLoading)
-    .navigationTitle("方案")
+    .navigationTitle(RimeLocalization.text("Scheme"))
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button("刷新") { Task { await model.refreshSettings() } }
+        Button(RimeLocalization.text("Refresh")) { Task { await model.refreshSettings() } }
       }
     }
     .task {
@@ -41,51 +43,27 @@ struct SchemaSettingsView: View {
 
   // MARK: Sections
 
-  /// S2 §3's first row: which schemas the keyboard offers, in which order, and which one it starts
-  /// on. The first entry *is* the default, so there is no separate setting to get out of step.
-  ///
-  /// Every control here writes through `RimeAppModel`: the tap publishes the choice and the write and the
-  /// deploy that carries it are queued, so none of these closures awaits anything. Awaiting would put the
-  /// control's own state behind a deploy that takes tens of seconds on a real configuration.
+  /// A selection publishes immediately; its single-schema list is written and deployed in the background.
   private var schemaSection: some View {
-    let order = model.schemaOrderIDs
+    let selected = model.schemaOrderIDs.first
     let rows = model.schemaRows
     return Section {
-      ForEach(rows, id: \.self) { id in
-        HStack(spacing: 12) {
-          Toggle(isOn: Binding(
-            get: { order.contains(id) },
-            set: { isOn in model.setSchema(id, enabled: isOn) })) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(id)
-                if order.first == id {
-                  Text("默认").font(.caption2).foregroundStyle(.secondary)
-                }
-              }
-            }
-          if order.contains(id) {
-            Button { model.moveSchema(id, by: -1) } label: {
-              Image(systemName: "arrow.up")
-            }
-            .buttonStyle(.borderless)
-            .disabled(order.first == id)
-            Button { model.moveSchema(id, by: 1) } label: {
-              Image(systemName: "arrow.down")
-            }
-            .buttonStyle(.borderless)
-            .disabled(order.last == id)
-            if order.first != id {
-              Button("设为默认") { model.setSchemaDefault(id) }
-                .font(.caption)
-                .buttonStyle(.borderless)
-            }
+      Picker(RimeLocalization.text("Input scheme"), selection: Binding(
+        get: { selected ?? "" },
+        set: { model.selectInputSchema($0) })) {
+          if selected == nil {
+            Text(RimeLocalization.text("Choose a scheme")).tag("")
           }
-        }
+          ForEach(rows, id: \.self) { id in
+            Text(id).tag(id)
+          }
       }
+      .pickerStyle(.menu)
+      .disabled(rows.isEmpty)
     } header: {
-      Text("方案")
+      Text(RimeLocalization.text("Scheme"))
     } footer: {
-      Text("第一个是默认方案。开关决定它是否出现在键盘上；改动写入 default.custom.yaml 并自动部署。")
+      Text(RimeLocalization.text("Choose one input scheme. Changes are deployed automatically and take effect the next time the keyboard opens."))
     }
   }
 
@@ -105,13 +83,13 @@ struct SchemaSettingsView: View {
         }
       }
     } header: {
-      Text("开关")
+      Text(RimeLocalization.text("Switches"))
     } footer: {
       // Measured: setting one switch writes the whole list, so the file cannot say which switch the
       // user changed. The section is marked, not each row.
       Text(descriptor.switches.contains { $0.isUserSet }
-           ? "已修改（开关是整表写入，所以这里标记的是整节）"
-           : "来自方案的默认值")
+           ? RimeLocalization.text("Modified (switches are saved together, so the entire section is marked)")
+           : RimeLocalization.text("Scheme defaults"))
     }
   }
 
@@ -123,7 +101,7 @@ struct SchemaSettingsView: View {
         settingRow(setting)
       }
     } header: {
-      Text("输入（" + translatorName(descriptor.translatorKind) + "）")
+      Text(RimeLocalization.text("Input (\(translatorName(descriptor.translatorKind)))"))
     }
   }
 
@@ -140,9 +118,9 @@ struct SchemaSettingsView: View {
             set: { value in
               if let value { model.setSetting(setting, value: .boolean(value)) }
             })) {
-              Text("Use engine default").tag(nil as Bool?)
-              Text("On").tag(Optional(true))
-              Text("Off").tag(Optional(false))
+              Text(RimeLocalization.text("Use engine default")).tag(nil as Bool?)
+              Text(RimeLocalization.text("On")).tag(Optional(true))
+              Text(RimeLocalization.text("Off")).tag(Optional(false))
             }
             .pickerStyle(.menu)
         case .integer:
@@ -151,7 +129,7 @@ struct SchemaSettingsView: View {
             set: { value in
               if let value { model.setSetting(setting, value: .integer(value)) }
             })) {
-              Text("Use engine default").tag(nil as Int?)
+              Text(RimeLocalization.text("Use engine default")).tag(nil as Int?)
               ForEach(0...20, id: \.self) { value in
                 Text(String(value)).tag(Optional(value))
               }
@@ -171,7 +149,7 @@ struct SchemaSettingsView: View {
             .font(.body)
         }
       default:
-        Text(setting.title + "：" + (setting.effective?.displayText ?? "未设置"))
+        Text(setting.title + "：" + (setting.effective?.displayText ?? RimeLocalization.text("Not set")))
           .font(.body)
       }
       HStack(spacing: 8) {
@@ -179,7 +157,7 @@ struct SchemaSettingsView: View {
           Text(note).font(.caption2).foregroundStyle(.secondary)
         }
         if setting.isUserSet {
-          Button("重置") { model.resetSetting(setting) }
+          Button(RimeLocalization.text("Reset")) { model.resetSetting(setting) }
             .font(.caption2)
         }
       }
@@ -204,31 +182,31 @@ struct SchemaSettingsView: View {
           }))
       }
     } header: {
-      Text("模糊音")
+      Text(RimeLocalization.text("Fuzzy pinyin"))
     } footer: {
-      Text("按组合写入 speller/algebra：重复开关不会累积规则，关掉只移除自己的规则。")
+      Text(RimeLocalization.text("Saved together in speller/algebra. Repeated toggles do not duplicate rules; disabling removes only that preset’s rules."))
     }
   }
 
   /// Explains where schema changes are saved and when the keyboard adopts them.
   private func footerSection(_ descriptor: RimeSchemaDescriptor) -> some View {
-    Text("改动写入 " + (descriptor.schemaID) + ".custom.yaml，随后自动部署；键盘在下次出现时采用。")
+    Text(RimeLocalization.text("Changes are saved to \((descriptor.schemaID)).custom.yaml and deployed automatically. The keyboard adopts them next time it opens."))
       .font(.caption2)
       .foregroundStyle(.secondary)
   }
 
-  private func errorSection(_ message: String) -> some View {
-    Section("错误") {
+  private func errorSection(_ message: RimeLocalizedMessage) -> some View {
+    Section(RimeLocalization.text("Error")) {
       Text(UserFacing.text(message)).font(.caption).foregroundStyle(.red)
-      Button("清除") { model.errorMessage = nil }.font(.caption)
+      Button(RimeLocalization.text("Clear")) { model.errorMessage = nil }.font(.caption)
     }
   }
 
   private func translatorName(_ kind: RimeTranslatorKind) -> String {
     switch kind {
-    case .script: return "拼音"
-    case .table: return "码表"
-    case .other: return "其他"
+    case .script: return RimeLocalization.text("Pinyin")
+    case .table: return RimeLocalization.text("Table")
+    case .other: return RimeLocalization.text("Other")
     }
   }
 }

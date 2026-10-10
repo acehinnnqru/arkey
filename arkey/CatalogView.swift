@@ -10,24 +10,25 @@ import RimeEngine
 /// fetch "later and optionally"; not having it removes the only network path from the app, which is
 /// also the strongest answer to the review question in S6 §6.
 struct CatalogView: View {
+  @Environment(\.locale) private var interfaceLocale
   var body: some View {
+    let _ = interfaceLocale
     List {
       Section {
         ForEach(RimeCatalog.standard.entries, id: \.id) { entry in
           row(entry)
         }
       } header: {
-        Text("可选配置")
+        Text(RimeLocalization.text("Available profiles"))
       } footer: {
-        Text("下载在系统浏览器里进行；下载完成后回到「配置库 → 导入」把 zip 装进来。"
-             + "本 app 自己不发起网络请求，也不托管任何第三方数据。")
+        Text(RimeLocalization.text("Downloads open in the system browser. Return to Profile library → Import to install the zip. This app does not make network requests or host third-party data."))
       }
-      Section("导入") {
-        Text("导入走的是同一条管线：解包加固、配置根识别、逐文件校验，失败时指名文件与原因。")
+      Section(RimeLocalization.text("Import")) {
+        Text(RimeLocalization.text("Import uses the same hardened archive extraction, profile root detection, and per-file validation. Failures name the file and reason."))
           .font(.caption).foregroundStyle(.secondary)
       }
     }
-    .navigationTitle("下载配置")
+    .navigationTitle(RimeLocalization.text("Download profiles"))
   }
 
   private func row(_ entry: RimeCatalogEntry) -> some View {
@@ -37,12 +38,12 @@ struct CatalogView: View {
       Text(entry.notes).font(.caption2).foregroundStyle(.secondary)
       HStack(spacing: 14) {
         if entry.isSecure, let url = URL(string: entry.pageURL) {
-          Link("打开项目页", destination: url).font(.caption)
+          Link(RimeLocalization.text("Open project page"), destination: url).font(.caption)
         } else {
-          Text("项目页地址不是 HTTPS，已隐藏").font(.caption).foregroundStyle(.orange)
+          Text(RimeLocalization.text("Project page hidden because its address does not use HTTPS")).font(.caption).foregroundStyle(.orange)
         }
         if let source = entry.license.sourceURL, let url = URL(string: source) {
-          Link("上游仓库", destination: url).font(.caption)
+          Link(RimeLocalization.text("Upstream repository"), destination: url).font(.caption)
         }
         if let licensePage = entry.license.url, let url = URL(string: licensePage) {
           Link(entry.license.spdx, destination: url).font(.caption)
@@ -55,10 +56,10 @@ struct CatalogView: View {
   private func detail(_ entry: RimeCatalogEntry) -> String {
     var parts = [entry.license.spdx,
                  RimeProbe.formatted(bytes: UInt64(max(0, entry.approximateBytes))),
-                 String(entry.requirements.schemaCount) + " 个方案"]
-    if entry.requirements.needsLua { parts.append("含 Lua") }
-    if entry.requirements.needsGrammarModel { parts.append("含语法模型") }
-    if entry.requirements.needsPredict { parts.append("含预测") }
+                 RimeLocalization.text("\(String(entry.requirements.schemaCount)) schemes")]
+    if entry.requirements.needsLua { parts.append(RimeLocalization.text("Includes Lua")) }
+    if entry.requirements.needsGrammarModel { parts.append(RimeLocalization.text("Includes grammar model")) }
+    if entry.requirements.needsPredict { parts.append(RimeLocalization.text("Includes prediction")) }
     return parts.joined(separator: " · ")
   }
 }

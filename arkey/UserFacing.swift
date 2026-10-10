@@ -1,3 +1,4 @@
+import RimeEngine
 import SwiftUI
 
 /// What the user reads, as opposed to what the model holds.
@@ -31,9 +32,11 @@ enum UserFacing {
     return result
   }
 
+  static func text(_ message: RimeLocalizedMessage) -> String { text(message.text) }
+
   /// The red error row nine screens were each writing for themselves.
-  static func errorRow(_ raw: String) -> some View {
-    Section("错误") {
+  static func errorRow(_ raw: RimeLocalizedMessage) -> some View {
+    Section(RimeLocalization.text("Error")) {
       Text(text(raw)).font(.caption).foregroundStyle(.red)
     }
   }

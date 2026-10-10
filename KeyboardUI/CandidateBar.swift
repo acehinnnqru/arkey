@@ -46,7 +46,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
 
   func setExpanded(_ expanded: Bool) {
     expandButton.setImage(UIImage(systemName: expanded ? "chevron.up" : "chevron.down"), for: .normal)
-    expandButton.accessibilityLabel = expanded ? "收起候选面板" : "展开候选面板"
+    expandButton.accessibilityLabel = expanded ? RimeLocalization.text("Collapse candidates") : RimeLocalization.text("Expand candidates")
   }
 
   func requestMoreCandidatesIfNeeded() {
@@ -88,7 +88,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     expandButton.imageEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset, left: 0, bottom: 0, right: 0)
     expandButton.tintColor = .secondaryLabel
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
-    expandButton.accessibilityLabel = "展开候选面板"
+    expandButton.accessibilityLabel = RimeLocalization.text("Expand candidates")
     expandButton.addTarget(self, action: #selector(handleExpand), for: .touchUpInside)
 
     messageLabel.font = .systemFont(ofSize: 13)

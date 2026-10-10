@@ -244,8 +244,7 @@ public enum RimeConfigValidation {
       if key.hasSuffix("opencc_config") {
         if !files.paths.contains("opencc/" + text) {
           issues.append(.warning("opencc/" + text,
-                                 "missing, so the conversion it configures will not happen "
-                                   + "(繁简转换将不可用)"))
+                                 RimeLocalization.text("missing, so the conversion it configures will not happen (Traditional/simplified conversion will be unavailable)")))
         }
       }
 

@@ -215,12 +215,9 @@ public enum RimeDictionaryAccessError: Error, CustomStringConvertible, Sendable 
     case .dictionaryBusy:
       return "The dictionaries are in use by another session or operation. Try again after it finishes."
     case .keyboardIsUsingIt(let pid, let since):
-      return "键盘正在使用用户词库（pid " + String(pid) + "，自 "
-        + ISO8601DateFormatter().string(from: since) + "）。关闭键盘后再试，或稍候片刻。"
+      return RimeLocalization.text("The keyboard is using user dictionaries (pid \(String(pid)), since \(ISO8601DateFormatter().string(from: since))). Close the keyboard and try again, or wait a moment.")
     case .leaseUnreadable(let modifiedAt, let reason):
-      return "词库租约文件无法读取（" + reason + "，最后修改 "
-        + ISO8601DateFormatter().string(from: modifiedAt) + "）。暂时按“键盘可能正在使用”处理；"
-        + "若键盘并未使用词库，稍候片刻即可。"
+      return RimeLocalization.text("The dictionary lease file could not be read (\(reason), last modified \(ISO8601DateFormatter().string(from: modifiedAt))). Treating dictionaries as potentially in use. If the keyboard is not using them, wait a moment.")
     }
   }
 }

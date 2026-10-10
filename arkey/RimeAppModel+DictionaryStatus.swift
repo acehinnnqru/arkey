@@ -8,7 +8,7 @@ import SwiftUI
 @MainActor
 extension RimeAppModel {
   /// Read with the dictionary snapshot, never while SwiftUI is drawing the page.
-  nonisolated static func dictionarySyncDisabledReason(engine: RimeEngine) -> String? {
+  nonisolated static func dictionarySyncDisabledReason(engine: RimeEngine) -> RimeLocalizedMessage? {
     let current = try? engine.currentSchema()
     guard let id = current.flatMap({ $0.isEmpty ? nil : $0 }) ?? (try? engine.schemaIDs().first)
     else { return nil }
@@ -16,8 +16,7 @@ extension RimeAppModel {
     // tested rather than repeated in a sentence here.
     let enabled = try? RimeUserDictionaryLearning.isEnabled(engine: engine, schemaID: id)
     guard enabled == false else { return nil }
-    return "当前方案（" + id + "）关闭了用户词典（translator/enable_user_dict），"
-      + "所以不会再学新词，同步也就没有内容。在「方案与输入」里打开它就会重新启用学习。"
+    return RimeLocalization.message("Current scheme (\(id)) has disabled its user dictionary (translator/enable_user_dict). It cannot learn new words or sync. Enable it in Scheme and input to resume learning.")
   }
 
   /// The dictionary rows the screen shows, filtered by the search field.

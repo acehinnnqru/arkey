@@ -207,6 +207,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    candidateBar.setExpanded(isPanelExpanded)
+    candidatePanel.refreshLocalizedLabels()
     preferences = preferencesStore?.value ?? .standard
     applyBacking()
     // Supply the height before the host begins presenting the extension.
@@ -292,6 +294,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     previousGeometry.removeAll(keepingCapacity: true)
     recordGeometry("willAppear.before", force: true)
     startGeometrySampling()
+    candidateBar.setExpanded(isPanelExpanded)
+    candidatePanel.refreshLocalizedLabels()
     preferences = preferencesStore?.value ?? .standard
     applyCurrentTheme()
     refreshLayout()
@@ -370,7 +374,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     case .failure(let error):
       let reason = String(describing: error)
       KeyboardLog.error("setup failed: " + reason)
-      candidateBar.setMessage("Arkey 启动失败：" + reason)
+      candidateBar.setMessage(RimeLocalization.text("Arkey startup failed: \(reason)"))
     case .success(let setup):
       engineSetup = setup
       for record in pendingGeometry {
@@ -406,7 +410,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let reason = String(describing: error)
         KeyboardLog.error("boot failed: " + reason)
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot.failed", message: reason + " " + detail))
-        candidateBar.setMessage("Arkey 启动失败：" + reason)
+        candidateBar.setMessage(RimeLocalization.text("Arkey startup failed: \(reason)"))
       }
     }
   }
@@ -427,7 +431,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     do {
       apply(try engine.selectCandidate(at: index))
     } catch {
-      report("select.failed", error, userVisible: "选词出错：")
+      report("select.failed", error, userVisible: RimeLocalization.text("Candidate selection failed: "))
     }
   }
 
@@ -439,9 +443,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       candidateLoadCancellation?.cancel()
       let forgotten = try engine.deleteCandidate(at: index)
       apply(try engine.refresh())
-      candidateBar.setMessage(forgotten ? "已忘记这个词" : "这个词不在用户词典里")
+      candidateBar.setMessage(forgotten ? RimeLocalization.text("Word forgotten") : RimeLocalization.text("This word is not in the user dictionary"))
     } catch {
-      report("forget.failed", error, userVisible: "忘记失败：")
+      report("forget.failed", error, userVisible: RimeLocalization.text("Failed to forget word: "))
     }
   }
 
@@ -453,7 +457,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       try engine.setOption("ascii_mode", !asciiMode)
       apply(try engine.refresh())
     } catch {
-      report("option.failed", error, userVisible: "切换出错：")
+      report("option.failed", error, userVisible: RimeLocalization.text("Switch failed: "))
     }
   }
 
@@ -613,7 +617,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       apply(output)
       recordKeyLatency(since: start)
     } catch {
-      report("key.failed", error, userVisible: "按键出错：")
+      report("key.failed", error, userVisible: RimeLocalization.text("Key input failed: "))
       textDocumentProxy.insertText(value)
     }
   }
@@ -633,7 +637,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       apply(output)
       recordKeyLatency(since: start)
     } catch {
-      report("auxiliary.failed", error, userVisible: "辅码输入出错：")
+      report("auxiliary.failed", error, userVisible: RimeLocalization.text("Auxiliary input failed: "))
     }
   }
 
@@ -651,7 +655,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       apply(output)
       recordKeyLatency(since: start)
     } catch {
-      report("key.failed", error, userVisible: "按键出错：")
+      report("key.failed", error, userVisible: RimeLocalization.text("Key input failed: "))
       if let fallback { textDocumentProxy.insertText(fallback) }
     }
   }
@@ -734,7 +738,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let keyFrame = keyGrid.convert(key.frame, to: view)
     let finger = keyGrid.convert(point, to: view)
     let placed = RimeKeyboardKey(kind: key.kind, frame: keyFrame, label: key.label,
-                                 accessibilityLabel: key.accessibilityLabel)
+                                 accessibilityLabel: key.accessibilityLabel, isAuxiliary: key.isAuxiliary)
     return RimeCalloutGeometry.frame(for: placed, in: view.bounds, fingerX: finger.x,
                                      feedback: feedbackPreferences.feedback)
   }
@@ -861,7 +865,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     do {
       apply(try engine.selectCandidate(at: index))
     } catch {
-      report("select.failed", error, userVisible: "选词出错：")
+      report("select.failed", error, userVisible: RimeLocalization.text("Candidate selection failed: "))
     }
   }
 

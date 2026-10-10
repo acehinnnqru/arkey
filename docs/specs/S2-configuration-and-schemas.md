@@ -44,8 +44,9 @@ same file, so the minimal YAML writer is not needed.
 List-valued settings are **replaced wholesale**, because that is what Rime's patch semantics do. Two
 consequences the UI must respect:
 
-- Reordering schemas rewrites the whole `schema_list`; anything the user had there that we did not
-  know about is preserved by reading the effective list first and reordering that.
+- Selecting an input scheme replaces `schema_list` with that single schema. Imported lists remain
+  unchanged until the user chooses a scheme; the picker initially displays the first entry.
+  Other installed schemes remain available in the picker, and choosing the same singleton again is a no-op.
 - 模糊音 is *composed*, not appended: read the base `speller/algebra` from the profile's source (not
   from the patched config), prepend the rules the enabled presets generate, and write the result. This
   keeps repeated edits idempotent — the alternative accumulates duplicate rules until the speller
@@ -55,7 +56,7 @@ consequences the UI must respect:
 
 | Setting | Written to | Notes |
 | --- | --- | --- |
-| Enabled schemas, order, default | `default.custom.yaml`, key `schema_list` | The "默认" entry is the first item; there is no separate key. |
+| Input scheme | `default.custom.yaml`, key `schema_list` | A menu picker selects one scheme and writes a singleton list. Deployment is automatic; the keyboard adopts it at its next appearance. |
 | Page size (candidates per page) | `default.custom.yaml`, `menu/page_size` | Proven path. |
 | Per-schema switch defaults (中/英, 简/繁, 全/半角, 中英标点, emoji) | `<schema>.custom.yaml`, the whole `switches` list | Labels from `get_state_label`; the switch list comes from the schema, not from us. **Measured**: writing `switches/@N/reset` replaces the entire list and leaves one nameless entry, so the effective list is read, one element changed, and the list written back (see [s2-results.md](../s2-results.md)). |
 | 逐码提示 | `translator/enable_completion`, `translator/enable_word_completion` | Script translator only. Default is already `true`; the switch exists because rime-ice users turn it off. |
@@ -102,7 +103,7 @@ know whether the user set it. Pinned by `S2SettingsModelTests` and `S2PatchTests
 | Screen | Contents |
 | --- | --- |
 | **Profile library** | Installed configs, size, licence, provenance, deploy/activate/delete/rollback, compact deployment status, and settings backup recovery. |
-| **方案** | The active profile's schemas: enable, order, default, and which one the keyboard is on. |
+| **方案** | A menu picker for one input scheme from the active profile. No separate enable, order, or default controls. |
 | **输入** | Per-schema translator behaviour: 逐码提示, sentence composition, page size, comments, user dictionary. |
 | **模糊音** | The presets above, each with the example pairs it affects (`z=zh`), and a preview of the generated algebra rules. |
 | **标点** | Chinese/English punctuation, full/half shape, and the selected symbols preset. |
@@ -133,8 +134,9 @@ cannot express is still editable in Rime's own YAML, imported through this path.
 - patch file shape: the written YAML equals Rime's canonical form (a `patch:` map), and unrelated keys
   the user had in the same file survive.
 - reset: deleting a key from the patch restores the schema's value after redeploy.
-- list replacement: reorder `schema_list` and assert the effective order; apply the same edit twice and
-  assert the file is unchanged the second time.
+- scheme selection: replace an imported multi-schema list with one scheme, assert the deployed list
+  and a new session use that scheme, and verify rapid selections leave the last choice deployed.
+  Selecting the same singleton again must not enqueue another deployment.
 - 模糊音 composition: enable two presets, assert the generated `speller/algebra` contains each rule
   exactly once, in front of the schema's own rules, and that disabling one removes only its rules.
 - switch defaults: write the whole `switches` list with one `reset` changed (not `switches/@N/reset`, which replaces the list) and assert the session's option state after a new session, and that the other switches' states and resets survive.
@@ -143,8 +145,8 @@ cannot express is still editable in Rime's own YAML, imported through this path.
 
 **Device checklist**
 
-For a real rime-ice profile: change page size, 逐码提示, 模糊音, 简繁 default, punctuation and the schema
-order, one at a time, and observe each in the keyboard (or in `RimeOutput` in diagnostics).
+For a real rime-ice profile: change page size, 逐码提示, 模糊音, 简繁 default, punctuation and the selected input
+scheme, one at a time, and observe each in the keyboard (or in `RimeOutput` in diagnostics).
 
 ## 9. Acceptance
 

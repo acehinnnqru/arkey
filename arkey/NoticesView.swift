@@ -8,10 +8,12 @@ import UIKit
 /// one a script enforces: `bundleContainsThirdPartyData` comes from the release check, so the sentence
 /// the user reads is the sentence the release pipeline fails on.
 struct NoticesView: View {
+  @Environment(\.locale) private var interfaceLocale
   @ObservedObject var model: RimeAppModel
   @State private var copied = false
 
   var body: some View {
+    let _ = interfaceLocale
     ScrollView {
       Text(text)
         .font(.footnote)
@@ -19,10 +21,10 @@ struct NoticesView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
     }
-    .navigationTitle("许可证")
+    .navigationTitle(RimeLocalization.text("Licenses"))
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button(copied ? "已复制" : "复制") {
+        Button(copied ? RimeLocalization.text("Copied") : RimeLocalization.text("Copy")) {
           UIPasteboard.general.string = text
           copied = true
         }
@@ -32,6 +34,6 @@ struct NoticesView: View {
   }
 
   private var text: String {
-    model.notices?.text ?? "读取中…"
+    model.notices?.text ?? RimeLocalization.text("Loading…")
   }
 }

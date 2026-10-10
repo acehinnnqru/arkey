@@ -122,9 +122,9 @@ public enum RimeKeyboardLayer: String, Sendable, Hashable, CaseIterable {
   /// What VoiceOver says for the key that switches to this layer (S3 §8).
   public var accessibilityLabel: String {
     switch self {
-    case .letters: return "字母"
-    case .numbers: return "数字"
-    case .symbols: return "符号"
+    case .letters: return RimeLocalization.text("Letters")
+    case .numbers: return RimeLocalization.text("Numbers")
+    case .symbols: return RimeLocalization.text("Symbols")
     }
   }
 }
@@ -146,7 +146,7 @@ public struct RimeReturnKey: Sendable, Hashable {
   public var label: String
   public var isEnabled: Bool
 
-  public init(label: String = "换行", isEnabled: Bool = true) {
+  public init(label: String = RimeLocalization.text("Return"), isEnabled: Bool = true) {
     self.label = label
     self.isEnabled = isEnabled
   }
@@ -156,16 +156,16 @@ public struct RimeReturnKey: Sendable, Hashable {
 
     public var label: String {
       switch self {
-      case .newline: return "换行"
-      case .search: return "搜索"
-      case .send: return "发送"
-      case .go: return "前往"
-      case .done: return "完成"
-      case .join: return "加入"
-      case .next: return "下一项"
-      case .route: return "路线"
-      case .continueKey: return "继续"
-      case .emergencyCall: return "紧急呼叫"
+      case .newline: return RimeLocalization.text("Return")
+      case .search: return RimeLocalization.text("Search")
+      case .send: return RimeLocalization.text("Send")
+      case .go: return RimeLocalization.text("Go")
+      case .done: return RimeLocalization.text("Done")
+      case .join: return RimeLocalization.text("Join")
+      case .next: return RimeLocalization.text("Next")
+      case .route: return RimeLocalization.text("Route")
+      case .continueKey: return RimeLocalization.text("Continue")
+      case .emergencyCall: return RimeLocalization.text("Emergency call")
       }
     }
   }
@@ -195,17 +195,19 @@ public struct RimeKeyboardKey: Sendable, Hashable {
   public let label: String
   /// What VoiceOver says (S3 §8): the character, or the action in the keyboard's language.
   public let accessibilityLabel: String
+  public let isAuxiliary: Bool
 
-  public init(kind: Kind, frame: CGRect, label: String, accessibilityLabel: String) {
+  public init(kind: Kind, frame: CGRect, label: String, accessibilityLabel: String, isAuxiliary: Bool = false) {
     self.kind = kind
     self.frame = frame
     self.label = label
     self.accessibilityLabel = accessibilityLabel
+    self.isAuxiliary = isAuxiliary
   }
 
   /// The same key at another frame, which is how a row places its keys.
-  init(kind: Kind, label: String, accessibilityLabel: String, frame: CGRect) {
-    self.init(kind: kind, frame: frame, label: label, accessibilityLabel: accessibilityLabel)
+  init(kind: Kind, label: String, accessibilityLabel: String, frame: CGRect, isAuxiliary: Bool = false) {
+    self.init(kind: kind, frame: frame, label: label, accessibilityLabel: accessibilityLabel, isAuxiliary: isAuxiliary)
   }
 
   public var isCharacter: Bool {
@@ -320,7 +322,7 @@ public enum RimeKeyboardLayoutEngine {
     let height = keys.first?.frame.height ?? style.keyHeight
     let placed = keys.map { key in
       RimeKeyboardKey(kind: key.kind, label: key.label, accessibilityLabel: key.accessibilityLabel,
-                      frame: CGRect(x: key.frame.minX, y: y, width: key.frame.width, height: height))
+                      frame: CGRect(x: key.frame.minX, y: y, width: key.frame.width, height: height), isAuxiliary: key.isAuxiliary)
     }
     return RimeKeyboardRow(frame: CGRect(x: 0, y: y, width: width, height: height), keys: placed)
   }
@@ -359,7 +361,7 @@ public enum RimeKeyboardLayoutEngine {
                                 frame: CGRect(x: style.sideMargin, y: 0,
                                               width: style.shiftWidth, height: style.keyHeight),
                                 label: shift == .caps ? "⇪" : "⇧",
-                                accessibilityLabel: shift == .caps ? "大写锁定" : "大写"))
+                                accessibilityLabel: shift == .caps ? RimeLocalization.text("Caps Lock") : RimeLocalization.text("Shift")))
     // Seven letter keys fill everything between shift and delete, with the standard gap.
     let available = width - 2 * style.sideMargin - style.shiftWidth - style.deleteWidth
       - 2 * style.sideKeyGap - 6 * style.horizontalGap
@@ -373,7 +375,7 @@ public enum RimeKeyboardLayoutEngine {
     keys.append(RimeKeyboardKey(kind: .delete,
                                 frame: CGRect(x: width - style.sideMargin - style.deleteWidth, y: 0,
                                               width: style.deleteWidth, height: style.keyHeight),
-                                label: "⌫", accessibilityLabel: "删除"))
+                                label: "⌫", accessibilityLabel: RimeLocalization.text("Delete")))
     return keys
   }
 
@@ -415,7 +417,7 @@ public enum RimeKeyboardLayoutEngine {
     keys.append(RimeKeyboardKey(kind: .delete,
                                 frame: CGRect(x: width - style.sideMargin - style.deleteWidth, y: 0,
                                               width: style.deleteWidth, height: style.keyHeight),
-                                label: "⌫", accessibilityLabel: "删除"))
+                                label: "⌫", accessibilityLabel: RimeLocalization.text("Delete")))
     return keys
   }
 
@@ -441,12 +443,12 @@ public enum RimeKeyboardLayoutEngine {
                                   frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
                                                 height: style.keyHeight),
                                   label: language.label,
-                                  accessibilityLabel: language.isASCII ? "切换到中文" : "切换到英文"))
+                                  accessibilityLabel: language.isASCII ? RimeLocalization.text("Switch to Chinese input") : RimeLocalization.text("Switch to English input")))
     } else {
       keys.append(RimeKeyboardKey(kind: .emoji,
                                   frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
                                                 height: style.keyHeight),
-                                  label: "☺", accessibilityLabel: "表情符号"))
+                                  label: "☺", accessibilityLabel: RimeLocalization.text("Emoji")))
     }
     x += style.emojiKeyWidth + style.horizontalGap
     let prefix = auxiliaryPrefix.flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
@@ -458,7 +460,7 @@ public enum RimeKeyboardLayoutEngine {
     if let prefix, auxiliaryKeySide == .left {
       keys.append(RimeKeyboardKey(kind: .character(prefix),
                                   frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
-                                  label: prefix, accessibilityLabel: "辅码前导键 \(prefix)"))
+                                  label: prefix, accessibilityLabel: RimeLocalization.text("Auxiliary prefix \(prefix)"), isAuxiliary: true))
       x += auxiliaryWidth + style.horizontalGap
     }
     // Send the ASCII keysym through the normal character path so Rime's active
@@ -470,12 +472,12 @@ public enum RimeKeyboardLayoutEngine {
     keys.append(RimeKeyboardKey(kind: .space,
                                 frame: CGRect(x: x, y: 0, width: spaceWidth,
                                               height: style.keyHeight),
-                                label: "", accessibilityLabel: "空格"))
+                                label: "", accessibilityLabel: RimeLocalization.text("Space")))
     x += spaceWidth + style.horizontalGap
     if let prefix, auxiliaryKeySide == .right {
       keys.append(RimeKeyboardKey(kind: .character(prefix),
                                   frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
-                                  label: prefix, accessibilityLabel: "辅码前导键 \(prefix)"))
+                                  label: prefix, accessibilityLabel: RimeLocalization.text("Auxiliary prefix \(prefix)"), isAuxiliary: true))
       x += auxiliaryWidth + style.horizontalGap
     }
     keys.append(RimeKeyboardKey(kind: .returnKey,
@@ -491,7 +493,7 @@ public enum RimeKeyboardLayoutEngine {
     return [RimeKeyboardKey(kind: .globe,
                             frame: CGRect(x: style.sideMargin, y: 0, width: keyWidth,
                                           height: style.globeRowHeight),
-                            label: "🌐", accessibilityLabel: "下一个键盘")]
+                            label: "🌐", accessibilityLabel: RimeLocalization.text("Next keyboard"))]
   }
 
   private static func characterKey(_ character: Character, uppercase: Bool,

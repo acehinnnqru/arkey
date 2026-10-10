@@ -19,7 +19,7 @@ public enum RimeLocalDataInstaller {
   public static func installIfPresent(at url: URL,
                                       workspace: RimeWorkspace,
                                       engine: RimeEngine,
-                                      displayName: String = "本地数据",
+                                      displayName: String = RimeLocalization.text("Local data"),
                                       fileManager: FileManager = .default) throws -> String? {
     guard fileManager.fileExists(atPath: url.path) else { return nil }
     let id = try RimeImporter(workspace: workspace, engine: engine)

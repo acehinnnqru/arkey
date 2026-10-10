@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 /// The 配置库 screen: what is installed, what is deployed, and the one action that changes what the
 /// keyboard types. Every write goes through the model, which owns the app's single engine.
 struct ProfileLibraryView: View {
+  @Environment(\.locale) private var interfaceLocale
   @ObservedObject var model: RimeAppModel
 
   /// One picker per screen, not two. SwiftUI keeps a single presentation per view: with two fileImporters
@@ -28,6 +29,7 @@ struct ProfileLibraryView: View {
   @State private var exported: URL?
 
   var body: some View {
+    let _ = interfaceLocale
     List {
       activeSection
       deploymentSection
@@ -37,7 +39,7 @@ struct ProfileLibraryView: View {
       if let error = model.errorMessage { errorSection(error) }
       storageSection
     }
-    .navigationTitle("配置库")
+    .navigationTitle(RimeLocalization.text("Profile library"))
     .accessibilityIdentifier("profile-library")
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
@@ -45,15 +47,15 @@ struct ProfileLibraryView: View {
           pickKind = .profile
           isPicking = true
         } label: {
-          Label("导入", systemImage: "square.and.arrow.down")
+          Label(RimeLocalization.text("Import"), systemImage: "square.and.arrow.down")
         }
         .disabled(model.isDeploying || model.isImporting)
       }
       ToolbarItem(placement: .topBarTrailing) {
         if model.isImporting {
-          ProgressView().accessibilityLabel("正在导入配置")
+          ProgressView().accessibilityLabel(RimeLocalization.text("Importing profile"))
         } else {
-          Button("刷新") { model.refresh() }
+          Button(RimeLocalization.text("Refresh")) { model.refresh() }
         }
       }
     }
@@ -69,20 +71,20 @@ struct ProfileLibraryView: View {
         handleSettingsImport(result)
       }
     }
-    .confirmationDialog("删除配置？",
+    .confirmationDialog(RimeLocalization.text("Delete profile?"),
                         isPresented: Binding(get: { pendingDeletion != nil },
                                              set: { if !$0 { pendingDeletion = nil } }),
                         titleVisibility: .visible,
                         presenting: pendingDeletion) { entry in
-      Button("删除配置，保留用户词库", role: .destructive) {
+      Button(RimeLocalization.text("Delete profile and keep user dictionaries"), role: .destructive) {
         model.delete(profileID: entry.metadata.id)
         pendingDeletion = nil
       }
-      Button("删除配置与用户词库", role: .destructive) {
+      Button(RimeLocalization.text("Delete profile and user dictionaries"), role: .destructive) {
         model.delete(profileID: entry.metadata.id, removingUserDictionaries: model.userDatabaseNames)
         pendingDeletion = nil
       }
-      Button("取消", role: .cancel) { pendingDeletion = nil }
+      Button(RimeLocalization.text("Cancel"), role: .cancel) { pendingDeletion = nil }
     } message: { entry in
       Text(dictionaryNote(for: entry))
     }
@@ -91,25 +93,25 @@ struct ProfileLibraryView: View {
   // MARK: Sections
 
   private var activeSection: some View {
-    Section("当前生效") {
+    Section(RimeLocalization.text("Active profile")) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(model.resolvedSummary).font(.body)
+        Text(model.resolvedSummary.text).font(.body)
         if let deploy = model.libraryEntries.first(where: { $0.isActive })?.metadata.deploy {
-          Text(deploy.deployedAt.formatted(date: .abbreviated, time: .standard)
+          Text(deploy.deployedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .standard).locale(interfaceLocale))
                + " · " + String(deploy.warnings.count) + " warnings")
             .font(.caption).foregroundStyle(.secondary)
         }
-        Text("键盘在下次出现时采用这里的变化；正在输入的句子不会被切换打断。")
+        Text(RimeLocalization.text("Changes take effect when the keyboard next opens; current input is not interrupted."))
           .font(.caption)
           .foregroundStyle(.secondary)
       }
-      Toggle("导入时同时采用用户设置（*.custom.yaml、custom_phrase.txt）", isOn: $adoptUserData)
+      Toggle(RimeLocalization.text("Include user settings when importing (*.custom.yaml, custom_phrase.txt)"), isOn: $adoptUserData)
         .font(.footnote)
     }
   }
 
   private var deploymentSection: some View {
-    Section("Deployment") {
+    Section(RimeLocalization.text("Deployment")) {
       if let attempt = model.latestDeployment {
         HStack(spacing: 8) {
           if model.isDeploying { ProgressView() }
@@ -125,16 +127,16 @@ struct ProfileLibraryView: View {
       NavigationLink {
         DeploymentLogView(model: model)
       } label: {
-        Label("Deployment log", systemImage: "doc.text.magnifyingglass")
+        Label(RimeLocalization.text("Deployment log"), systemImage: "doc.text.magnifyingglass")
       }
       .accessibilityIdentifier("deployment-log-link")
     }
   }
 
   private var installedSection: some View {
-    Section("已安装（" + String(model.libraryEntries.count) + "）") {
+    Section(RimeLocalization.text("Installed (\(String(model.libraryEntries.count)))")) {
       if model.libraryEntries.isEmpty {
-        Text("还没有配置。导入一个 zip 或文件夹（例如 rime-ice 的 full.zip，或 Mac 上 ~/Library/Rime 的副本）。")
+        Text(RimeLocalization.text("No profiles yet. Import a zip or folder, such as rime-ice’s full.zip or a copy of ~/Library/Rime from a Mac."))
           .font(.footnote)
           .foregroundStyle(.secondary)
       }
@@ -149,7 +151,7 @@ struct ProfileLibraryView: View {
       HStack(spacing: 6) {
         Text(entry.metadata.displayName).font(.body.weight(.medium))
         if entry.isActive {
-          Text("生效中").font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+          Text(RimeLocalization.text("Active")).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
             .background(.tint.opacity(0.15), in: Capsule())
         }
         if busyProfileID == entry.metadata.id { ProgressView().controlSize(.mini) }
@@ -157,13 +159,13 @@ struct ProfileLibraryView: View {
       Text(entry.metadata.id).font(.caption2).foregroundStyle(.secondary)
       Text(detail(entry)).font(.caption).foregroundStyle(.secondary)
       HStack(spacing: 12) {
-        Button(entry.isActive ? "重新部署" : "部署") { deploy(entry) }
-        Button("激活") { model.activate(profileID: entry.metadata.id) }
+        Button(entry.isActive ? RimeLocalization.text("Redeploy") : RimeLocalization.text("Deploy")) { deploy(entry) }
+        Button(RimeLocalization.text("Activate")) { model.activate(profileID: entry.metadata.id) }
           .disabled(entry.isActive)
         if entry.metadata.deploy != nil {
-          Button("回滚") { model.rollback(profileID: entry.metadata.id) }
+          Button(RimeLocalization.text("Roll back")) { model.rollback(profileID: entry.metadata.id) }
         }
-        Button("删除", role: .destructive) {
+        Button(RimeLocalization.text("Delete"), role: .destructive) {
           deleteDictionaries = false
           pendingDeletion = entry
         }
@@ -179,11 +181,11 @@ struct ProfileLibraryView: View {
   private var settingsSection: some View {
     Section {
       if let exported {
-        ShareLink(item: exported) { Text("分享导出的设置") }
+        ShareLink(item: exported) { Text(RimeLocalization.text("Share exported settings")) }
       } else {
-        Button("导出设置（补丁 + 自定义短语）") { exported = model.exportSettings() }
+        Button(RimeLocalization.text("Export settings (patches and custom phrases)")) { exported = model.exportSettings() }
       }
-      Button("导入设置…") {
+      Button(RimeLocalization.text("Import settings…")) {
         pickKind = .settings
         isPicking = true
       }
@@ -191,43 +193,43 @@ struct ProfileLibraryView: View {
       Button {
         Task { await model.restoreLatestSettingsBackup() }
       } label: {
-        Text("恢复上次设置备份并重新部署")
+        Text(RimeLocalization.text("Restore latest settings backup and redeploy"))
       }
       .disabled(model.isDeploying || model.isImporting || model.profiles.isEmpty
                 || model.latestSettingsBackup == nil)
     } header: {
-      Text("设置")
+      Text(RimeLocalization.text("Settings"))
     } footer: {
-      Text("导出的是 *.custom.yaml 与自定义短语，不含任何第三方配置数据；导入会先备份现有设置并自动重新部署。")
+      Text(RimeLocalization.text("Exports contain *.custom.yaml and custom phrases, excluding third-party profile data. Import backs up current settings and redeploys automatically."))
     }
   }
 
   private var warningsSection: some View {
-    Section("导入结果") {
+    Section(RimeLocalization.text("Import results")) {
       ForEach(Array(model.importWarnings.enumerated()), id: \.offset) { _, warning in
-        Text(warning).font(.caption).foregroundStyle(.secondary)
+        Text(warning.text).font(.caption).foregroundStyle(.secondary)
       }
     }
   }
 
-  private func errorSection(_ message: String) -> some View {
-    Section("错误") {
+  private func errorSection(_ message: RimeLocalizedMessage) -> some View {
+    Section(RimeLocalization.text("Error")) {
       Text(UserFacing.text(message)).font(.caption).foregroundStyle(.red)
-      Button("清除") { model.errorMessage = nil }.font(.caption)
+      Button(RimeLocalization.text("Clear")) { model.errorMessage = nil }.font(.caption)
     }
   }
 
   private var storageSection: some View {
-    Section("存储") {
+    Section(RimeLocalization.text("Storage")) {
       if let storage = model.storage {
         ForEach(storage.profiles, id: \.id) { profile in
           Text(profile.displayName + "：" + bytes(profile.sourceBytes + profile.buildBytes + profile.previousBuildBytes))
             .font(.caption)
         }
-        Text("用户目录：" + bytes(storage.userDataBytes)).font(.caption)
-        Text("合计：" + bytes(storage.totalBytes)).font(.caption).foregroundStyle(.secondary)
+        Text(RimeLocalization.text("User directory: \(bytes(storage.userDataBytes))")).font(.caption)
+        Text(RimeLocalization.text("Total: \(bytes(storage.totalBytes))")).font(.caption).foregroundStyle(.secondary)
       } else {
-        Text("（尚未统计）").font(.caption).foregroundStyle(.secondary)
+        Text(RimeLocalization.text("(not measured yet)")).font(.caption).foregroundStyle(.secondary)
       }
       Text(model.workspace.root.path).font(.caption2).foregroundStyle(.secondary)
     }
@@ -246,7 +248,7 @@ struct ProfileLibraryView: View {
   private func handleImport(_ result: Result<[URL], Error>) {
     switch result {
     case .failure(let error):
-      model.errorMessage = "选择文件失败：" + String(describing: error)
+      model.errorMessage = RimeLocalization.message("Failed to select a file: \(String(describing: error))")
     case .success(let urls):
       guard let url = urls.first else { return }
       Task { await model.importPayload(at: url, displayName: nil, adoptUserData: adoptUserData) }
@@ -257,11 +259,11 @@ struct ProfileLibraryView: View {
   private func handleSettingsImport(_ result: Result<[URL], Error>) {
     switch result {
     case .failure(let error):
-      model.errorMessage = "选择文件失败：" + String(describing: error)
+      model.errorMessage = RimeLocalization.message("Failed to select a file: \(String(describing: error))")
     case .success(let urls):
       guard let url = urls.first else { return }
       guard url.pathExtension.lowercased() == "zip" else {
-        model.errorMessage = "导入设置需要导出设置生成的 zip 文件，选中的是 " + url.lastPathComponent + "。"
+        model.errorMessage = RimeLocalization.message("Import requires a zip created by Export settings. Selected: \(url.lastPathComponent).")
         return
       }
       Task { await model.importSettingsBundle(from: url) }
@@ -270,21 +272,21 @@ struct ProfileLibraryView: View {
 
   private func dictionaryNote(for entry: RimeAppModel.LibraryEntry) -> String {
     let names = model.userDatabaseNames
-    let base = "用户词库属于词库名而不是配置，删除配置默认会保留它们，这样换配置再换回来时学过的词还在。"
-    return names.isEmpty ? base : base + " 当前有：" + names.joined(separator: "、")
+    let base = RimeLocalization.text("User dictionaries belong to dictionary names. Deleting a profile keeps them by default, preserving learned words when you switch back.")
+    return names.isEmpty ? base : RimeLocalization.text("\(base) Currently contains: \(names.joined(separator: "、"))")
   }
 
   private func detail(_ entry: RimeAppModel.LibraryEntry) -> String {
     var parts: [String] = []
-    parts.append("方案 " + String(entry.metadata.stats.schemaIDs.count))
-    parts.append("源 " + bytes(entry.metadata.stats.sourceBytes))
-    parts.append("构建 " + bytes(entry.buildBytes))
+    parts.append(RimeLocalization.text("Schemes \(String(entry.metadata.stats.schemaIDs.count))"))
+    parts.append(RimeLocalization.text("Sources \(bytes(entry.metadata.stats.sourceBytes))"))
+    parts.append(RimeLocalization.text("Build \(bytes(entry.buildBytes))"))
     if let license = entry.metadata.license?.spdx { parts.append(license) }
     if let deploy = entry.metadata.deploy {
-      parts.append("第 " + String(deploy.generation) + " 代")
-      parts.append(String(format: "%.1f s", deploy.durationSeconds))
+      parts.append(RimeLocalization.text("Generation \(String(deploy.generation))"))
+      parts.append(String(format: "%.1f s", locale: interfaceLocale, deploy.durationSeconds))
     } else {
-      parts.append("未部署")
+      parts.append(RimeLocalization.text("Not deployed"))
     }
     return parts.joined(separator: " · ")
   }

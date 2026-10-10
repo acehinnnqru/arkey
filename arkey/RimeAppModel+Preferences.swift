@@ -42,7 +42,7 @@ extension RimeAppModel {
 
   func setAuxiliarySpelling(_ spelling: RimeAuxiliarySpelling) {
     guard let profileID = activeProfileID, !profileID.isEmpty else {
-      settingsFooter = .failed("请先部署并启用一个 Rime 配置。")
+      settingsFooter = .failed(RimeLocalization.message("Deploy and activate a Rime profile first."))
       return
     }
     auxiliarySpelling = spelling
@@ -52,7 +52,7 @@ extension RimeAppModel {
   func updatePreferences(_ transform: (inout RimeKeyboardPreferences) -> Void) {
     preferencesReadID = UUID()
     guard let store = preferencesStore else {
-      errorMessage = "拿不到 App Group，键盘设置无法共享给键盘。"
+      errorMessage = RimeLocalization.message("App Group is unavailable; keyboard settings cannot be shared with the keyboard.")
       return
     }
     var preferences = store.value
@@ -64,18 +64,18 @@ extension RimeAppModel {
   func setAuxiliaryPrefix(_ value: String) {
     guard let prefix = RimeKeyboardPreferences.normalizedAuxiliaryPrefix(value) else { return }
     guard let profileID = activeProfileID, !profileID.isEmpty else {
-      errorMessage = "请先部署并启用一个 Rime 配置。"
-      settingsFooter = .failed("请先部署并启用一个 Rime 配置。")
+      errorMessage = RimeLocalization.message("Deploy and activate a Rime profile first.")
+      settingsFooter = .failed(RimeLocalization.message("Deploy and activate a Rime profile first."))
       return
     }
     guard let schemaID = settingsSchemaID ?? (try? engine.schemaIDs().first) else {
-      errorMessage = "还没有可配置辅码键的 Rime 方案。"
-      settingsFooter = .failed("还没有可配置辅码键的 Rime 方案。")
+      errorMessage = RimeLocalization.message("No Rime scheme is available to configure the auxiliary key.")
+      settingsFooter = .failed(RimeLocalization.message("No Rime scheme is available to configure the auxiliary key."))
       return
     }
     guard preferencesStore != nil else {
-      errorMessage = "拿不到 App Group，辅码设置无法共享给键盘。"
-      settingsFooter = .failed("拿不到 App Group，辅码设置无法共享给键盘。")
+      errorMessage = RimeLocalization.message("App Group is unavailable; auxiliary settings cannot be shared with the keyboard.")
+      settingsFooter = .failed(RimeLocalization.message("App Group is unavailable; auxiliary settings cannot be shared with the keyboard."))
       return
     }
     updatePreferences { $0.auxiliaryPrefix = prefix }

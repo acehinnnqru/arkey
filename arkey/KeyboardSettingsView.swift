@@ -6,13 +6,15 @@ import RimeEngine
 /// The auxiliary prefix also updates the active Rime schema and deploys it. Other keyboard
 /// preferences are shared through the app group and take effect when the keyboard next appears.
 struct KeyboardSettingsView: View {
+  @Environment(\.locale) private var interfaceLocale
   @ObservedObject var model: RimeAppModel
   @State private var auxiliaryPrefixDraft = ","
   @State private var isLoading = true
 
   var body: some View {
+    let _ = interfaceLocale
     List {
-      if isLoading { ProgressView("Loading settings…") }
+      if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       auxiliarySection
       compositionSection
       appearanceSection
@@ -20,13 +22,13 @@ struct KeyboardSettingsView: View {
       resetSection
       // The auxiliary prefix deploys; the other keyboard preferences need no deploy.
       Section {
-        Label("辅码前导键修改后会部署 Rime 方案；其他键盘设置下次出现时读取。", systemImage: "checkmark.circle")
+        Label(RimeLocalization.text("Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens."), systemImage: "checkmark.circle")
           .font(.caption).foregroundStyle(.secondary)
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .disabled(isLoading)
-    .navigationTitle("键盘")
+    .navigationTitle(RimeLocalization.text("Keyboard"))
     .task {
       isLoading = true
       await model.refreshPreferences()
@@ -37,7 +39,7 @@ struct KeyboardSettingsView: View {
 
   private var auxiliarySection: some View {
     Section {
-      TextField("辅码前导键", text: Binding(
+      TextField(RimeLocalization.text("Auxiliary prefix"), text: Binding(
         get: { auxiliaryPrefixDraft },
         set: { value in
           // Typing beside the existing one-character value is a common way to replace it.
@@ -60,105 +62,105 @@ struct KeyboardSettingsView: View {
         .textInputAutocapitalization(.never)
       if !auxiliaryPrefixDraft.isEmpty,
          RimeKeyboardPreferences.normalizedAuxiliaryPrefix(auxiliaryPrefixDraft) == nil {
-        Text("请输入一个特殊符号")
+        Text(RimeLocalization.text("Enter one special character"))
           .font(.caption)
           .foregroundStyle(.orange)
       }
-      Picker("辅码拼写", selection: Binding(
+      Picker(RimeLocalization.text("Auxiliary spelling"), selection: Binding(
         get: { model.auxiliarySpelling },
         set: { value in model.setAuxiliarySpelling(value) })) {
         ForEach(RimeAuxiliarySpelling.allCases, id: \.self) { spelling in
           Text(spelling.label).tag(spelling)
         }
       }
-      Picker("位置", selection: Binding(
+      Picker(RimeLocalization.text("Position"), selection: Binding(
         get: { model.keyboardPreferences.auxiliaryKeySide },
         set: { value in model.updatePreferences { $0.auxiliaryKeySide = value } })) {
-        Text("空格左侧").tag(RimeKeyboardPreferences.AuxiliaryKeySide.left)
-        Text("空格右侧").tag(RimeKeyboardPreferences.AuxiliaryKeySide.right)
+        Text(RimeLocalization.text("Left of Space")).tag(RimeKeyboardPreferences.AuxiliaryKeySide.left)
+        Text(RimeLocalization.text("Right of Space")).tag(RimeKeyboardPreferences.AuxiliaryKeySide.right)
       }
     } header: {
-      Text("辅码键")
+      Text(RimeLocalization.text("Auxiliary key"))
     } footer: {
-      Text("只能输入一个半角特殊符号；输入对应全角符号会自动转为半角。默认逗号，位于空格右侧。前导符和辅码拼写分别写入当前方案与 radical_pinyin，修改后自动部署。多个方案共用同一套拆字码型，请选择你实际使用的拼写。")
+      Text(RimeLocalization.text("Enter one half-width special character. Full-width equivalents are converted automatically. The default is a comma to the right of Space. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules."))
     }
   }
 
   private var compositionSection: some View {
     Section {
-      Picker("输入中显示", selection: Binding(
+      Picker(RimeLocalization.text("Composition display"), selection: Binding(
         get: { model.keyboardPreferences.compositionDisplay },
         set: { value in model.updatePreferences { $0.compositionDisplay = value } })) {
-        Text("原始按键").tag(RimeKeyboardPreferences.CompositionDisplay.rawInput)
-        Text("方案转换结果").tag(RimeKeyboardPreferences.CompositionDisplay.preedit)
+        Text(RimeLocalization.text("Original keys")).tag(RimeKeyboardPreferences.CompositionDisplay.rawInput)
+        Text(RimeLocalization.text("Schema output")).tag(RimeKeyboardPreferences.CompositionDisplay.preedit)
       }
     } header: {
-      Text("未确认文字")
+      Text(RimeLocalization.text("Uncommitted text"))
     } footer: {
-      Text("For Flypy input nihcaa, Original keys shows ni hc aa and Schema output shows ni hao a. Return commits nihcaa in either mode. Display spacing does not change candidate selection or deletion.")
+      Text(RimeLocalization.text("For Flypy input nihcaa, Original keys shows ni hc aa and Schema output shows ni hao a. Return commits nihcaa in either mode. Display spacing does not change candidate selection or deletion."))
     }
   }
 
   private var appearanceSection: some View {
     Section {
-      Picker("背板", selection: Binding(
+      Picker(RimeLocalization.text("Background"), selection: Binding(
         get: { model.keyboardPreferences.paletteMode },
         set: { mode in model.updatePreferences { $0.paletteMode = mode } })) {
-        Text("跟随宿主（系统材质）").tag(RimeKeyboardPreferences.PaletteMode.followHost)
-        Text("固定调色板").tag(RimeKeyboardPreferences.PaletteMode.fixed)
+        Text(RimeLocalization.text("Follow host (system material)")).tag(RimeKeyboardPreferences.PaletteMode.followHost)
+        Text(RimeLocalization.text("Fixed palette")).tag(RimeKeyboardPreferences.PaletteMode.fixed)
       }
     } header: {
-      Text("外观")
+      Text(RimeLocalization.text("Appearance"))
     } footer: {
-      Text("System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears.")
+      Text(RimeLocalization.text("System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears."))
     }
   }
 
   private var feedbackSection: some View {
     Section {
-      Toggle("按键气泡", isOn: Binding(
+      Toggle(RimeLocalization.text("Key popups"), isOn: Binding(
         get: { model.keyboardPreferences.calloutEnabled },
         set: { value in model.updatePreferences { $0.calloutEnabled = value } }))
-      Toggle("按键声音", isOn: Binding(
+      Toggle(RimeLocalization.text("Key sounds"), isOn: Binding(
         get: { model.keyboardPreferences.keyClickEnabled },
         set: { value in model.updatePreferences { $0.keyClickEnabled = value } }))
-      Toggle("触感反馈", isOn: Binding(
+      Toggle(RimeLocalization.text("Haptic feedback"), isOn: Binding(
         get: { model.keyboardPreferences.hapticsEnabled },
         set: { value in model.updatePreferences { $0.hapticsEnabled = value } }))
-      Toggle("双击大写锁定", isOn: Binding(
+      Toggle(RimeLocalization.text("Double-tap Caps Lock"), isOn: Binding(
         get: { model.keyboardPreferences.capsLockEnabled },
         set: { value in model.updatePreferences { $0.capsLockEnabled = value } }))
       Stepper(value: Binding(
         get: { model.keyboardPreferences.deleteRepeatDelay },
         set: { value in model.updatePreferences { $0.deleteRepeatDelay = value } }),
               in: 0.2...1.0, step: 0.05) {
-        Text(String(format: "连删起始：%.2f s", model.keyboardPreferences.deleteRepeatDelay))
+        Text(String(format: RimeLocalization.text("Delete repeat delay: %.2f s"), locale: interfaceLocale, model.keyboardPreferences.deleteRepeatDelay))
           .font(.body)
       }
       Stepper(value: Binding(
         get: { model.keyboardPreferences.deleteRepeatInterval },
         set: { value in model.updatePreferences { $0.deleteRepeatInterval = value } }),
               in: 0.05...0.3, step: 0.01) {
-        Text(String(format: "连删间隔：%.2f s", model.keyboardPreferences.deleteRepeatInterval))
+        Text(String(format: RimeLocalization.text("Delete repeat interval: %.2f s"), locale: interfaceLocale, model.keyboardPreferences.deleteRepeatInterval))
           .font(.body)
       }
     } header: {
-      Text("反馈")
+      Text(RimeLocalization.text("Feedback"))
     } footer: {
-      Text("气泡只在手机类设备上出现，且被限制在键盘自身范围内；连删的默认值是出厂共识，真机校准后改这里一处即可。")
+      Text(RimeLocalization.text("Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device."))
     }
   }
 
   private var resetSection: some View {
     Section {
-      Button("恢复默认") {
+      Button(RimeLocalization.text("Restore defaults")) {
         Task {
           await model.resetPreferences()
           auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
         }
       }
     } footer: {
-      Text("恢复键盘外观与按键设置；Rime 方案中的辅码前导符和辅码拼写保持当前配置。")
+      Text(RimeLocalization.text("Restore keyboard appearance and key settings. Keep the auxiliary prefix and spelling configured in the Rime scheme."))
     }
   }
 }

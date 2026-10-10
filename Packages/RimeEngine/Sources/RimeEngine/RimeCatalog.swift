@@ -29,10 +29,10 @@ public struct RimeCatalogEntry: Sendable, Hashable {
 
     /// What the user is told before anything is fetched.
     public var summary: String {
-      var parts = [String(schemaCount) + " 个方案"]
-      if needsLua { parts.append("含 Lua 脚本") }
-      if needsGrammarModel { parts.append("可选语法模型需另行下载（约 400 MB）") }
-      if needsPredict { parts.append("可选预测库") }
+      var parts = [RimeLocalization.text("\(String(schemaCount)) schemes")]
+      if needsLua { parts.append(RimeLocalization.text("Includes Lua scripts")) }
+      if needsGrammarModel { parts.append(RimeLocalization.text("Optional grammar model requires a separate download (about 400 MB)")) }
+      if needsPredict { parts.append(RimeLocalization.text("Optional prediction dictionary")) }
       return parts.joined(separator: " · ")
     }
   }
@@ -74,10 +74,10 @@ public struct RimeCatalog: Sendable {
 
   /// What ships compiled in. One entry, because S1 asks for a *short* catalog and because a config
   /// nobody has measured has no business being offered.
-  public static let standard = RimeCatalog(entries: [
+  public static var standard: RimeCatalog { RimeCatalog(entries: [
     RimeCatalogEntry(
       id: "rime-ice-full",
-      displayName: "雾凇拼音（完整）",
+      displayName: RimeLocalization.text("Rime Ice (full)"),
       license: RimeProfileLicense(spdx: "GPL-3.0-only",
                                   name: "GNU General Public License v3.0",
                                   url: "https://www.gnu.org/licenses/gpl-3.0.html",
@@ -86,11 +86,10 @@ public struct RimeCatalog: Sendable {
       pageURL: "https://acehinnnqru.github.io/arkey/download/rime-ice",
       approximateBytes: 15_290_000,
       requirements: .init(needsLua: true, schemaCount: 9),
-      notes: "源发布包，约 15 MB，部署较慢但与本项目固定的 librime 1.17.0 一致；"
-        + "官方 full_compiled.zip 由上游的 librime 构建，不保证兼容。"),
+      notes: RimeLocalization.text("Source release, about 15 MB. Deployment is slower but compatible with this app’s pinned librime 1.17.0. The official full_compiled.zip uses upstream librime and may be incompatible.")),
     RimeCatalogEntry(
       id: "rime-ice-lite",
-      displayName: "雾凇拼音（精简）",
+      displayName: RimeLocalization.text("Rime Ice (lite)"),
       license: RimeProfileLicense(spdx: "GPL-3.0-only",
                                   name: "GNU General Public License v3.0",
                                   url: "https://www.gnu.org/licenses/gpl-3.0.html",
@@ -99,9 +98,8 @@ public struct RimeCatalog: Sendable {
       pageURL: "https://acehinnnqru.github.io/arkey/download/rime-ice-lite",
       approximateBytes: 5_900_000,
       requirements: .init(needsLua: true, schemaCount: 9),
-      notes: "跳过 16.5 MB 的 embedding 词表（cn_dicts/tencent.dict.yaml），部署快得多，"
-        + "候选质量略低。"),
-  ])
+      notes: RimeLocalization.text("Skips the 16.5 MB embedding dictionary (cn_dicts/tencent.dict.yaml) for much faster deployment. Candidate quality is slightly lower.")),
+  ]) }
 }
 
 // MARK: - Receipts

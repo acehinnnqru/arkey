@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import RimeEngine
 
 @main
 struct arkeyApp: App {
+    @AppStorage(RimeLocalization.storageKey, store: UserDefaults(suiteName: RimeKeyboardPreferencesStore.appGroupID))
+    private var interfaceLanguage = RimeAppLanguage.chinese.rawValue
     init() {
         LaunchProbe.mark("appInit")
     }
@@ -20,9 +23,11 @@ struct arkeyApp: App {
                 CandidateScrollTestScreen()
             } else {
                 ContentView()
+                  .environment(\.locale, RimeAppLanguage.resolve(interfaceLanguage).locale)
             }
             #else
             ContentView()
+              .environment(\.locale, RimeAppLanguage.resolve(interfaceLanguage).locale)
             #endif
         }
     }

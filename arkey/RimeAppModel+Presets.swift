@@ -19,7 +19,7 @@ extension RimeAppModel {
       await deploy(profileID: activeProfileID ?? id)
       await refreshSettings()
     } catch {
-      errorMessage = "写入标点设置失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to save punctuation settings: \(String(describing: error))")
     }
   }
 
@@ -60,7 +60,7 @@ extension RimeAppModel {
       enabledKeyBindingOptions = enabled
       await deploy(profileID: activeProfileID ?? id)
     } catch {
-      errorMessage = "写入按键设置失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to save key settings: \(String(describing: error))")
     }
   }
 }

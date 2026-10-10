@@ -48,33 +48,33 @@ public struct RimeNotices: Sendable {
 
   /// Plain text for the share sheet and for the clipboard: the same content the screen renders.
   public var text: String {
-    var lines = ["Arkey — 第三方配置与许可证", ""]
+    var lines = [RimeLocalization.text("Arkey — Third-party profiles and licenses"), ""]
     if entries.isEmpty {
-      lines.append("未安装任何第三方配置。键盘只使用本项目自带的 tracer 数据（MIT）。")
+      lines.append(RimeLocalization.text("No third-party profiles are installed. The keyboard uses only this project’s tracer data (MIT)."))
     } else {
       for entry in entries {
         lines.append(entry.displayName + "（" + entry.profileID + "）")
-        lines.append("  许可证：" + entry.licenseLine)
-        if let url = entry.license.url { lines.append("  许可证全文：" + url) }
-        if let url = entry.license.sourceURL { lines.append("  来源：" + url) }
-        lines.append("  取得方式：" + entry.provenanceLine)
+        lines.append(RimeLocalization.text("  License: \(entry.licenseLine)"))
+        if let url = entry.license.url { lines.append(RimeLocalization.text("  Full license: \(url)")) }
+        if let url = entry.license.sourceURL { lines.append(RimeLocalization.text("  Source: \(url)")) }
+        lines.append(RimeLocalization.text("  Acquisition: \(entry.provenanceLine)"))
         if let notice = entry.noticePath {
-          lines.append("  归属说明：" + notice + (entry.noticeExists ? "" : "（文件中未找到）"))
+          lines.append(RimeLocalization.text("  Attribution: \(notice)\((entry.noticeExists ? "" : RimeLocalization.text(" (not found in files)")))"))
         }
         lines.append("")
       }
     }
-    lines.append("—— 引擎与其组件 ——")
+    lines.append(RimeLocalization.text("—— Engine and components ——"))
     for component in RimeEngineNotices.components(engineVersion: engineVersion) {
       lines.append("  " + component.line)
       lines.append("    " + component.url)
       if let note = component.note { lines.append("    " + note) }
     }
     lines.append("")
-    lines.append("Arkey 本身以 MIT 发布。以上配置由用户自行导入或下载，其许可证随文件本身，不随本程序。")
+    lines.append(RimeLocalization.text("Arkey is released under MIT. Profiles above are imported or downloaded by the user and carry their own licenses."))
     lines.append(bundleContainsThirdPartyData
-                 ? "警告：发布包中检测到非本项目的配置数据。"
-                 : "本发布包中不含任何第三方配置数据。")
+                 ? RimeLocalization.text("Warning: the release bundle contains profile data from outside this project.")
+                 : RimeLocalization.text("This release bundle contains no third-party profile data."))
     return lines.joined(separator: "\n")
   }
 }

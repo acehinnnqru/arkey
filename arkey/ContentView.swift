@@ -7,6 +7,7 @@ import UIKit
 ///
 /// The text field owns the screen: a keyboard, custom or not, must never push it out of sight.
 struct ContentView: View {
+  @Environment(\.locale) private var interfaceLocale
   @StateObject private var model = RimeAppModel.shared
   @State private var text = ""
   @State private var keyboardOverlap: CGFloat = 0
@@ -14,10 +15,11 @@ struct ContentView: View {
   @FocusState private var isEditing: Bool
 
   var body: some View {
+    let _ = interfaceLocale
     NavigationStack {
       GeometryReader { _ in
       VStack(alignment: .leading, spacing: 10) {
-        Text("在下面的输入框里切换到 Arkey 键盘试试。")
+        Text(RimeLocalization.text("Switch to the Arkey keyboard in the text field below to try it."))
           .font(.footnote)
           .foregroundStyle(.secondary)
 
@@ -33,11 +35,11 @@ struct ContentView: View {
         // The same engine and the same profile the keyboard uses, so a failure here is a failure
         // there — and the profile line says which of the three states is in effect (S1 §9).
         VStack(alignment: .leading, spacing: 2) {
-          Text(model.resolvedSummary)
+          Text(model.resolvedSummary.text)
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
-          Text(model.engineStatus)
+          Text(model.engineStatus.text)
             .font(.caption2)
             .foregroundStyle(.secondary)
             .lineLimit(2)
@@ -70,14 +72,14 @@ struct ContentView: View {
       .navigationTitle("Arkey")
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          NavigationLink("键盘") { KeyboardPreviewScreen(model: model) }
+          NavigationLink(RimeLocalization.text("Keyboard")) { KeyboardPreviewScreen(model: model) }
         }
         ToolbarItem(placement: .topBarTrailing) {
           Button {
             isEditing = false
             isShowingSettings = true
           } label: {
-            Label("Settings", systemImage: "gearshape")
+            Label(RimeLocalization.text("Settings"), systemImage: "gearshape")
           }
           .accessibilityIdentifier("settings-open")
         }

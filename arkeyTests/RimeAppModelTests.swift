@@ -132,62 +132,55 @@ final class RimeAppModelTests: XCTestCase {
       atPath: model.workspace.profile(profile.id).build.path), "no build was written")
   }
 
-  /// The 方案 switch, reported from the app as 方案的开关特别卡，点击一个关掉要很久才响应.
-  ///
-  /// Two things made it so, and this pins both. The switch took its value from the *deployed* schema list, which
-  /// is only re-read once the deploy ends, so it could not move until then. And the write that followed the tap
-  /// ran on the main actor, where librime's deploy is holding the engine's own queue — tens of seconds on a real
-  /// configuration. The tap now publishes the choice and returns, and the write and the deploy are queued behind
-  /// it (see `RimeAppModel.pendingSettingsWrites`).
+  /// Selecting a scheme stays responsive and replaces an imported list with one enabled scheme.
   func testTheSchemaSwitchMovesOnTheTapAndNotWhenTheDeployEnds() async throws {
     let model = RimeAppModel()
     await model.bootstrap()
-    _ = try await importAndDeployTracer(named: "Schema switch test", into: model)
-
-    let schema = try XCTUnwrap(model.schemaOrderIDs.first, "the deployed profile offers no schema")
-    XCTAssertTrue(model.schemaRows.contains(schema),
-                  "the row is not on the screen: " + model.schemaRows.joined(separator: ", "))
+    _ = try await importAndDeployTracer(named: "Schema selection test", into: model,
+                                        withAlternativeSchema: true)
+    XCTAssertEqual(Set(model.schemaOrderIDs), Set(["tracer", "tracer_alternative"]))
 
     let tapped = Date()
-    model.setSchema(schema, enabled: false)
-    let waited = Date().timeIntervalSince(tapped)
+    model.selectInputSchema("tracer_alternative")
+    XCTAssertLessThan(Date().timeIntervalSince(tapped), 0.05, "selection waited for deployment")
+    XCTAssertEqual(model.schemaOrderIDs, ["tracer_alternative"])
 
-    XCTAssertLessThan(waited, 0.05,
-                      "the tap waited " + String(format: "%.3f", waited)
-                        + " s on the deploy it started, so the switch is behind that deploy")
-    XCTAssertFalse(model.schemaOrderIDs.contains(schema),
-                   "the switch did not move on the tap: " + model.schemaOrderIDs.joined(separator: ", "))
-
-    // The write and the deploy are still the app's, and they have to land: what the engine reads back is the
-    // only thing that makes the change real.
     await model.waitForSettingsWrites()
     XCTAssertNil(model.errorMessage, "the write reported: " + (model.errorMessage ?? ""))
-    await model.refreshSettings()
-    XCTAssertFalse(model.schemaOrderIDs.contains(schema),
-                   "the change was written and never deployed: "
-                     + model.schemaOrderIDs.joined(separator: ", "))
+    XCTAssertEqual(model.schemaOrderIDs, ["tracer_alternative"])
+    // The host closes its typing-check session; reopen as the keyboard does on appearance.
+    try model.engine.openSession()
+    defer { model.engine.closeSession() }
+    XCTAssertEqual(try model.engine.currentSchema(), "tracer_alternative")
+    XCTAssertEqual(model.schemaDescriptor?.schemaID, "tracer_alternative")
+    XCTAssertTrue(model.schemaRows.contains("tracer"), "unselected schemes must remain selectable")
+
+    // Repeated selection cannot disable the scheme or trigger another deployment.
+    let revision = model.configurationRevision
+    model.selectInputSchema("tracer_alternative")
+    model.selectInputSchema("unknown")
+    XCTAssertEqual(model.schemaOrderIDs, ["tracer_alternative"])
+    XCTAssertEqual(model.configurationRevision, revision)
   }
 
-  /// Two taps in a row leave the last choice deployed, not the first one written and forgotten.
-  ///
-  /// This is the other half of the same report: the deploy guard dropped a request that arrived while another
-  /// deploy was running, so a second tap reached the patch file and never reached the keyboard — and the screen,
-  /// which re-reads the deployed configuration, then showed the switch going back where it was.
+  /// Rapid selections must deploy the last choice and leave it as the runtime's only scheme.
   func testTappingTheSchemaSwitchTwiceLeavesTheLastChoiceDeployed() async throws {
     let model = RimeAppModel()
     await model.bootstrap()
-    _ = try await importAndDeployTracer(named: "Schema switch pair test", into: model)
-
-    let schema = try XCTUnwrap(model.schemaOrderIDs.first, "the deployed profile offers no schema")
-    model.setSchema(schema, enabled: false)
-    model.setSchema(schema, enabled: true)
+    _ = try await importAndDeployTracer(named: "Schema selection pair test", into: model,
+                                        withAlternativeSchema: true)
+    model.selectInputSchema("tracer_alternative")
+    // Yield so the first writer can start before the next selection arrives.
+    await Task.yield()
+    model.selectInputSchema("tracer")
 
     await model.waitForSettingsWrites()
     XCTAssertNil(model.errorMessage, "the writes reported: " + (model.errorMessage ?? ""))
-    await model.refreshSettings()
-    XCTAssertTrue(model.schemaOrderIDs.contains(schema),
-                  "the last tap never reached the deployed configuration: "
-                    + model.schemaOrderIDs.joined(separator: ", "))
+    XCTAssertEqual(model.schemaOrderIDs, ["tracer"])
+    try model.engine.openSession()
+    defer { model.engine.closeSession() }
+    XCTAssertEqual(try model.engine.currentSchema(), "tracer")
+    XCTAssertEqual(model.schemaDescriptor?.schemaID, "tracer")
   }
 
   /// Imports the tracer fixture and deploys it: what every screen below the home screen needs, a live schema to
@@ -198,7 +191,8 @@ final class RimeAppModelTests: XCTestCase {
   /// is what the next run's deploy would compile, and the suite that found that out failed with "the deployed
   /// profile offers no schema" rather than with anything about the switch.
   private func importAndDeployTracer(named displayName: String,
-                                     into model: RimeAppModel) async throws -> RimeProfileMetadata {
+                                     into model: RimeAppModel,
+                                     withAlternativeSchema: Bool = false) async throws -> RimeProfileMetadata {
     // Start from no patch, whatever an earlier run left behind — the same rule the phrase-list test follows. A
     // `schema_list: []` left in this file is what a previous run's switch-off wrote, and the deploy the next run
     // makes compiles exactly that and finds no schema at all: the failure this suite first produced read "the
@@ -206,7 +200,18 @@ final class RimeAppModelTests: XCTestCase {
     let patch = model.workspace.userData.appendingPathComponent("default.custom.yaml")
     try? FileManager.default.removeItem(at: patch)
     userFiles.append(patch)
-    await model.importPayload(at: try makeSourceFolder(), displayName: displayName, adoptUserData: false)
+    let source = try makeSourceFolder()
+    if withAlternativeSchema {
+      let schema = try String(contentsOf: source.appendingPathComponent("tracer.schema.yaml"), encoding: .utf8)
+        .replacingOccurrences(of: "schema_id: tracer", with: "schema_id: tracer_alternative")
+      try schema.write(to: source.appendingPathComponent("tracer_alternative.schema.yaml"),
+                       atomically: true, encoding: .utf8)
+      let defaults = source.appendingPathComponent("default.yaml")
+      let configuration = try String(contentsOf: defaults, encoding: .utf8)
+        .replacingOccurrences(of: "  - schema: tracer", with: "  - schema: tracer\n  - schema: tracer_alternative")
+      try configuration.write(to: defaults, atomically: true, encoding: .utf8)
+    }
+    await model.importPayload(at: source, displayName: displayName, adoptUserData: false)
     let profile = try XCTUnwrap(model.profiles.first { $0.displayName == displayName },
                                 "the import is not listed: "
                                   + model.profiles.map { $0.displayName }.joined(separator: ", "))
@@ -263,7 +268,7 @@ final class RimeAppModelTests: XCTestCase {
     // profile to redeploy into — true here, and a different sentence from a failed import
     // ("导入设置失败：…"), which is the one that would matter.
     if let message = model.errorMessage {
-      XCTAssertEqual(message, "没有可部署的配置。",
+      XCTAssertEqual(message, RimeLocalization.message("No profile is available to deploy."),
                      "the import failed rather than finding nothing to redeploy into: " + message)
     }
     XCTAssertTrue(FileManager.default.fileExists(atPath: patch.path), "the patch was not restored")
@@ -316,7 +321,7 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertEqual(model.latestDeployment?.message, secondAttempt.message,
                    "activation must not relabel the deployment result")
     XCTAssertNil(model.errorMessage, "activation reported: " + (model.errorMessage ?? ""))
-    XCTAssertEqual(model.settingsFooter, .applied("已切换"),
+    XCTAssertEqual(model.settingsFooter, .applied(RimeLocalization.message("Profile changed")),
                    "the footer after activating: " + String(describing: model.settingsFooter))
     XCTAssertTrue((model.deployMessage ?? "").contains("已切换"),
                   "activation said: " + (model.deployMessage ?? "nothing"))
@@ -326,7 +331,7 @@ final class RimeAppModelTests: XCTestCase {
 
     model.rollback(profileID: profile.id)
     if model.errorMessage == nil {
-      XCTAssertEqual(model.settingsFooter, .applied("已回滚到上一代构建"),
+      XCTAssertEqual(model.settingsFooter, .applied(RimeLocalization.message("Rolled back to the previous build")),
                      "the footer after rolling back: " + String(describing: model.settingsFooter))
     }
 
@@ -364,7 +369,7 @@ final class RimeAppModelTests: XCTestCase {
     model.updatePreferences { $0.paletteMode = .fixed }
 
     if model.preferencesStore == nil {
-      XCTAssertEqual(model.errorMessage, "拿不到 App Group，键盘设置无法共享给键盘。",
+      XCTAssertEqual(model.errorMessage, RimeLocalization.message("App Group is unavailable; keyboard settings cannot be shared with the keyboard."),
                      "the write reported: " + (model.errorMessage ?? "nothing"))
       XCTAssertEqual(model.keyboardPreferences, before, "the settings changed without a store")
     } else {
@@ -416,7 +421,7 @@ final class RimeAppModelTests: XCTestCase {
     // Writing a phrase deploys it, and this container has no profile to deploy into — the same sentence the
     // settings import reports, and not a failure to write the file.
     if let message = model.errorMessage {
-      XCTAssertEqual(message, "没有可部署的配置。",
+      XCTAssertEqual(message, RimeLocalization.message("No profile is available to deploy."),
                      "writing the phrase reported: " + message)
     }
   }

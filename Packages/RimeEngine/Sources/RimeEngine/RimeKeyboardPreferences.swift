@@ -27,14 +27,14 @@ public enum RimeAuxiliarySpelling: String, Sendable, Hashable, CaseIterable {
 
   public var label: String {
     switch self {
-    case .fullPinyin: return "全拼"
-    case .doublePinyin: return "自然码双拼"
-    case .flypy: return "小鹤双拼"
-    case .mspy: return "微软双拼"
-    case .sogou: return "搜狗双拼"
-    case .abc: return "智能 ABC 双拼"
-    case .ziguang: return "紫光双拼"
-    case .jiajia: return "拼音加加双拼"
+    case .fullPinyin: return RimeLocalization.text("Full pinyin")
+    case .doublePinyin: return RimeLocalization.text("Natural Code double pinyin")
+    case .flypy: return RimeLocalization.text("Flypy double pinyin")
+    case .mspy: return RimeLocalization.text("Microsoft double pinyin")
+    case .sogou: return RimeLocalization.text("Sogou double pinyin")
+    case .abc: return RimeLocalization.text("Intelligent ABC double pinyin")
+    case .ziguang: return RimeLocalization.text("Ziguang double pinyin")
+    case .jiajia: return RimeLocalization.text("Pinyin Jiajia double pinyin")
     }
   }
 

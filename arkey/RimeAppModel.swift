@@ -52,10 +52,10 @@ final class RimeAppModel: ObservableObject {
   @Published private(set) var storage: RimeStorageReport?
   @Published private(set) var activeProfileID: String?
   @Published private var usableBuilds: Set<String> = []
-  @Published private(set) var resolvedSummary = "尚未解析"
-  @Published private(set) var engineStatus = "引擎尚未启动"
+  @Published private(set) var resolvedSummary = RimeLocalization.message("Not resolved yet")
+  @Published private(set) var engineStatus = RimeLocalization.message("Engine has not started")
   @Published private(set) var isDeploying = false
-  @Published var deployMessage: String?
+  @Published var deployMessage: RimeLocalizedMessage?
   @Published private(set) var latestDeployment: DeploymentAttempt?
   /// S2 §6's footer state. Only the code that writes knows when a change is pending and when it is
   /// live — an activation is "live" without being a deploy — so the transitions happen here rather
@@ -64,10 +64,10 @@ final class RimeAppModel: ObservableObject {
   /// S5 §6's alternative transport: the folder the user picked, when they picked one.
   @Published var syncChoice: RimeSyncFolderChoice?
   /// Why the stored choice was not used, if it was not.
-  @Published var syncChoiceProblem: String?
-  @Published var importWarnings: [String] = []
+  @Published var syncChoiceProblem: RimeLocalizedMessage?
+  @Published var importWarnings: [RimeLocalizedMessage] = []
   @Published private(set) var isImporting = false
-  @Published var errorMessage: String?
+  @Published var errorMessage: RimeLocalizedMessage?
   @Published var schemas: [String] = []
   /// The 方案 screen's rows and their order, refreshed with the rest of the settings: reading librime
   /// and scanning the profile's sources on every SwiftUI body pass would be a synchronous call per
@@ -78,13 +78,13 @@ final class RimeAppModel: ObservableObject {
   /// The 模糊音 presets in force, published rather than asked of the engine per redraw.
   @Published var enabledFuzzyPresets: [String] = []
   @Published var dictionaryReport: RimeUserDictionaryReport?
-  @Published var syncDisabledReason: String?
+  @Published var syncDisabledReason: RimeLocalizedMessage?
   /// S5 §4's timestamped backups, per dictionary, newest first. Refreshed with the report rather than
   /// listed on every body pass: the files live in the sync folder, which may be iCloud Drive.
   @Published var dictionaryBackups: [String: [URL]] = [:]
   @Published var notices: RimeNotices?
   @Published var isSyncing = false
-  @Published var syncMessage: String?
+  @Published var syncMessage: RimeLocalizedMessage?
   @Published var keyboardPreferences: RimeKeyboardPreferences = .standard
   @Published var auxiliarySpelling: RimeAuxiliarySpelling = .fullPinyin
   @Published var customPhrases: [RimeCustomPhrase] = []
@@ -154,7 +154,7 @@ final class RimeAppModel: ObservableObject {
         do {
           sync = try choice.validate()
         } catch {
-          syncChoiceProblem = "已选同步文件夹不可用，回落到默认目录：" + String(describing: error)
+          syncChoiceProblem = RimeLocalization.message("Selected sync folder is unavailable; using the default folder: \(String(describing: error))")
         }
       }
       try FileManager.default.createDirectory(at: sync, withIntermediateDirectories: true)
@@ -163,12 +163,11 @@ final class RimeAppModel: ObservableObject {
       // to know: a new installation id means a new device directory in the sync folder, and the old
       // snapshots will look like another device's.
       if FileManager.default.fileExists(atPath: workspace.quarantinedInstallationURL.path) {
-        importWarnings.append("installation.yaml 无法读取，已另存为 installation.yaml.unreadable 并重新生成；"
-                              + "同步目录里会多出一个新的设备目录，旧快照会被当成其他设备。")
+        importWarnings.append(RimeLocalization.message("installation.yaml could not be read. It was saved as installation.yaml.unreadable and regenerated. A new device folder will appear in the sync folder; old snapshots will be treated as another device."))
       }
       try workspace.applyStoragePolicy()
     } catch {
-      errorMessage = "工作区初始化失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to initialize workspace: \(String(describing: error))")
     }
     #if DEBUG
     // S1-AC6: a Debug build may carry a local config, and the app starts with it installed. The Release
@@ -179,10 +178,10 @@ final class RimeAppModel: ObservableObject {
       do {
         if let id = try RimeLocalDataInstaller.installIfPresent(at: localData, workspace: workspace,
                                                                  engine: engine) {
-          importWarnings.append("已安装本地数据：" + id)
+          importWarnings.append(RimeLocalization.message("Installed local data: \(id)"))
         }
       } catch {
-        importWarnings.append("本地数据安装失败：" + String(describing: error))
+        importWarnings.append(RimeLocalization.message("Failed to install local data: \(String(describing: error))"))
       }
     }
     #endif
@@ -221,15 +220,14 @@ final class RimeAppModel: ObservableObject {
     if let outcome = RimeWorkspaceJanitor().run(workspace: workspace) as RimeWorkspaceJanitor.Outcome? {
       let removed = outcome.removedStagingEntries.count + outcome.removedBuildStaging.count
       if removed > 0 || !outcome.restoredBuilds.isEmpty {
-        importWarnings.append("启动清理：移除 " + String(removed) + " 个临时目录，恢复 "
-                              + String(outcome.restoredBuilds.count) + " 个上一代构建")
+        importWarnings.append(RimeLocalization.message("Startup cleanup: removed \(String(removed)) temporary folders and restored \(String(outcome.restoredBuilds.count)) previous builds"))
       }
     }
   }
 
   /// The tracer's vertical slice, against whatever profile is actually bound: if this fails on a
   /// device, the keyboard will fail the same way.
-  nonisolated static func typingCheck(engine: RimeEngine) -> String {
+  nonisolated static func typingCheck(engine: RimeEngine) -> RimeLocalizedMessage {
     do {
       let start = try engine.start()
       try engine.openSession()
@@ -244,14 +242,13 @@ final class RimeAppModel: ObservableObject {
                                     + " composing=" + String(composing.isComposing)
                                     + " candidates=" + String(composing.candidates.count)
                                     + " asciiMode=" + String(composing.status?.isAsciiMode ?? false)))
-      let candidate = composing.candidates.first?.text ?? "（无候选）"
-      let committed = try engine.selectCandidate(at: 0).commit ?? "（未上屏）"
+      let candidate = (composing.candidates.first?.text).map(RimeLocalizedMessage.init(verbatim:)) ?? RimeLocalization.message("(no candidates)")
+      let committed = try engine.selectCandidate(at: 0).commit.map(RimeLocalizedMessage.init(verbatim:)) ?? RimeLocalization.message("(no committed text)")
       try engine.clearComposition()
       let milliseconds = Int(start.milliseconds ?? 0)
-      return "librime " + RimeEngine.librimeVersion + " · 启动 " + String(milliseconds)
-        + "ms · nihao → " + candidate + " → " + committed
+      return RimeLocalization.message("librime \(RimeEngine.librimeVersion) · startup \(String(milliseconds))ms · nihao → \(candidate) → \(committed)")
     } catch {
-      return "引擎错误：" + String(describing: error)
+      return RimeLocalization.message("Engine error: \(String(describing: error))")
     }
   }
 
@@ -268,7 +265,7 @@ final class RimeAppModel: ObservableObject {
         return layout.buildIsUsable(layout.build)
       }.map(\.id))
     } catch {
-      errorMessage = "读取配置库失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to read profile library: \(String(describing: error))")
     }
     let current = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: bundledSharedData)
     resolved = current
@@ -316,18 +313,15 @@ final class RimeAppModel: ObservableObject {
             adoptUserData: adoptUserData))
       }.value
     } catch {
-      errorMessage = "导入失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Import failed: \(String(describing: error))")
       return
     }
-    importWarnings = outcome.warnings.map(\.description)
+    importWarnings = outcome.warnings.map { RimeLocalizedMessage(verbatim: $0.description) }
     if !outcome.userDataCandidates.isEmpty {
-      importWarnings.append("发现用户设置 " + String(outcome.userDataCandidates.count)
-                            + " 个：" + outcome.userDataCandidates.map(\.relativePath).joined(separator: ", ")
-                            + (adoptUserData ? "（已导入）" : "（保留在配置里，未写入用户目录）"))
+      importWarnings.append(RimeLocalization.message("Found user settings: \(String(outcome.userDataCandidates.count)) files: \(outcome.userDataCandidates.map(\.relativePath).joined(separator: ", "))\((adoptUserData ? RimeLocalization.message(" (imported)") : RimeLocalization.message(" (kept in profile; not copied to user directory)")))"))
     }
     if outcome.generatedDefaultYAML != nil {
-      importWarnings.append("该配置没有 default.yaml，已生成一个列出 "
-                            + String(outcome.metadata.stats.schemaIDs.count) + " 个方案的文件")
+      importWarnings.append(RimeLocalization.message("This profile has no default.yaml; generated one containing \(String(outcome.metadata.stats.schemaIDs.count)) schemes"))
     }
     // The library scan includes directory sizes and can be substantial after a large import.
     do {
@@ -341,7 +335,7 @@ final class RimeAppModel: ObservableObject {
       resolved = snapshot.resolved
       resolvedSummary = Self.describe(snapshot.resolved)
     } catch {
-      errorMessage = "读取配置库失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to read profile library: \(String(describing: error))")
     }
   }
 
@@ -353,10 +347,10 @@ final class RimeAppModel: ObservableObject {
       let root = try RimeConfigRootLocator.locate(in: url)
       let classification = RimeTreeClassifier.classify(root: root)
       try importer.adopt(classification.userData, from: root)
-      importWarnings = ["已导入 " + String(classification.userData.count) + " 个用户设置文件"]
+      importWarnings = [RimeLocalization.message("Imported \(String(classification.userData.count)) user settings files")]
       refresh()
     } catch {
-      errorMessage = "导入用户设置失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to import user settings: \(String(describing: error))")
     }
   }
 
@@ -386,7 +380,7 @@ final class RimeAppModel: ObservableObject {
     // path `profiles//source` and fails with an English, path-bearing sentence, which is what a user with no
     // profile reads after adding a phrase. Say what redeployActiveProfile() says instead.
     guard !profileID.isEmpty else {
-      let text = "没有可部署的配置。"
+      let text = RimeLocalization.message("No profile is available to deploy.")
       deployMessage = text
       errorMessage = text
       settingsFooter = .failed(text)
@@ -397,7 +391,7 @@ final class RimeAppModel: ObservableObject {
                                     profileName: profiles.first { $0.id == profileID }?.displayName ?? profileID)
     latestDeployment = attempt
     settingsFooter = .pending
-    deployMessage = "正在部署…"
+    deployMessage = RimeLocalization.message("Deploying…")
     let coordinator = RimeDeploymentCoordinator(workspace: workspace, engine: engine)
     do {
       let outcome = try await coordinator.deploy(profileID: profileID) { progress in
@@ -411,20 +405,19 @@ final class RimeAppModel: ObservableObject {
       // S1 §6: a deploy can succeed while having written nothing (librime's staleness check runs once
       // per process), so the message says which of the two happened instead of implying work.
       let rebuilt = outcome.report.changes.writtenTables.count
-      let detail: String
+      let detail: RimeLocalizedMessage
       if rebuilt == 0 {
-        detail = "已是最新，未重建任何表，第 " + String(outcome.generation) + " 代"
+        detail = RimeLocalization.message("Up to date; no tables rebuilt. Generation \(String(outcome.generation))")
       } else {
-        detail = String(rebuilt) + " 个文件被重建，"
-          + String(format: "%.1f s", outcome.durationSeconds) + "，第 " + String(outcome.generation) + " 代"
+        detail = RimeLocalization.message("\(String(rebuilt)) files rebuilt, \(String(format: "%.1f s", outcome.durationSeconds)), generation \(String(outcome.generation))")
       }
-      deployMessage = "部署完成：" + detail
+      deployMessage = RimeLocalization.message("Deployment complete: \(detail)")
       latestDeployment?.message = deployMessage ?? detail
       latestDeployment?.logs = outcome.report.logs
       settingsFooter = .applied(detail)
     } catch {
       let reason = String(describing: error)
-      let text = "部署失败：" + reason
+      let text = RimeLocalization.message("Deployment failed: \(reason)")
       RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
         .append(RimeProbeRecord(phase: "app.deploy.failed", message: reason))
       if case RimeDeploymentFailure.deployFailed(let report) = error {
@@ -452,22 +445,22 @@ final class RimeAppModel: ObservableObject {
     do {
       _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).activate(profileID: profileID)
       recordProfileActivation(profileID)
-      deployMessage = "已切换。键盘会在下次出现时采用（不会打断正在输入的句子）。"
-      settingsFooter = .applied("已切换")
+      deployMessage = RimeLocalization.message("Profile changed. The keyboard adopts it next time it opens, without interrupting current input.")
+      settingsFooter = .applied(RimeLocalization.message("Profile changed"))
       refresh()
     } catch {
-      errorMessage = "切换失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to switch: \(String(describing: error))")
     }
   }
 
   func rollback(profileID: String) {
     do {
       _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).rollback(profileID: profileID)
-      deployMessage = "已回滚到上一代构建。"
-      settingsFooter = .applied("已回滚到上一代构建")
+      deployMessage = RimeLocalization.message("Rolled back to the previous build.")
+      settingsFooter = .applied(RimeLocalization.message("Rolled back to the previous build"))
       refresh()
     } catch {
-      errorMessage = "回滚失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Rollback failed: \(String(describing: error))")
     }
   }
 
@@ -477,7 +470,7 @@ final class RimeAppModel: ObservableObject {
         .delete(profileID: profileID, removingUserDictionaries: removingUserDictionaries)
       refresh()
     } catch {
-      errorMessage = "删除失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Delete failed: \(String(describing: error))")
     }
   }
 
@@ -497,27 +490,26 @@ final class RimeAppModel: ObservableObject {
     resolved.flatMap(RimeProfileRecovery.of)
   }
 
-  static func describe(_ resolved: RimeResolvedProfile) -> String {
-    let description: String
+  static func describe(_ resolved: RimeResolvedProfile) -> RimeLocalizedMessage {
+    let description: RimeLocalizedMessage
     switch resolved.origin {
     case .bundled:
-      description = "内置数据（" + (resolved.fallbackReason ?? "未知原因") + "）"
+      description = RimeLocalization.message("Built-in data (\((resolved.fallbackReason.map(RimeLocalizedMessage.init(verbatim:)) ?? RimeLocalization.message("Unknown reason"))))")
     case .appGroup, .container:
-      description = (resolved.profileID ?? "?") + " · 第 " + String(resolved.generation ?? 0) + " 代"
-        + (resolved.fallbackReason.map { " · " + $0 } ?? "")
+      description = RimeLocalization.message("\((resolved.profileID ?? "?")) · generation \(String(resolved.generation ?? 0))\((resolved.fallbackReason.map { " · " + $0 } ?? ""))")
     }
     // The keyboard reads the same table, so the two surfaces cannot disagree about the repair (S1 §9).
     guard let recovery = RimeProfileRecovery.of(resolved) else { return description }
-    return description + " · " + recovery.message
+    return description + " · " + recovery.localizedMessage
   }
 
-  static func describe(_ progress: RimeDeploymentProgress) -> String {
+  static func describe(_ progress: RimeDeploymentProgress) -> RimeLocalizedMessage {
     switch progress.phase {
-    case .binding: return "正在绑定配置…"
-    case .started: return "librime 开始部署…"
-    case .running: return "正在编译词库与方案…（大配置需要几十秒）"
-    case .succeeded: return "部署完成"
-    case .failed: return "部署失败：" + progress.message
+    case .binding: return RimeLocalization.message("Binding profile…")
+    case .started: return RimeLocalization.message("librime is starting deployment…")
+    case .running: return RimeLocalization.message("Compiling dictionaries and schemes… (large profiles may take tens of seconds)")
+    case .succeeded: return RimeLocalization.message("Deployment complete")
+    case .failed: return RimeLocalization.message("Deployment failed: \(progress.message)")
     }
   }
 }

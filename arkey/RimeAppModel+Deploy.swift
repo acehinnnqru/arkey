@@ -10,7 +10,7 @@ struct DeploymentAttempt: Sendable {
   let profileName: String
   let startedAt = Date()
   var finishedAt: Date?
-  var message = "Deploying…"
+  var message = RimeLocalization.message("Deploying…")
   var failed = false
   var logs: [RimeLogRecord] = []
 }
@@ -38,7 +38,7 @@ extension RimeAppModel {
   /// S1 §7's re-deploy.
   func redeployActiveProfile() async {
     guard let id = activeProfileID ?? profiles.first?.id else {
-      errorMessage = "没有可部署的配置。"
+      errorMessage = RimeLocalization.message("No profile is available to deploy.")
       return
     }
     await deploy(profileID: id)
@@ -47,7 +47,7 @@ extension RimeAppModel {
   /// Copies the newest backup's files over the user directory: one action, as S2-AC4 asks.
   func restoreLatestSettingsBackup() async {
     guard let backup = latestSettingsBackup else {
-      errorMessage = "还没有任何备份可恢复。"
+      errorMessage = RimeLocalization.message("No backups are available to restore.")
       return
     }
     let files = (try? FileManager.default.contentsOfDirectory(at: backup,
@@ -61,10 +61,10 @@ extension RimeAppModel {
         try FileManager.default.copyItem(at: file, to: target)
       }
       await redeployActiveProfile()
-      deployMessage = "已恢复 " + String(files.count) + " 个设置文件并重新部署。"
-      settingsFooter = .applied("已恢复 " + String(files.count) + " 个设置文件")
+      deployMessage = RimeLocalization.message("Restored \(String(files.count)) settings files and redeployed.")
+      settingsFooter = .applied(RimeLocalization.message("Restored \(String(files.count)) settings files"))
     } catch {
-      errorMessage = "恢复备份失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to restore backup: \(String(describing: error))")
     }
   }
 }

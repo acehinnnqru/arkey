@@ -32,25 +32,25 @@ enum KeyLayer {
 }
 
 enum KeyboardKeyLabels {
-  static var systemLanguage: String { Locale.preferredLanguages.first ?? "en" }
+  static var systemLanguage: String { RimeLocalization.language.rawValue }
 
   static func space(language: String) -> String {
-    language.lowercased().hasPrefix("zh") ? "空格" : "space"
+    RimeLocalization.text("Space", language: language.lowercased().hasPrefix("zh") ? .chinese : .english)
   }
 
   static func returnKey(_ type: UIReturnKeyType, language: String) -> String {
-    let chinese = language.lowercased().hasPrefix("zh")
+    let selected: RimeAppLanguage = language.lowercased().hasPrefix("zh") ? .chinese : .english
     switch type {
-    case .send: return chinese ? "发送" : "Send"
-    case .search, .google, .yahoo: return chinese ? "搜索" : "Search"
-    case .go: return chinese ? "前往" : "Go"
-    case .done: return chinese ? "完成" : "Done"
-    case .next: return chinese ? "下一项" : "Next"
-    case .continue: return chinese ? "继续" : "Continue"
-    case .join: return chinese ? "加入" : "Join"
-    case .route: return chinese ? "路线" : "Route"
-    case .emergencyCall: return chinese ? "紧急呼叫" : "Emergency Call"
-    default: return chinese ? "换行" : "return"
+    case .send: return RimeLocalization.text("Send", language: selected)
+    case .search, .google, .yahoo: return RimeLocalization.text("Search", language: selected)
+    case .go: return RimeLocalization.text("Go", language: selected)
+    case .done: return RimeLocalization.text("Done", language: selected)
+    case .next: return RimeLocalization.text("Next", language: selected)
+    case .continue: return RimeLocalization.text("Continue", language: selected)
+    case .join: return RimeLocalization.text("Join", language: selected)
+    case .route: return RimeLocalization.text("Route", language: selected)
+    case .emergencyCall: return RimeLocalization.text("Emergency call", language: selected)
+    default: return RimeLocalization.text("Return", language: selected)
     }
   }
 }
@@ -71,8 +71,8 @@ final class KeyboardKeyGrid: UIView {
   private var asciiMode = false
   private var shift: RimeShiftState = .off
   private var language: RimeLanguageKey?
-  private var returnKeyLabel = "换行"
-  private var spaceKeyLabel = "空格"
+  private var returnKeyLabel = RimeLocalization.text("Return")
+  private var spaceKeyLabel = RimeLocalization.text("Space")
   private var showsGlobeRow = false
   private var feedback = RimeKeyFeedback.standard
   private var auxiliaryPrefix = ","
@@ -284,7 +284,7 @@ final class KeyboardKeyGrid: UIView {
   private func key(for key: RimeKeyboardKey) -> KeyboardKey? {
     switch key.kind {
     case .character(let text):
-      return key.accessibilityLabel.hasPrefix("辅码前导键 ") ? .auxiliary(text) : .character(text)
+      return key.isAuxiliary ? .auxiliary(text) : .character(text)
     case .shift: return .shift
     case .delete: return .backspace
     case .space: return .space
@@ -358,7 +358,7 @@ final class KeyboardKeyGrid: UIView {
     case .returnKey:
       if usesReturnSymbol {
         button.setSymbol("return", pointSize: 22)
-      } else if returnKeyLabel == "搜索" || returnKeyLabel == "Search" {
+      } else if returnKeyLabel == RimeLocalization.text("Search") || returnKeyLabel == "Search" {
         button.setSymbol("magnifyingglass", pointSize: 22)
       } else {
         button.setTitle(returnKeyLabel, pointSize: 16)
@@ -384,6 +384,6 @@ final class KeyboardKeyGrid: UIView {
   }
 
   private var usesReturnSymbol: Bool {
-    returnKeyLabel == "换行" || returnKeyLabel.lowercased() == "return"
+    returnKeyLabel == RimeLocalization.text("Return") || returnKeyLabel.lowercased() == "return"
   }
 }

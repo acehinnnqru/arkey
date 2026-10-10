@@ -37,18 +37,21 @@ public enum RimeSettingsFooterState: Sendable, Equatable {
   /// A write is in flight, or the deploy that follows it has not finished.
   case pending
   /// The last write is live, carrying the deploy's own message.
-  case applied(String)
+  case applied(RimeLocalizedMessage)
   /// The last write did not reach the engine; the message says why.
-  case failed(String)
+  case failed(RimeLocalizedMessage)
+
+  public static func applied(_ message: String) -> Self { .applied(RimeLocalizedMessage(verbatim: message)) }
+  public static func failed(_ message: String) -> Self { .failed(RimeLocalizedMessage(verbatim: message)) }
 
   /// The words the footer shows. Kept beside the state so the two states the spec names cannot be
   /// spelled two ways.
   public var text: String {
     switch self {
-    case .unchanged: return "尚未修改"
-    case .pending: return "已修改，待部署"
-    case .applied(let message): return message.isEmpty ? "已生效" : "已生效：" + message
-    case .failed(let message): return message.isEmpty ? "部署失败" : "部署失败：" + message
+    case .unchanged: return RimeLocalization.text("Unchanged")
+    case .pending: return RimeLocalization.text("Modified; awaiting deployment")
+    case .applied(let message): return message.isEmpty ? RimeLocalization.text("Applied") : RimeLocalization.text("Applied: \(message)")
+    case .failed(let message): return message.isEmpty ? RimeLocalization.text("Deployment failed") : RimeLocalization.text("Deployment failed: \(message)")
     }
   }
 
@@ -103,7 +106,7 @@ public struct RimeSettingDescriptor: Sendable, Hashable {
 
     public var displayText: String {
       switch self {
-      case .boolean(let value): return value ? "开" : "关"
+      case .boolean(let value): return value ? RimeLocalization.text("On") : RimeLocalization.text("Off")
       case .integer(let value): return String(value)
       case .text(let value): return value
       case .list(let values): return values.joined(separator: ", ")
@@ -119,14 +122,16 @@ public struct RimeSettingDescriptor: Sendable, Hashable {
   }
 
   public let id: String
-  public let title: String
+  let titleMessage: RimeLocalizedMessage
+  public var title: String { titleMessage.text }
   public let key: String
   public let scope: Scope
   public let valueType: ValueType
   public let effective: Value?
   /// Present only when the user has patched the key, which is what "reset to default" acts on.
   public let userValue: Value?
-  public let note: String?
+  let noteMessage: RimeLocalizedMessage?
+  public var note: String? { noteMessage?.text }
 
   public var isUserSet: Bool { userValue != nil }
 }
@@ -170,9 +175,9 @@ public struct RimeSchemaDescriptor: Sendable {
                                forKey key: String) -> RimeSchemaDescriptor {
     replacing(settings: settings.map { entry in
       guard entry.key == key else { return entry }
-      return RimeSettingDescriptor(id: entry.id, title: entry.title, key: entry.key, scope: entry.scope,
+      return RimeSettingDescriptor(id: entry.id, titleMessage: entry.titleMessage, key: entry.key, scope: entry.scope,
                                    valueType: entry.valueType,
-                                   effective: value, userValue: value, note: entry.note)
+                                   effective: value, userValue: value, noteMessage: entry.noteMessage)
     })
   }
 
@@ -185,9 +190,9 @@ public struct RimeSchemaDescriptor: Sendable {
   public func clearingSetting(_ key: String) -> RimeSchemaDescriptor {
     replacing(settings: settings.map { entry in
       guard entry.key == key else { return entry }
-      return RimeSettingDescriptor(id: entry.id, title: entry.title, key: entry.key, scope: entry.scope,
+      return RimeSettingDescriptor(id: entry.id, titleMessage: entry.titleMessage, key: entry.key, scope: entry.scope,
                                    valueType: entry.valueType,
-                                   effective: entry.effective, userValue: nil, note: entry.note)
+                                   effective: entry.effective, userValue: nil, noteMessage: entry.noteMessage)
     })
   }
 
@@ -234,31 +239,31 @@ public enum RimeSettingsModel {
     pageSize = (try? engine.withConfig("default") { $0.int("menu/page_size") }) ?? 5
 
     if kind == .script {
-      settings.append(boolean("completion", "逐码提示", "translator/enable_completion",
+      settings.append(boolean("completion", RimeLocalization.message("Completion"), "translator/enable_completion",
                               scope: .schema(schemaID), engine: engine, patch: schemaPatch,
-                              note: "librime 默认为开；雾凇拼音的用户常把它关掉"))
-      settings.append(boolean("wordCompletion", "词条提示", "translator/enable_word_completion",
+                              note: RimeLocalization.message("Enabled by default in librime; often disabled by Rime Ice users")))
+      settings.append(boolean("wordCompletion", RimeLocalization.message("Word completion"), "translator/enable_word_completion",
                               scope: .schema(schemaID), engine: engine, patch: schemaPatch, note: nil))
-      settings.append(integer("maxSentences", "最长整句词数", "translator/max_sentences",
+      settings.append(integer("maxSentences", RimeLocalization.message("Maximum sentence words"), "translator/max_sentences",
                               scope: .schema(schemaID), engine: engine, patch: schemaPatch,
-                              note: "脚本翻译器始终尝试整句；这是它的上界"))
-      settings.append(integer("sentenceCutoff", "整句可信度阈值", "translator/sentence_cutoff_threshold",
+                              note: RimeLocalization.message("The script translator always attempts sentences; this is its upper limit")))
+      settings.append(integer("sentenceCutoff", RimeLocalization.message("Sentence confidence threshold"), "translator/sentence_cutoff_threshold",
                               scope: .schema(schemaID), engine: engine, patch: schemaPatch, note: nil))
     } else if kind == .table {
-      settings.append(boolean("sentence", "整句输入", "translator/enable_sentence",
+      settings.append(boolean("sentence", RimeLocalization.message("Sentence input"), "translator/enable_sentence",
                               scope: .schema(schemaID), engine: engine, patch: schemaPatch,
-                              note: "码表翻译器的开关；拼音方案不读它"))
-      settings.append(boolean("encoder", "自动造词", "translator/enable_encoder",
+                              note: RimeLocalization.message("A table translator option; pinyin schemes do not read it")))
+      settings.append(boolean("encoder", RimeLocalization.message("Automatic word creation"), "translator/enable_encoder",
                               scope: .schema(schemaID), engine: engine, patch: schemaPatch,
-                              note: "码表翻译器的开关；拼音方案不读它"))
+                              note: RimeLocalization.message("A table translator option; pinyin schemes do not read it")))
     }
 
-    settings.append(boolean("userDictionary", "用户词典（学习）", "translator/enable_user_dict",
+    settings.append(boolean("userDictionary", RimeLocalization.message("User dictionary (learning)"), "translator/enable_user_dict",
                             scope: .schema(schemaID), engine: engine, patch: schemaPatch,
-                            note: "关闭后不会学习新词，已有词库保留（S5）"))
-    settings.append(boolean("alwaysShowComments", "始终显示候选注释", "translator/always_show_comments",
+                            note: RimeLocalization.message("Disabling stops learning new words and preserves existing dictionaries (S5)")))
+    settings.append(boolean("alwaysShowComments", RimeLocalization.message("Always show candidate comments"), "translator/always_show_comments",
                             scope: .schema(schemaID), engine: engine, patch: schemaPatch, note: nil))
-    settings.append(integer("spellingHints", "逐键提示数", "translator/spelling_hints",
+    settings.append(integer("spellingHints", RimeLocalization.message("Spelling hint count"), "translator/spelling_hints",
                             scope: .schema(schemaID), engine: engine, patch: schemaPatch, note: nil))
 
     return RimeSchemaDescriptor(schemaID: schemaID, name: name, translatorKind: kind,
@@ -334,24 +339,24 @@ public enum RimeSettingsModel {
     return descriptors
   }
 
-  private static func boolean(_ id: String, _ title: String, _ key: String,
+  private static func boolean(_ id: String, _ title: RimeLocalizedMessage, _ key: String,
                               scope: RimeSettingDescriptor.Scope, engine: RimeEngine,
-                              patch: RimePatch, note: String?) -> RimeSettingDescriptor {
+                              patch: RimePatch, note: RimeLocalizedMessage?) -> RimeSettingDescriptor {
     let effective = effective(key, scope: scope, engine: engine, patch: patch)?.boolValue
     let user = (try? patch.userValue(key)).flatMap(Self.value(from:))
-    return RimeSettingDescriptor(id: id, title: title, key: key, scope: scope,
+    return RimeSettingDescriptor(id: id, titleMessage: title, key: key, scope: scope,
                                  valueType: .boolean, effective: effective.map { .boolean($0) },
-                                 userValue: user, note: note)
+                                 userValue: user, noteMessage: note)
   }
 
-  private static func integer(_ id: String, _ title: String, _ key: String,
+  private static func integer(_ id: String, _ title: RimeLocalizedMessage, _ key: String,
                               scope: RimeSettingDescriptor.Scope, engine: RimeEngine,
-                              patch: RimePatch, note: String?) -> RimeSettingDescriptor {
+                              patch: RimePatch, note: RimeLocalizedMessage?) -> RimeSettingDescriptor {
     let effective = effective(key, scope: scope, engine: engine, patch: patch)?.intValue
     let user = (try? patch.userValue(key)).flatMap(Self.value(from:))
-    return RimeSettingDescriptor(id: id, title: title, key: key, scope: scope,
+    return RimeSettingDescriptor(id: id, titleMessage: title, key: key, scope: scope,
                                  valueType: .integer, effective: effective.map { .integer($0) },
-                                 userValue: user, note: note)
+                                 userValue: user, noteMessage: note)
   }
 
   /// The value in force, asked the one way. The scope decides which config answers, and for a schema that is

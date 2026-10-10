@@ -28,6 +28,9 @@ tests_ran="$(echo "$tests_output" | grep -oE "Executed [0-9]+ tests" | tail -1 |
 step "status evidence"
 ./scripts/check-status-evidence.sh --tests "${tests_ran:-}"
 
+step "localization"
+python3 scripts/check-localization.py
+
 step "screen wiring"
 ./scripts/check-ui-wiring.sh | tail -2
 

@@ -36,7 +36,7 @@ extension RimeAppModel {
       }
       customPhrases = []
       rejectedPhraseLines = []
-      errorMessage = "读取自定义短语失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to read custom phrases: \(String(describing: error))")
     }
   }
 
@@ -50,7 +50,7 @@ extension RimeAppModel {
       await deploy(profileID: activeProfileID ?? profiles.first?.id ?? "")
       await refreshCustomPhrases()
     } catch {
-      errorMessage = "写入自定义短语失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to save custom phrases: \(String(describing: error))")
     }
   }
 
@@ -77,11 +77,10 @@ extension RimeAppModel {
       let incoming = try RimeCustomPhraseFile.load(from: url)
       let merged = RimeCustomPhraseFile.merge(incoming.phrases, into: customPhrases,
                                               strategy: strategy)
-      importWarnings = ["导入自定义短语：" + String(incoming.phrases.count) + " 条，"
-                        + String(merged.count - customPhrases.count) + " 条新增"]
+      importWarnings = [RimeLocalization.message("Imported custom phrases: \(String(incoming.phrases.count)) entries, \(String(merged.count - customPhrases.count)) new entries")]
       await saveCustomPhrases(merged)
     } catch {
-      errorMessage = "导入自定义短语失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to import custom phrases: \(String(describing: error))")
     }
   }
 
@@ -93,7 +92,7 @@ extension RimeAppModel {
       try RimeCustomPhraseFile.save(customPhrases, to: url)
       return url
     } catch {
-      errorMessage = "导出自定义短语失败：" + String(describing: error)
+      errorMessage = RimeLocalization.message("Failed to export custom phrases: \(String(describing: error))")
       return nil
     }
   }

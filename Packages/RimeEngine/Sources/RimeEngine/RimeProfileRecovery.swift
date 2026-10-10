@@ -17,8 +17,8 @@ public struct RimeProfileRecovery: Sendable, Hashable {
     /// cannot describe the same repair in two different ways.
     public var title: String {
       switch self {
-      case .deploy: return "重新部署"
-      case .chooseProfile: return "导入或选择配置"
+      case .deploy: return RimeLocalization.text("Redeploy")
+      case .chooseProfile: return RimeLocalization.text("Import or choose a profile")
       }
     }
   }
@@ -26,13 +26,14 @@ public struct RimeProfileRecovery: Sendable, Hashable {
   /// Why the process is not on a profile, in the resolver's own words (the probe log keeps the same text).
   public let reason: String
   /// What the user should read.
-  public let message: String
+  public let localizedMessage: RimeLocalizedMessage
+  public var message: String { localizedMessage.text }
   /// What the app has to offer them.
   public let action: Action
 
-  public init(reason: String, message: String, action: Action) {
+  public init(reason: String, message: RimeLocalizedMessage, action: Action) {
     self.reason = reason
-    self.message = message
+    self.localizedMessage = message
     self.action = action
   }
 
@@ -43,26 +44,26 @@ public struct RimeProfileRecovery: Sendable, Hashable {
 
     if reason.hasPrefix("the active build is missing or empty") {
       return RimeProfileRecovery(reason: reason,
-                                 message: "正在使用上一代编译数据；打开 Arkey 重新部署可修复",
+                                 message: RimeLocalization.message("Using the previous build. Open Arkey and redeploy to repair it."),
                                  action: .deploy)
     }
     if reason.hasSuffix("has no usable build") {
       return RimeProfileRecovery(reason: reason,
-                                 message: "当前配置没有可用的编译数据，键盘正在使用内置数据；打开 Arkey 重新部署",
+                                 message: RimeLocalization.message("This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy."),
                                  action: .deploy)
     }
     if reason.hasPrefix("no active.json") {
       return RimeProfileRecovery(reason: reason,
-                                 message: "尚未选定配置，键盘正在使用内置数据；打开 Arkey 导入或选择配置",
+                                 message: RimeLocalization.message("No profile is selected. The keyboard uses built-in data. Open Arkey to import or choose a profile."),
                                  action: .chooseProfile)
     }
     if reason.hasPrefix("active.json") {
       return RimeProfileRecovery(reason: reason,
-                                 message: "配置状态文件无法读取，键盘正在使用内置数据；打开 Arkey 重新选择配置",
+                                 message: RimeLocalization.message("Profile state could not be read. The keyboard uses built-in data. Open Arkey and choose a profile again."),
                                  action: .chooseProfile)
     }
     return RimeProfileRecovery(reason: reason,
-                               message: "配置不可用，键盘正在使用内置数据；打开 Arkey 检查",
+                               message: RimeLocalization.message("Profile unavailable. The keyboard uses built-in data. Open Arkey to check it."),
                                action: .chooseProfile)
   }
 }

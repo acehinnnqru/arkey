@@ -1,7 +1,11 @@
+import RimeEngine
 import SwiftUI
 
 /// Settings owns its navigation so detail pages stay inside the drawer.
 struct SettingsView: View {
+  @Environment(\.locale) private var interfaceLocale
+  @AppStorage(RimeLocalization.storageKey, store: UserDefaults(suiteName: RimeKeyboardPreferencesStore.appGroupID))
+  private var interfaceLanguage = RimeAppLanguage.chinese.rawValue
   let model: RimeAppModel
   @Environment(\.dismiss) private var dismiss
 
@@ -11,50 +15,65 @@ struct SettingsView: View {
   }
 
   var body: some View {
+    let _ = interfaceLocale
     NavigationStack {
       List {
-        Section("Input") {
+        Section {
+          Picker(RimeLocalization.text("Interface language"), selection: Binding(
+            get: { RimeAppLanguage.resolve(interfaceLanguage).rawValue },
+            set: { interfaceLanguage = $0 })) {
+            ForEach(RimeAppLanguage.allCases, id: \.rawValue) { language in
+              Text(language.nativeName).tag(language.rawValue)
+            }
+          }
+          .accessibilityIdentifier("interface-language")
+        } header: {
+          Text(RimeLocalization.text("Language"))
+        } footer: {
+          Text(RimeLocalization.text("Chinese is the default. The keyboard uses this language the next time it opens."))
+        }
+        Section(RimeLocalization.text("Input")) {
           NavigationLink(value: Page.schema) {
-            Label("方案与输入", systemImage: "character.bubble")
+            Label(RimeLocalization.text("Scheme and input"), systemImage: "character.bubble")
           }
           NavigationLink(value: Page.keyboard) {
-            Label("键盘", systemImage: "keyboard")
+            Label(RimeLocalization.text("Keyboard"), systemImage: "keyboard")
           }
           NavigationLink(value: Page.punctuation) {
-            Label("标点", systemImage: "textformat.123")
+            Label(RimeLocalization.text("Punctuation"), systemImage: "textformat.123")
           }
           NavigationLink(value: Page.keys) {
-            Label("按键", systemImage: "command")
+            Label(RimeLocalization.text("Keys"), systemImage: "command")
           }
           NavigationLink(value: Page.phrases) {
-            Label("自定义短语", systemImage: "text.bubble")
+            Label(RimeLocalization.text("Custom phrases"), systemImage: "text.bubble")
           }
           NavigationLink(value: Page.dictionaries) {
-            Label("用户词库", systemImage: "book")
+            Label(RimeLocalization.text("User dictionaries"), systemImage: "book")
           }
         }
 
-        Section("Profiles") {
+        Section(RimeLocalization.text("Profiles")) {
           NavigationLink(value: Page.profiles) {
-            Label("配置库", systemImage: "folder")
+            Label(RimeLocalization.text("Profile library"), systemImage: "folder")
           }
           NavigationLink(value: Page.catalog) {
-            Label("下载配置", systemImage: "arrow.down.circle")
+            Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
           }
         }
 
-        Section("About") {
+        Section(RimeLocalization.text("About")) {
           NavigationLink(value: Page.notices) {
-            Label("许可证", systemImage: "doc.text")
+            Label(RimeLocalization.text("Licenses"), systemImage: "doc.text")
           }
           NavigationLink(value: Page.diagnostics) {
-            Label("诊断", systemImage: "stethoscope")
+            Label(RimeLocalization.text("Diagnostics"), systemImage: "stethoscope")
           }
         }
       }
       .listStyle(.insetGrouped)
       .accessibilityIdentifier("settings-list")
-      .navigationTitle("Settings")
+      .navigationTitle(RimeLocalization.text("Settings"))
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: Page.self) { page in
         switch page {
@@ -72,7 +91,7 @@ struct SettingsView: View {
       }
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { dismiss() }
+          Button(RimeLocalization.text("Done")) { dismiss() }
             .accessibilityIdentifier("settings-close")
         }
       }

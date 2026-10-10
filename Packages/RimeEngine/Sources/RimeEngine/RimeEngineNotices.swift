@@ -30,7 +30,7 @@ public struct RimeComponentNotice: Sendable, Hashable {
   public var line: String {
     var parts = [name]
     if let version { parts.append(version) }
-    parts.append(license ?? "许可证见上游")
+    parts.append(license ?? RimeLocalization.text("See upstream for license"))
     return parts.joined(separator: " · ")
   }
 }
@@ -41,19 +41,19 @@ public enum RimeEngineNotices {
     [
       .init(name: "librime", version: engineVersion, license: "BSD-3-Clause",
             url: "https://github.com/rime/librime",
-            note: "本项目链接的引擎。表、棱镜与语法模型以只读方式映射，扩展不写它。"),
+            note: RimeLocalization.text("The engine linked by this app. Tables, prisms, and grammar models are mapped read only; the extension does not write them.")),
       .init(name: "librime-xcframework", version: "1.17.0-pack.9.0.2", license: "BSD-3-Clause",
             url: "https://github.com/ghostflyby/librime-xcframework",
-            note: "把 librime 及其插件打包成框架的发行版；表由该版本产出，运行时必须与之一致。"),
+            note: RimeLocalization.text("Framework distribution of librime and its plugins. Tables are produced by this version and require the same runtime.")),
       .init(name: "librime-lua", license: nil,
             url: "https://github.com/hchunhui/librime-lua",
-            note: "随框架合入：配置里的 Lua 翻译器与滤镜由它执行。许可证见上游。"),
+            note: RimeLocalization.text("Bundled with the framework; runs Lua translators and filters from profiles. See upstream for license.")),
       .init(name: "octagram", license: nil,
             url: "https://github.com/lotem/librime-octagram",
-            note: "随框架合入：语法模型插件。默认关闭，模型需另行下载。许可证见上游。"),
+            note: RimeLocalization.text("Bundled grammar model plugin. Disabled by default; models require a separate download. See upstream for license.")),
       .init(name: "predict", license: nil,
             url: "https://github.com/rime/librime-predict",
-            note: "随框架合入：预测插件。默认关闭。许可证见上游。"),
+            note: RimeLocalization.text("Bundled prediction plugin. Disabled by default. See upstream for license.")),
     ]
   }
 

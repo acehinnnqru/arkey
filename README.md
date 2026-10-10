@@ -44,6 +44,15 @@ The engine suite also runs clean instrumented, which is worth doing after touchi
     swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=address   # 0 reports
     swift test --disable-sandbox --package-path Packages/RimeEngine --sanitize=thread    # 0 reports
 
+## Interface language
+
+Arkey defaults to Simplified Chinese, independently of the device language. Change **Settings → Interface
+language** to **English** or **简体中文**. The app updates immediately and remembers the selection; the keyboard
+uses it on its next appearance. This setting does not change the input scheme or Chinese/English input mode.
+
+Localization conventions and validation requirements are in [AGENTS.md](AGENTS.md). The shared translations
+live in the engine package and are validated by `python3 scripts/check-localization.py`.
+
 ## Build and run
 
     xcodebuild -project arkey.xcodeproj -scheme arkey -configuration Release \

@@ -268,7 +268,7 @@ public struct RimeSettingsPortability {
       let target = userDirectory.appendingPathComponent(path)
       if fileManager.fileExists(atPath: target.path), merge == .keepExisting {
         results.append(RimeSettingsImportResult(path: path, kind: kind, applied: false,
-                                                reason: "已存在的文件保持不变"))
+                                                reason: RimeLocalization.text("Existing files are unchanged")))
         continue
       }
       try fileManager.createDirectory(at: userDirectory, withIntermediateDirectories: true)

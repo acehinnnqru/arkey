@@ -58,10 +58,10 @@
 /* Begin PBXFileReference section */
 		1B05164F3062E34E00EDD6AE /* arkey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = arkey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B0516673062E3D700EDD6AE /* ARKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ARKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		1BB3103B3076339300E786CB /* arkeyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = arkeyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5C0DE000000000000000007 /* RimeData */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RimeData; sourceTree = "<group>"; };
-		A5C0DE00000000000000001C /* KeyboardLayout.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = KeyboardLayout.txt; path = Packages/RimeEngine/Tests/Golden/KeyboardLayout.txt; sourceTree = SOURCE_ROOT; };
 		A5C0DE000000000000000014 /* arkeyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = arkeyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A5C0DE000000000000000021 /* arkeyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = arkeyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A5C0DE00000000000000001C /* KeyboardLayout.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = KeyboardLayout.txt; path = Packages/RimeEngine/Tests/Golden/KeyboardLayout.txt; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -79,9 +79,6 @@
 			);
 			target = 1B05164E3062E34E00EDD6AE /* arkey */;
 		};
-		/* The extension's sources are compiled into the test bundle as well (the controller-level tests run
-		   there), so the same file is excepted for that target: without it the folder copy collides with the
-		   test bundle's own generated Info.plist, which is the defect round 141 fixed for the app. */
 		A5C0DE00000000000000001F /* Exceptions for "ARKeyboard" folder in "arkeyTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -90,9 +87,6 @@
 			);
 			target = A5C0DE000000000000000010 /* arkeyTests */;
 		};
-		/* The app's sources are compiled into the test bundle as well (the app model's first-run path is
-		   tested there), so its Info.plist is excepted for that target for the same reason as the
-		   extension's: the folder copy would collide with the test bundle's own generated file. */
 		A5C0DE000000000000000020 /* Exceptions for "arkey" folder in "arkeyTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -104,15 +98,6 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1B0516683062E3D700EDD6AE /* ARKeyboard */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				1B05166F3062E3D700EDD6AE /* Exceptions for "ARKeyboard" folder in "ARKeyboard" target */,
-				A5C0DE00000000000000001F /* Exceptions for "ARKeyboard" folder in "arkeyTests" target */,
-			);
-			path = ARKeyboard;
-			sourceTree = "<group>";
-		};
 		1B0516513062E34E00EDD6AE /* arkey */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -120,6 +105,15 @@
 				A5C0DE000000000000000020 /* Exceptions for "arkey" folder in "arkeyTests" target */,
 			);
 			path = arkey;
+			sourceTree = "<group>";
+		};
+		1B0516683062E3D700EDD6AE /* ARKeyboard */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1B05166F3062E3D700EDD6AE /* Exceptions for "ARKeyboard" folder in "ARKeyboard" target */,
+				A5C0DE00000000000000001F /* Exceptions for "ARKeyboard" folder in "arkeyTests" target */,
+			);
+			path = ARKeyboard;
 			sourceTree = "<group>";
 		};
 		A5C0DE00000000000000000D /* KeyboardUI */ = {
@@ -184,6 +178,7 @@
 				A5C0DE000000000000000015 /* arkeyTests */,
 				A5C0DE000000000000000007 /* RimeData */,
 				1B0516503062E34E00EDD6AE /* Products */,
+				1BB3103A3076339300E786CB /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -193,8 +188,18 @@
 				1B05164F3062E34E00EDD6AE /* arkey.app */,
 				1B0516673062E3D700EDD6AE /* ARKeyboard.appex */,
 				A5C0DE000000000000000014 /* arkeyTests.xctest */,
+				1BB3103B3076339300E786CB /* arkeyUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		1BB3103A3076339300E786CB /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				A5C0DE00000000000000001C /* KeyboardLayout.txt */,
+				A5C0DE000000000000000027 /* arkeyUITests */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -228,6 +233,30 @@
 			productReference = 1B05164F3062E34E00EDD6AE /* arkey.app */;
 			productType = "com.apple.product-type.application";
 		};
+		1B0516663062E3D700EDD6AE /* ARKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1B0516703062E3D700EDD6AE /* Build configuration list for PBXNativeTarget "ARKeyboard" */;
+			buildPhases = (
+				1B0516633062E3D700EDD6AE /* Sources */,
+				1B0516643062E3D700EDD6AE /* Frameworks */,
+				1B0516653062E3D700EDD6AE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				1B0516683062E3D700EDD6AE /* ARKeyboard */,
+				A5C0DE00000000000000000D /* KeyboardUI */,
+			);
+			name = ARKeyboard;
+			packageProductDependencies = (
+				A5C0DE000000000000000002 /* RimeEngine */,
+			);
+			productName = ARKeyboard;
+			productReference = 1B0516673062E3D700EDD6AE /* ARKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		A5C0DE000000000000000010 /* arkeyTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A5C0DE000000000000000011 /* Build configuration list for PBXNativeTarget "arkeyTests" */;
@@ -242,10 +271,10 @@
 				A5C0DE000000000000000019 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A5C0DE000000000000000015 /* arkeyTests */,
-				A5C0DE00000000000000000D /* KeyboardUI */,
-				1B0516683062E3D700EDD6AE /* ARKeyboard */,
 				1B0516513062E34E00EDD6AE /* arkey */,
+				1B0516683062E3D700EDD6AE /* ARKeyboard */,
+				A5C0DE00000000000000000D /* KeyboardUI */,
+				A5C0DE000000000000000015 /* arkeyTests */,
 			);
 			name = arkeyTests;
 			packageProductDependencies = (
@@ -272,32 +301,8 @@
 			);
 			name = arkeyUITests;
 			productName = arkeyUITests;
-			productReference = A5C0DE000000000000000021 /* arkeyUITests.xctest */;
+			productReference = 1BB3103B3076339300E786CB /* arkeyUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
-		};
-		1B0516663062E3D700EDD6AE /* ARKeyboard */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1B0516703062E3D700EDD6AE /* Build configuration list for PBXNativeTarget "ARKeyboard" */;
-			buildPhases = (
-				1B0516633062E3D700EDD6AE /* Sources */,
-				1B0516643062E3D700EDD6AE /* Frameworks */,
-				1B0516653062E3D700EDD6AE /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				1B0516683062E3D700EDD6AE /* ARKeyboard */,
-				A5C0DE00000000000000000D /* KeyboardUI */,
-			);
-			name = ARKeyboard;
-			packageProductDependencies = (
-				A5C0DE000000000000000002 /* RimeEngine */,
-			);
-			productName = ARKeyboard;
-			productReference = 1B0516673062E3D700EDD6AE /* ARKeyboard.appex */;
-			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -719,42 +724,6 @@
 			};
 			name = Release;
 		};
-		A5C0DE000000000000000029 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XQYB6GQJJ5;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.acehinnnqru.arkeyUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = arkey;
-			};
-			name = Debug;
-		};
-		A5C0DE00000000000000002A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XQYB6GQJJ5;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.acehinnnqru.arkeyUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = arkey;
-			};
-			name = Release;
-		};
 		A5C0DE000000000000000012 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -790,6 +759,42 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/arkey.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/arkey";
+			};
+			name = Release;
+		};
+		A5C0DE000000000000000029 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XQYB6GQJJ5;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.acehinnnqru.arkeyUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = arkey;
+			};
+			name = Debug;
+		};
+		A5C0DE00000000000000002A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XQYB6GQJJ5;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.acehinnnqru.arkeyUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = arkey;
 			};
 			name = Release;
 		};
