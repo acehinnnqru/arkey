@@ -96,7 +96,7 @@ struct KeyboardSettingsView: View {
     } header: {
       Text("未确认文字")
     } footer: {
-      Text("例如小鹤双拼输入 nihc：原始按键显示 nihc，方案转换结果显示 ni hao。只影响输入框中未确认的文字，不影响候选词。")
+      Text("For Flypy input nihcaa, Original keys shows ni hc aa and Schema output shows ni hao a. Return commits nihcaa in either mode. Display spacing does not change candidate selection or deletion.")
     }
   }
 

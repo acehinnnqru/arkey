@@ -152,7 +152,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   /// Only changes the client's temporary marked text; candidates and commits remain engine-owned.
   public func markedText(for output: RimeOutput) -> String? {
     switch compositionDisplay {
-    case .rawInput: return output.input ?? output.preedit
+    case .rawInput: return output.segmentedInput
     case .preedit: return output.preedit
     }
   }

@@ -53,9 +53,14 @@ Rules:
 
 ## 4. Composition
 
-- **Marked text is the raw input, not librime's preedit.** Measured: after typing `nihao`,
-  `get_input()` is `nihao` while `composition.preedit` is `ni hao`. The system keyboard shows what
-  the user typed; the spaces are a display convention for terminals, and they must not appear.
+- **Original-key marked text preserves engine-provided syllable spacing.** After typing `nihao`,
+  `get_input()` stays `nihao` while marked text displays `ni hao`. A double-pinyin preedit of `ni hc`
+  likewise displays the engine's boundaries for `nihc`. For `pinyin_flypy` and `double_pinyin_flypy`,
+  expanded preedit such as `ni hao a` is aligned with the typed Flypy codes to display `ni hc aa`.
+  Accept only a unique alignment that reproduces the full input; ambiguous mappings, converted prefixes,
+  unsupported schemas and prompts fall back to the original keys. The schema-output preference displays
+  the full preedit instead. Display spaces
+  never enter the raw input or the commit path; Return still commits the engine's raw-input result.
 - The marked range is set with the caret at the end; UIKit draws the underline the native keyboard has.
 - **Mid-composition editing** is in scope for cursor movement only: tapping inside the composition and
   arrow keys move the caret through `set_caret_pos` (S3 owns the gestures). Selection ranges are not.
@@ -107,8 +112,9 @@ Reference: the measured captures in [roadmap.md](../roadmap.md) §S3.
   comes from librime's segmentation of the raw input, not from a separate API. Where librime offers no
   equivalent, the row is omitted rather than faked. **Measured (M2, answered yes):** the segmentation is in
   `RimeContext`'s preedit — `nihao` comes back as `ni hao` and `nihaoshijie` as `ni hao shi jie` — and
-  `RimeOutput.syllables` accepts it only when the parts join back into the raw input, so a translator whose
-  preedit is a hint cannot be read as a breakdown. Pinned by `S4SegmentTests`; see [s4-results.md](../s4-results.md).
+  `RimeOutput.syllables` validates the displayed spelling against the raw input, including Flypy's expanded
+  spelling as described above. A translator's unrecognized hint cannot be read as a breakdown.
+  Pinned by `S4SegmentTests`; see [s4-results.md](../s4-results.md).
 
 **Expanded panel** (measured: top edge 63.3 pt above the normal keyboard top, a syllable row in its own
 39.7 pt slot, a 6 × 6 candidate grid at ≈45 pt row pitch, selected cell highlighted):
@@ -173,7 +179,7 @@ delete. Timings from the probe log.
 | # | Criterion |
 | --- | --- |
 | S4-AC1 | With a real pinyin schema, the first letter produces candidates. |
-| S4-AC2 | The composition shows exactly what was typed, with no inserted spaces. |
+| S4-AC2 | Original-key composition preserves the typed spelling and displays engine-provided syllable boundaries when they match that spelling. Display separators are never committed as raw input. |
 | S4-AC3 | Every key in the commit table behaves as specified, on a device. |
 | S4-AC4 | A key librime declines never produces "nothing happened". |
 | S4-AC5 | Paging, select labels and the expanded panel work on a real schema with more than one page. |

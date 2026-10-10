@@ -71,13 +71,13 @@ final class S4InputTests: XCTestCase {
 
   // MARK: Composition
 
-  func testMarkedTextIsTheRawInputAndCarriesNoSpaces() throws {
+  func testMarkedTextDisplaysEngineSyllableBoundaries() throws {
     let driver = try makeDriver()
     let outcome = try type("nihao", into: driver)
     XCTAssertEqual(outcome.effect, .composing)
-    XCTAssertEqual(outcome.markedText, "nihao", "S4-AC2: exactly what was typed")
+    XCTAssertEqual(outcome.markedText, "ni hao", "S4-AC2: preserve spelling with engine boundaries")
     XCTAssertEqual(outcome.page?.candidates.first?.text, "你好")
-    // librime's own preedit is still the spaced form; the driver only ever shows the raw input.
+    XCTAssertEqual(driver.rawInput, "nihao", "display spaces are not part of the input")
     XCTAssertEqual(try engine.refresh().preedit, "ni hao")
   }
 
@@ -158,7 +158,7 @@ final class S4InputTests: XCTestCase {
     let second = try driver.handle(.selectCandidate(1))
     XCTAssertNil(second.insertText)
     XCTAssertEqual(second.effect, .composing)
-    XCTAssertEqual(second.markedText, "nihao", "the input is untouched")
+    XCTAssertEqual(second.markedText, "nihao", "a converted prefix cannot supply raw spelling boundaries")
     XCTAssertTrue(driver.isComposing)
 
     // The candidate librime does commit ends the composition.
@@ -297,7 +297,7 @@ final class S4InputTests: XCTestCase {
     _ = try type("nihao", into: driver)
     let flipped = try driver.handle(.toggleOption("full_shape"))
     XCTAssertEqual(flipped.status?.isFullShape, true)
-    XCTAssertEqual(flipped.markedText, "nihao")
+    XCTAssertEqual(flipped.markedText, "ni hao")
   }
 
   /// The literal fallback must not invent text for keys that are not printable.
@@ -370,7 +370,7 @@ final class S4InputTests: XCTestCase {
     let declined = try driver.handle(.character(UInt16(secondKey)))
     XCTAssertEqual(declined.effect, .composing,
                    "librime committed a candidate the tracer cannot: " + String(describing: declined.effect))
-    XCTAssertEqual(declined.markedText, "nihao", "the composition should be untouched by a declined selection")
+    XCTAssertEqual(declined.markedText, "nihao", "a converted prefix cannot supply raw spelling boundaries")
     // The page after a declined selection is librime's business and the measured note in s4-results records
     // what it does; what matters here is that the key was accepted and nothing was committed.
   }

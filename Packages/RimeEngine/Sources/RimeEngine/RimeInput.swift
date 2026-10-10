@@ -71,8 +71,7 @@ public final class RimeInputDriver {
     self.engine = engine
   }
 
-  /// The raw input, which is what the marked text shows: librime's own preedit inserts spaces
-  /// between syllables (`ni hao`) and the system keyboard shows what the user typed (`nihao`).
+  /// The original keystrokes, without any separators added solely for display.
   public var rawInput: String? {
     guard let value = try? engine.rawInput(), !value.isEmpty else { return nil }
     return value
@@ -222,7 +221,7 @@ public final class RimeInputDriver {
     if let page = output.page { lastPage = page }
     return RimeInputOutcome(effect: effect,
                      insertText: output.commit,
-                     markedText: rawInput,
+                     markedText: output.segmentedInput,
                      page: output.page,
                      status: output.status)
   }

@@ -107,6 +107,14 @@ public struct RimeOutput: Sendable {
   public var candidates: [RimeCandidateItem] { page?.candidates ?? [] }
   public var isComposing: Bool { !(preedit ?? "").isEmpty }
 
+  /// Preserve the typed spelling while displaying the syllable boundaries supplied by the engine.
+  /// Expanded Flypy syllables are matched back to the typed keys before displaying their boundaries.
+  /// Display separators never enter `input` or `commit`.
+  public var segmentedInput: String? {
+    let text = syllables?.joined(separator: " ") ?? input ?? preedit
+    return text?.isEmpty == false ? text : nil
+  }
+
   /// True when librime declined the key and nothing is composing, which is when the keyboard has to produce
   /// the literal character itself (S4-AC4: a key librime declines never means "nothing happened").
   ///
@@ -120,14 +128,10 @@ public struct RimeOutput: Sendable {
   /// The composition divided into syllables — what the expanded panel's syllable row shows — or nil when
   /// there is nothing to divide.
   ///
-  /// Measured: librime's preedit *is* the division, "nihao" coming back as "ni hao" and "nihaoshijie" as
-  /// "ni hao shi jie", which is the only segmentation this build exposes and the one S4 §6 asks about.
-  /// The guard is what makes reading it that way safe: the parts have to join back into exactly what the
-  /// user typed, so a translator whose preedit is a hint or a sentence cannot be mistaken for syllables.
+  /// Uses the preedit's boundaries directly when spelling is unchanged, or validates a unique Flypy
+  /// alignment when the preedit expands the spelling. Prompts and converted text fall back to raw input.
   public var syllables: [String]? {
     guard let preedit = composition?.preedit, let input, !input.isEmpty else { return nil }
-    let parts = preedit.split(separator: " ").map(String.init)
-    guard parts.count > 1, parts.joined() == input else { return nil }
-    return parts
+    return RimePreeditSegmentation.syllables(input: input, preedit: preedit, schemaID: status?.schemaID)
   }
 }

@@ -44,8 +44,7 @@ extension RimeEngine {
 
   // MARK: - Raw input and caret
 
-  /// The raw input, which is what the marked text must show: librime's own preedit inserts spaces
-  /// between syllables (`ni hao`), and the system keyboard shows what the user typed.
+  /// The original keystrokes, without the syllable separators added to the preedit for display.
   public func rawInput() throws -> String? {
     try perform {
       let api = try requireAPI()

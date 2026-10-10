@@ -101,6 +101,27 @@ final class S3PreferencesTests: XCTestCase {
     }
   }
 
+  func testRawDisplayUsesOnlyBoundariesThatPreserveTheTypedSpelling() {
+    for (input, preedit, expected) in [
+      ("nihc", "ni hc", "ni hc"),
+      ("nihao", "ni hao", "ni hao"),
+      ("ni'hao", "ni'hao", "ni'hao"),
+      ("ni hao", "ni hao", "ni hao"),
+      ("nihc", "ni hao", "nihc"),
+      ("nihc", "你 hc", "nihc"),
+      ("abc", "abc hint", "abc"),
+      ("n", "n", "n"),
+    ] {
+      let output = RimeOutput(handled: true, commit: nil,
+        composition: RimeCompositionInfo(preedit: preedit, cursorPosition: preedit.utf8.count,
+                                         selectionStart: 0, selectionEnd: preedit.utf8.count),
+        page: nil, status: nil, input: input)
+      XCTAssertEqual(RimeKeyboardPreferences.standard.markedText(for: output), expected)
+      XCTAssertEqual(output.input, input)
+      XCTAssertNil(output.commit)
+    }
+  }
+
   func testResetRestoresTheDefaults() {
     var preferences = store.value
     preferences.calloutEnabled = false
@@ -108,6 +129,42 @@ final class S3PreferencesTests: XCTestCase {
     XCTAssertFalse(store.value.calloutEnabled)
     store.reset()
     XCTAssertEqual(store.value, .standard)
+  }
+
+  func testExpandedFlypySyllablesMapToOriginalKeysWithoutGuessingPairs() {
+    for schemaID in ["pinyin_flypy", "double_pinyin_flypy"] {
+      for (input, preedit, expected) in [
+        ("nihc", "ni hao", "ni hc"),
+        ("nihcaa", "ni hao a", "ni hc aa"),
+        ("nihcaa", "ni hao aa", "ni hc aa"),
+        ("nihca", "ni hao a", "ni hc a"),
+        ("nhc", "ni hao", "n hc"),
+        ("viui", "zhi shi", "vi ui"),
+        ("jvlt", "ju lüe", "jv lt"),
+        ("ahgo", "ang guo", "ah go"),
+        ("aihc", "ai hao", "ai hc"),
+        ("adhc", "ai hao", "ad hc"),
+        ("nihc", "你 hao", "nihc"),
+        ("abcdef", "abc def", "abc def"),
+        ("nihcaa", "ni hao prompt", "nihcaa"),
+        ("aaa", "a a", "aaa"),
+        ("nhc", "ni wrong", "nhc"),
+      ] {
+        let output = RimeOutput(handled: true, commit: nil,
+          composition: RimeCompositionInfo(preedit: preedit, cursorPosition: preedit.utf8.count,
+                                           selectionStart: 0, selectionEnd: preedit.utf8.count),
+          page: nil,
+          status: RimeStatusSnapshot(schemaID: schemaID, schemaName: "Flypy", isDisabled: false,
+                                    isComposing: true, isAsciiMode: false, isFullShape: false,
+                                    isSimplified: true, isTraditional: false, isAsciiPunctuation: false),
+          input: input)
+        XCTAssertEqual(RimeKeyboardPreferences.standard.markedText(for: output), expected, input)
+        XCTAssertEqual(output.input, input)
+        XCTAssertNil(output.commit)
+        XCTAssertEqual(RimeKeyboardPreferences(compositionDisplay: .preedit).markedText(for: output), preedit)
+      }
+    }
+    XCTAssertNil(RimePreeditSegmentation.syllables(input: "nihc", preedit: "ni hao", schemaID: "other"))
   }
 
   func testThePreferencesDescribeTheFeedbackPolicy() {
