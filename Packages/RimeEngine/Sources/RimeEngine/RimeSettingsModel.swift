@@ -89,6 +89,12 @@ public struct RimeSwitchDescriptor: Sendable, Hashable {
 }
 
 public struct RimeSettingDescriptor: Sendable, Hashable {
+  /// The control type stays known even when the schema omits a value.
+  public enum ValueType: Sendable, Hashable {
+    case boolean
+    case integer
+  }
+
   public enum Value: Sendable, Hashable {
     case boolean(Bool)
     case integer(Int)
@@ -116,6 +122,7 @@ public struct RimeSettingDescriptor: Sendable, Hashable {
   public let title: String
   public let key: String
   public let scope: Scope
+  public let valueType: ValueType
   public let effective: Value?
   /// Present only when the user has patched the key, which is what "reset to default" acts on.
   public let userValue: Value?
@@ -164,6 +171,7 @@ public struct RimeSchemaDescriptor: Sendable {
     replacing(settings: settings.map { entry in
       guard entry.key == key else { return entry }
       return RimeSettingDescriptor(id: entry.id, title: entry.title, key: entry.key, scope: entry.scope,
+                                   valueType: entry.valueType,
                                    effective: value, userValue: value, note: entry.note)
     })
   }
@@ -178,6 +186,7 @@ public struct RimeSchemaDescriptor: Sendable {
     replacing(settings: settings.map { entry in
       guard entry.key == key else { return entry }
       return RimeSettingDescriptor(id: entry.id, title: entry.title, key: entry.key, scope: entry.scope,
+                                   valueType: entry.valueType,
                                    effective: entry.effective, userValue: nil, note: entry.note)
     })
   }
@@ -331,7 +340,7 @@ public enum RimeSettingsModel {
     let effective = effective(key, scope: scope, engine: engine, patch: patch)?.boolValue
     let user = (try? patch.userValue(key)).flatMap(Self.value(from:))
     return RimeSettingDescriptor(id: id, title: title, key: key, scope: scope,
-                                 effective: effective.map { .boolean($0) },
+                                 valueType: .boolean, effective: effective.map { .boolean($0) },
                                  userValue: user, note: note)
   }
 
@@ -341,7 +350,7 @@ public enum RimeSettingsModel {
     let effective = effective(key, scope: scope, engine: engine, patch: patch)?.intValue
     let user = (try? patch.userValue(key)).flatMap(Self.value(from:))
     return RimeSettingDescriptor(id: id, title: title, key: key, scope: scope,
-                                 effective: effective.map { .integer($0) },
+                                 valueType: .integer, effective: effective.map { .integer($0) },
                                  userValue: user, note: note)
   }
 

@@ -131,6 +131,33 @@ struct SchemaSettingsView: View {
   private func settingRow(_ setting: RimeSettingDescriptor) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       switch setting.effective {
+      case nil:
+        // Missing YAML values use the engine's defaults, but still have editable types.
+        switch setting.valueType {
+        case .boolean:
+          Picker(setting.title, selection: Binding<Bool?>(
+            get: { nil },
+            set: { value in
+              if let value { model.setSetting(setting, value: .boolean(value)) }
+            })) {
+              Text("Use engine default").tag(nil as Bool?)
+              Text("On").tag(Optional(true))
+              Text("Off").tag(Optional(false))
+            }
+            .pickerStyle(.menu)
+        case .integer:
+          Picker(setting.title, selection: Binding<Int?>(
+            get: { nil },
+            set: { value in
+              if let value { model.setSetting(setting, value: .integer(value)) }
+            })) {
+              Text("Use engine default").tag(nil as Int?)
+              ForEach(0...20, id: \.self) { value in
+                Text(String(value)).tag(Optional(value))
+              }
+            }
+            .pickerStyle(.menu)
+        }
       case .boolean(let value):
         Toggle(setting.title, isOn: Binding(
           get: { value },

@@ -249,6 +249,44 @@ final class S2SettingsModelTests: XCTestCase {
 
   // MARK: Effective versus user value
 
+  func testOmittedSettingsKeepTheirTypesAndCanBeSetAndReset() throws {
+    let before = try RimeSettingsModel.describeSchema("tracer", engine: engine)
+    let boolean = try XCTUnwrap(before.setting("wordCompletion"))
+    let integer = try XCTUnwrap(before.setting("maxSentences"))
+    XCTAssertNil(boolean.effective)
+    XCTAssertNil(integer.effective)
+    XCTAssertEqual(boolean.valueType, .boolean)
+    XCTAssertEqual(integer.valueType, .integer)
+    XCTAssertFalse(boolean.isUserSet)
+    XCTAssertFalse(integer.isUserSet)
+
+    let chosen = before.replacingSetting(.boolean(false), forKey: boolean.key)
+      .replacingSetting(.integer(4), forKey: integer.key)
+    XCTAssertEqual(chosen.setting("wordCompletion")?.valueType, .boolean)
+    XCTAssertEqual(chosen.setting("maxSentences")?.valueType, .integer)
+
+    let patch = RimePatch(engine: engine, configID: "tracer")
+    try patch.set(.bool(false), at: boolean.key)
+    try patch.set(.int(4), at: integer.key)
+    try redeploy()
+    let saved = try RimeSettingsModel.describeSchema("tracer", engine: engine)
+    XCTAssertEqual(saved.setting("wordCompletion")?.effective, .boolean(false))
+    XCTAssertEqual(saved.setting("maxSentences")?.effective, .integer(4))
+    XCTAssertTrue(try XCTUnwrap(saved.setting("wordCompletion")).isUserSet)
+    XCTAssertTrue(try XCTUnwrap(saved.setting("maxSentences")).isUserSet)
+
+    try patch.remove(key: boolean.key)
+    try patch.remove(key: integer.key)
+    try redeploy()
+    let reset = try RimeSettingsModel.describeSchema("tracer", engine: engine)
+    XCTAssertNil(reset.setting("wordCompletion")?.effective)
+    XCTAssertNil(reset.setting("maxSentences")?.effective)
+    XCTAssertEqual(reset.setting("wordCompletion")?.valueType, .boolean)
+    XCTAssertEqual(reset.setting("maxSentences")?.valueType, .integer)
+    XCTAssertFalse(try XCTUnwrap(reset.setting("wordCompletion")).isUserSet)
+    XCTAssertFalse(try XCTUnwrap(reset.setting("maxSentences")).isUserSet)
+  }
+
   func testTheEffectiveValueAndTheUsersOverrideAreDifferentThings() throws {
     try engine.openSession()
     // A schema-level setting, patched in the schema's own file.
