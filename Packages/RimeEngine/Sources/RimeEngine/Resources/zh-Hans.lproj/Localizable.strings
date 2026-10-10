@@ -420,3 +420,5 @@
 "{0} · generation {1}{2}" = "{0} · 第 {1} 个{2}";
 "{0} · weight {1}" = "{0} · 权重 {1}";
 "—— Engine and components ——" = "—— 引擎与其组件 ——";
+
+"Follow System" = "跟随系统";

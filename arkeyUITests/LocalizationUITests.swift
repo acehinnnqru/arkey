@@ -12,14 +12,14 @@ final class LocalizationUITests: XCTestCase {
                   || app.collectionViews["settings-list"].exists)
 
     // Native language names make the picker usable even if a previous run selected English.
-    app.buttons["interface-language"].tap()
+    openLanguagePicker(app)
     app.buttons["简体中文"].tap()
     XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 5))
-    app.buttons["interface-language"].tap()
-    app.buttons["English"].tap()
+    openLanguagePicker(app)
+    app.buttons["跟随系统"].tap()
     XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5),
                   "changing language dismissed or failed to update the settings sheet")
-    app.buttons["Keyboard"].tap()
+    tapSettingsRow("Keyboard", in: app)
     XCTAssertTrue(app.navigationBars["Keyboard"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Appearance"].exists)
 
@@ -28,10 +28,34 @@ final class LocalizationUITests: XCTestCase {
     XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 30))
     app.buttons["settings-open"].tap()
     XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
-    app.buttons["interface-language"].tap()
+    openLanguagePicker(app)
+    XCTAssertTrue(app.buttons["Follow System"].isSelected)
+    app.buttons["English"].tap()
+    XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+    openLanguagePicker(app)
     app.buttons["简体中文"].tap()
     XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 5))
-    app.buttons["键盘"].tap()
+    tapSettingsRow("键盘", in: app)
     XCTAssertTrue(app.staticTexts["外观"].waitForExistence(timeout: 5))
+  }
+
+  private func openLanguagePicker(_ app: XCUIApplication) {
+    let picker = app.buttons["interface-language"]
+    for _ in 0..<4 {
+      if picker.isHittable { break }
+      app.swipeUp()
+    }
+    XCTAssertTrue(picker.isHittable)
+    picker.tap()
+  }
+
+  private func tapSettingsRow(_ title: String, in app: XCUIApplication) {
+    let row = app.buttons[title]
+    for _ in 0..<4 {
+      if row.isHittable { break }
+      app.swipeDown()
+    }
+    XCTAssertTrue(row.isHittable)
+    row.tap()
   }
 }

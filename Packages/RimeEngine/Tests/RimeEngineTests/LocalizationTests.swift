@@ -20,6 +20,19 @@ final class LocalizationTests: XCTestCase {
     XCTAssertEqual(RimeLocalization.key("Unknown source key", language: .english), "Unknown source key")
   }
 
+  func testSystemPreferenceMatchesSupportedLanguagesInOrder() {
+    XCTAssertEqual(RimeAppLanguage.resolve("system"), .system)
+    XCTAssertEqual(RimeAppLanguage.system.resolved(preferredLanguages: ["en-US", "zh-Hans"]), .english)
+    XCTAssertEqual(RimeAppLanguage.system.resolved(preferredLanguages: ["zh-Hans-CN", "en"]), .chinese)
+    XCTAssertEqual(RimeAppLanguage.system.resolved(preferredLanguages: ["fr-FR", "en-GB"]), .english)
+    XCTAssertEqual(RimeAppLanguage.system.resolved(preferredLanguages: ["fr-FR"]), .chinese)
+    XCTAssertEqual(RimeAppLanguage.system.resolved(preferredLanguages: []), .chinese)
+    XCTAssertEqual(RimeAppLanguage.chinese.resolved(preferredLanguages: ["en"]), .chinese)
+    XCTAssertEqual(RimeAppLanguage.english.resolved(preferredLanguages: ["zh-Hans"]), .english)
+    XCTAssertEqual(RimeLocalization.text("Follow System", language: .chinese), "跟随系统")
+    XCTAssertEqual(RimeLocalization.text("Follow System", language: .english), "Follow System")
+  }
+
   func testInterpolatedValuesAreLiteralAndCanBeReordered() {
     let source = "backup-{1}-%@.txt"
     let dictionary = "你好-{0}"
@@ -47,6 +60,10 @@ final class LocalizationTests: XCTestCase {
     XCTAssertEqual(RimeAppLanguageStore(defaults: defaults).value, .english)
     RimeKeyboardPreferencesStore(defaults: defaults).reset()
     XCTAssertEqual(store.value, .english)
+    store.value = .system
+    XCTAssertEqual(RimeAppLanguageStore(defaults: defaults).value, .system)
+    RimeKeyboardPreferencesStore(defaults: defaults).reset()
+    XCTAssertEqual(store.value, .system)
     defaults.set("unsupported", forKey: RimeLocalization.storageKey)
     XCTAssertEqual(store.value, .chinese)
   }

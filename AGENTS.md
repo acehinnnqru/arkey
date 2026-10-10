@@ -7,7 +7,9 @@ repository, or create commits without the required approval and GPG signature.
 
 - Support Simplified Chinese (`zh-Hans`) and English (`en`). A missing or invalid preference means
   Chinese, regardless of the device language. Keep the language picker in Settings, with native names
-  `简体中文` and `English` so it remains discoverable in either language.
+  `简体中文` and `English` so it remains discoverable in either language. Offer an explicit `system`
+  preference that matches the system's ordered language preferences to these supported languages,
+  falling back to Chinese. Place the language section immediately above About.
 - The host app and keyboard share `arkey.interface.language` in the existing app group. Interface
   language is separate from the Rime schema, ASCII mode, dictionaries, and keyboard preference reset.
   A language change must not deploy, change an input scheme, discard drafts, or reset navigation.

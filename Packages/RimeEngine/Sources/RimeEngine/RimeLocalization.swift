@@ -2,11 +2,30 @@ import Foundation
 
 /// Interface language is independent of the schema's Chinese/ASCII input mode.
 public enum RimeAppLanguage: String, CaseIterable, Sendable {
+  case system
   case chinese = "zh-Hans"
   case english = "en"
 
-  public var nativeName: String { self == .chinese ? "简体中文" : "English" }
-  public var locale: Locale { Locale(identifier: rawValue) }
+  public var nativeName: String {
+    switch self {
+    case .system: return RimeLocalization.text("Follow System")
+    case .chinese: return "简体中文"
+    case .english: return "English"
+    }
+  }
+  public var locale: Locale { Locale(identifier: resolved().rawValue) }
+
+  /// Match the system's ordered language preferences against the resources we provide.
+  public func resolved(preferredLanguages: [String] = Locale.preferredLanguages) -> Self {
+    guard self == .system else { return self }
+    for language in preferredLanguages {
+      let code = language.replacingOccurrences(of: "_", with: "-")
+        .split(separator: "-").first?.lowercased()
+      if code == "zh" { return .chinese }
+      if code == "en" { return .english }
+    }
+    return .chinese
+  }
 
   public static func resolve(_ value: String?) -> Self {
     value.flatMap(Self.init(rawValue:)) ?? .chinese
@@ -33,7 +52,7 @@ public enum RimeLocalization {
   private static let englishBundle = localizedBundle(.english)
 
   public static var language: RimeAppLanguage {
-    get { preferenceStore?.value ?? .chinese }
+    get { (preferenceStore?.value ?? .chinese).resolved() }
     set { preferenceStore?.value = newValue }
   }
 
@@ -45,7 +64,7 @@ public enum RimeLocalization {
 
   /// Dynamic keys are reserved for descriptors owned by Arkey, never imported names or candidate text.
   public static func key(_ key: String, language: RimeAppLanguage? = nil) -> String {
-    let selected = language ?? self.language
+    let selected = (language ?? self.language).resolved()
     let bundle = selected == .chinese ? chineseBundle : englishBundle
     let fallback = chineseBundle.localizedString(forKey: key, value: key, table: nil)
     return bundle.localizedString(forKey: key, value: fallback, table: nil)

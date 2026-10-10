@@ -18,20 +18,6 @@ struct SettingsView: View {
     let _ = interfaceLocale
     NavigationStack {
       List {
-        Section {
-          Picker(RimeLocalization.text("Interface language"), selection: Binding(
-            get: { RimeAppLanguage.resolve(interfaceLanguage).rawValue },
-            set: { interfaceLanguage = $0 })) {
-            ForEach(RimeAppLanguage.allCases, id: \.rawValue) { language in
-              Text(language.nativeName).tag(language.rawValue)
-            }
-          }
-          .accessibilityIdentifier("interface-language")
-        } header: {
-          Text(RimeLocalization.text("Language"))
-        } footer: {
-          Text(RimeLocalization.text("Chinese is the default. The keyboard uses this language the next time it opens."))
-        }
         Section(RimeLocalization.text("Input")) {
           NavigationLink(value: Page.schema) {
             Label(RimeLocalization.text("Scheme and input"), systemImage: "character.bubble")
@@ -60,6 +46,21 @@ struct SettingsView: View {
           NavigationLink(value: Page.catalog) {
             Label(RimeLocalization.text("Download profiles"), systemImage: "arrow.down.circle")
           }
+        }
+
+        Section {
+          Picker(RimeLocalization.text("Interface language"), selection: Binding(
+            get: { RimeAppLanguage.resolve(interfaceLanguage).rawValue },
+            set: { interfaceLanguage = $0 })) {
+            ForEach(RimeAppLanguage.allCases, id: \.rawValue) { language in
+              Text(language.nativeName).tag(language.rawValue)
+            }
+          }
+          .accessibilityIdentifier("interface-language")
+        } header: {
+          Text(RimeLocalization.text("Language"))
+        } footer: {
+          Text(RimeLocalization.text("Chinese is the default. The keyboard uses this language the next time it opens."))
         }
 
         Section(RimeLocalization.text("About")) {
