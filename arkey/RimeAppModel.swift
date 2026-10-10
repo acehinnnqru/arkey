@@ -579,6 +579,7 @@ final class RimeAppModel: ObservableObject {
       return
     }
     isDeploying = true
+    errorMessage = nil
     let attempt = DeploymentAttempt(profileID: profileID,
                                     profileName: profiles.first { $0.id == profileID }?.displayName ?? profileID)
     latestDeployment = attempt
@@ -609,7 +610,13 @@ final class RimeAppModel: ObservableObject {
       settingsFooter = .applied(detail)
     } catch {
       let reason = String(describing: error)
-      let text = RimeLocalization.message("Deployment failed: \(reason)")
+      let detail: RimeLocalizedMessage
+      if case RimeDictionaryAccessError.dictionaryBusy = error {
+        detail = RimeLocalization.message("User dictionaries are still in use. Close the keyboard, then retry deployment.")
+      } else {
+        detail = RimeLocalizedMessage(verbatim: reason)
+      }
+      let text = RimeLocalization.message("Deployment failed: \(detail)")
       RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
         .append(RimeProbeRecord(phase: "app.deploy.failed", message: reason))
       if case RimeDeploymentFailure.deployFailed(let report) = error {
@@ -626,7 +633,7 @@ final class RimeAppModel: ObservableObject {
       latestDeployment?.failed = true
       errorMessage = text
       // The reason only: the footer adds the label itself, so the sentence is not doubled.
-      settingsFooter = .failed(reason)
+      settingsFooter = .failed(detail)
     }
     latestDeployment?.finishedAt = Date()
     isDeploying = false

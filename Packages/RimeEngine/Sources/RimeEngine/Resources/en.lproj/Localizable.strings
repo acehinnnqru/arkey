@@ -98,6 +98,7 @@
 "Delete repeat delay: %.2f s" = "Delete repeat delay: %.2f s";
 "Delete repeat interval: %.2f s" = "Delete repeat interval: %.2f s";
 "Deploy" = "Deploy";
+"User dictionaries are still in use. Close the keyboard, then retry deployment." = "User dictionaries are still in use. Close the keyboard, then retry deployment.";
 "Deploy a profile to see its result and engine log here. Logs are kept for this app session only." = "Deploy a profile to see its result and engine log here. Logs are kept for this app session only.";
 "Deploy and activate a Rime profile first." = "Deploy and activate a Rime profile first.";
 "Deploying…" = "Deploying…";
@@ -293,6 +294,8 @@
 "Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging." = "Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging.";
 "Recent records are shown below. Repeated legacy layout events are grouped." = "Recent records are shown below. Repeated legacy layout events are grouped.";
 "Redeploy" = "Redeploy";
+"Phrase list" = "Phrase list";
+"No custom phrases yet." = "No custom phrases yet.";
 "Refresh" = "Refresh";
 "Replace all" = "Replace all";
 "Reset" = "Reset";

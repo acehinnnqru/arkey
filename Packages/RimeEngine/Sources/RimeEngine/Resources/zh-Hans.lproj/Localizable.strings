@@ -98,6 +98,7 @@
 "Delete repeat delay: %.2f s" = "连删起始：%.2f s";
 "Delete repeat interval: %.2f s" = "连删间隔：%.2f s";
 "Deploy" = "部署";
+"User dictionaries are still in use. Close the keyboard, then retry deployment." = "用户词库仍被占用，请收起键盘后重试部署。";
 "Deploy a profile to see its result and engine log here. Logs are kept for this app session only." = "部署配置后，可在此查看结果和引擎日志。日志仅保留在当前应用会话中。";
 "Deploy and activate a Rime profile first." = "请先部署并启用一个 Rime 配置。";
 "Deploying…" = "正在部署…";
@@ -293,6 +294,8 @@
 "Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging." = "读取共享目录里其他设备的快照，增量并入本机词库；合并前会先备份。";
 "Recent records are shown below. Repeated legacy layout events are grouped." = "下方显示最近的记录，重复的旧布局事件已合并。";
 "Redeploy" = "重新部署";
+"Phrase list" = "词条列表";
+"No custom phrases yet." = "还没有自定义短语。";
 "Refresh" = "刷新";
 "Replace all" = "整表替换";
 "Reset" = "重置";

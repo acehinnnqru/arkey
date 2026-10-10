@@ -87,4 +87,76 @@ final class S2CustomPhraseTests: XCTestCase {
     let loaded = try RimeCustomPhraseFile.load(from: url)
     XCTAssertEqual(loaded.phrases.first?.line, "哈哈\thaha\t2")
   }
+
+  func testSharedPhrasesAppearInASchemaWithASeparateNativePhraseFile() throws {
+    let repository = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let tracer = repository.appendingPathComponent("RimeData")
+    let workspace = try RimeWorkspace(root: scratch.appendingPathComponent("workspace")).createDirectories()
+    let source = scratch.appendingPathComponent("source")
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    for file in ["default.yaml", "tracer.schema.yaml", "tracer.dict.yaml"] {
+      try FileManager.default.copyItem(at: tracer.appendingPathComponent(file), to: source.appendingPathComponent(file))
+    }
+    let schemaURL = source.appendingPathComponent("tracer.schema.yaml")
+    var schema = try String(contentsOf: schemaURL, encoding: .utf8)
+    schema = schema.replacingOccurrences(of: "    - script_translator",
+                                         with: "    - script_translator\n    - table_translator@custom_phrase")
+    schema += """
+
+    custom_phrase:
+      dictionary: ""
+      user_dict: custom_phrase_double
+      db_class: stabledb
+      enable_completion: false
+      enable_sentence: false
+      initial_quality: 99
+
+    """
+    try schema.write(to: schemaURL, atomically: true, encoding: .utf8)
+    let engine = RimeEngine(configuration: RimeConfiguration(directories: RimeDirectories(
+      sharedDataDir: tracer.path, prebuiltDataDir: tracer.appendingPathComponent("build").path,
+      userDataDir: workspace.userData.path, stagingDir: workspace.staging.path, logDir: workspace.log.path)))
+    defer { engine.shutdown() }
+    _ = try engine.start()
+    let profileID = try RimeImporter(workspace: workspace, engine: engine).import(
+      payload: source, options: RimeImportOptions(displayName: "Separate phrase file", origin: .init(kind: .files)))
+      .profileID
+    let nativeURL = workspace.userData.appendingPathComponent("custom_phrase_double.txt")
+    try RimeCustomPhraseFile.save([.init(text: "Native phrase", code: "orig")], to: nativeURL)
+    let nativeBefore = try Data(contentsOf: nativeURL)
+    let sharedURL = workspace.userData.appendingPathComponent("custom_phrase.txt")
+    try RimeCustomPhraseFile.save([.init(text: "我的名字", code: "mkzi")], to: sharedURL)
+    let patchURL = workspace.userData.appendingPathComponent("tracer.custom.yaml")
+    try """
+    patch:
+      "engine/translators/+":
+        - echo_translator
+      menu/page_size: 7
+
+    """.write(to: patchURL, atomically: true, encoding: .utf8)
+    let coordinator = RimeDeploymentCoordinator(workspace: workspace, engine: engine)
+    _ = try coordinator.deploySync(profileID: profileID)
+    try engine.openSession()
+    XCTAssertEqual(try engine.processKeys("mkzi").candidates.first?.text, "我的名字")
+    try engine.clearComposition()
+    XCTAssertEqual(try engine.processKeys("orig").candidates.first?.text, "Native phrase")
+    engine.closeSession()
+    _ = try coordinator.deploySync(profileID: profileID)
+    let translators = try engine.withSchemaConfig("tracer") { $0.value("engine/translators")?.listValue ?? [] }
+    XCTAssertEqual(translators.filter { $0 == .string("table_translator@arkey_custom_phrase") }.count, 1)
+    XCTAssertTrue(translators.contains(.string("table_translator@custom_phrase")))
+    XCTAssertTrue(translators.contains(.string("echo_translator")), "keep existing appended translators")
+    XCTAssertEqual(try RimePatch(engine: engine, configID: "tracer").userValue("menu/page_size"), .int(7))
+    XCTAssertEqual(try Data(contentsOf: nativeURL), nativeBefore)
+    XCTAssertEqual(try Data(contentsOf: workspace.profile(profileID).source.appendingPathComponent("tracer.schema.yaml")),
+                   try Data(contentsOf: schemaURL))
+    try RimeCustomPhraseFile.save([], to: sharedURL)
+    _ = try coordinator.deploySync(profileID: profileID)
+    try engine.openSession()
+    XCTAssertFalse(try engine.processKeys("mkzi").candidates.contains { $0.text == "我的名字" })
+    try engine.clearComposition()
+    XCTAssertEqual(try engine.processKeys("orig").candidates.first?.text, "Native phrase")
+  }
 }

@@ -64,14 +64,16 @@ public struct RimePatch {
     return try nestedEntries()
   }
 
-  /// Our own form: `patch:` and then one `  key: value` line per entry. Anything else — a file the
-  /// user wrote by hand, or one an older build wrote with nested maps — throws, so the caller falls
-  /// back to librime's reader instead of silently losing entries.
+  /// Flat keys with flow values or indented block lists, including quoted path keys.
+  /// Nested maps fall back to librime's reader rather than losing their entries.
   private func flatEntries(from text: String) throws -> [String: RimeConfigValue] {
     var entries: [String: RimeConfigValue] = [:]
     var sawPatch = false
-    for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
-      let line = String(rawLine)
+    let lines = text.components(separatedBy: "\n")
+    var index = 0
+    while index < lines.count {
+      let line = lines[index]
+      index += 1
       let trimmed = line.trimmingCharacters(in: .whitespaces)
       if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
       if !sawPatch {
@@ -80,14 +82,41 @@ public struct RimePatch {
         continue
       }
       let body = line.hasPrefix("  ") && !line.hasPrefix("   ") ? String(line.dropFirst(2)) : nil
-      guard let body, let separator = body.range(of: ": ") else {
+      guard let body, let separator = body.firstIndex(of: ":") else {
         throw RimePatchError.notAFlatPatch
       }
-      let key = String(body[..<separator.lowerBound])
+      let rawKey = String(body[..<separator])
+      let key: String
+      if rawKey.hasPrefix("\"") || rawKey.hasPrefix("'") {
+        guard let decoded = try value(fromYAML: rawKey).stringValue else {
+          throw RimePatchError.notAFlatPatch
+        }
+        key = decoded
+      } else {
+        key = rawKey
+      }
       guard key.unicodeScalars.allSatisfy({ RimePatch.safeKeyScalars.contains($0) }) else {
         throw RimePatchError.notAFlatPatch
       }
-      entries[key] = try value(fromYAML: String(body[separator.upperBound...]))
+      var yaml = String(body[body.index(after: separator)...]).trimmingCharacters(in: .whitespaces)
+      // Hand-written flat patches often use block lists. Parse the value as a detached
+      // YAML document so its slash-containing key is never interpreted as a config path.
+      while index < lines.count {
+        let next = lines[index]
+        let trimmedNext = next.trimmingCharacters(in: .whitespaces)
+        if trimmedNext.isEmpty || trimmedNext.hasPrefix("#") {
+          index += 1
+          continue
+        }
+        guard next.hasPrefix("   ") else { break }
+        yaml += "\n" + next
+        index += 1
+      }
+      let parsed = try value(fromYAML: yaml)
+      if yaml.hasPrefix("\n"), case .map = parsed {
+        throw RimePatchError.notAFlatPatch
+      }
+      entries[key] = parsed
     }
     guard sawPatch else { throw RimePatchError.notAFlatPatch }
     return entries
@@ -98,6 +127,11 @@ public struct RimePatch {
   private func nestedEntries() throws -> [String: RimeConfigValue] {
     try engine.withUserConfig(patchConfigID) { config in
       var entries: [String: RimeConfigValue] = [:]
+      // Unsupported flat syntax must fail closed: librime cannot address literal slash
+      // keys through its path API, so falling back would silently lose those settings.
+      guard !config.mapKeys("patch").contains(where: { $0.contains("/") }) else {
+        throw RimePatchError.notAFlatPatch
+      }
       for path in config.leafPaths("patch") {
         if let value = config.value("patch/" + path) { entries[path] = value }
       }
@@ -203,7 +237,7 @@ public struct RimePatch {
   /// have to escape. A key outside this set is quoted, and the reader then refuses the file rather
   /// than mis-splitting it.
   static let safeKeyScalars = CharacterSet(charactersIn:
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./@-")
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./@-+")
 
   static func flatKey(_ key: String) -> String {
     key.unicodeScalars.allSatisfy { safeKeyScalars.contains($0) } ? key : "\"" + escape(key) + "\""

@@ -43,6 +43,7 @@ extension RimeAppModel {
   /// Writes the whole file and deploys: a phrase that is not deployed does not exist as far as the
   /// keyboard is concerned.
   func saveCustomPhrases(_ phrases: [RimeCustomPhrase]) async {
+    errorMessage = nil
     configurationRevision += 1
     do {
       try RimeCustomPhraseFile.save(phrases, to: customPhraseURL)

@@ -97,6 +97,47 @@ public enum RimeCustomPhraseFile {
     try serialize(phrases).write(to: url, atomically: true, encoding: .utf8)
   }
 
+  /// Some schemas (including Rime Ice's double pinyin schemas) use a separate native
+  /// phrase file. Add a second translator for the app's shared phrases, preserving that
+  /// file and its existing translator. Only user patches are changed, never profile sources.
+  static func connectToSchemas(in source: URL, workspace: RimeWorkspace, engine: RimeEngine) throws {
+    let phrases = try load(from: workspace.userData.appendingPathComponent("custom_phrase.txt"))
+    guard !phrases.phrases.isEmpty else { return }
+    for schemaID in RimeTreeClassifier.classify(root: source).schemaIDs {
+      let yaml = try String(contentsOf: source.appendingPathComponent(schemaID + ".schema.yaml"),
+                            encoding: .utf8)
+      let config = try engine.configFromYAML(yaml)
+      defer { config.close() }
+      let patch = RimePatch(engine: engine, configID: schemaID)
+      let original = try patch.entries()
+      var entries = original
+      let translators = (entries["engine/translators"] ?? config.value("engine/translators"))?
+        .listValue ?? []
+      guard translators.contains(.string("table_translator@custom_phrase")) else { continue }
+      let dictionary = (entries["custom_phrase/user_dict"] ?? config.value("custom_phrase/user_dict"))?
+        .stringValue
+      let database = (entries["custom_phrase/db_class"] ?? config.value("custom_phrase/db_class"))?
+        .stringValue
+      if dictionary == "custom_phrase", database == "stabledb" || database == "tabledb" { continue }
+
+      let translator = RimeConfigValue.string("table_translator@arkey_custom_phrase")
+      var appended = entries["engine/translators/+"]?.listValue ?? []
+      if !translators.contains(translator), !appended.contains(translator) {
+        appended.append(translator)
+        entries["engine/translators/+"] = .list(appended)
+      }
+      entries["arkey_custom_phrase/dictionary"] = .string("")
+      entries["arkey_custom_phrase/user_dict"] = .string("custom_phrase")
+      entries["arkey_custom_phrase/db_class"] = .string("stabledb")
+      entries["arkey_custom_phrase/enable_completion"] = .bool(false)
+      entries["arkey_custom_phrase/enable_sentence"] = .bool(false)
+      entries["arkey_custom_phrase/initial_quality"] = .int(99)
+      guard entries != original else { continue }
+      _ = try patch.snapshot(into: workspace.root.appendingPathComponent("backups"))
+      try patch.write(entries)
+    }
+  }
+
   /// How an imported list meets the one that is already there (S2 §3: "an explicit merge, never a
   /// silent overwrite").
   public static func merge(_ incoming: [RimeCustomPhrase],

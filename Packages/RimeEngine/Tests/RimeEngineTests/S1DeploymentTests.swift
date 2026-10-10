@@ -61,6 +61,63 @@ final class S1DeploymentTests: XCTestCase {
 
   // MARK: Deploy
 
+  private actor DictionaryHolder {
+    private var ownership: RimeDictionaryLock?
+
+    init(store: RimeLeaseStore) throws { ownership = try store.acquireLock() }
+    func release() { ownership = nil }
+  }
+
+  private func sharedDictionaryStore() -> RimeLeaseStore {
+    engine.shutdown()
+    let store = RimeLeaseStore(workspace: workspace)
+    engine = RimeEngine(configuration: engine.configuration, dictionaryLeaseStore: store)
+    return store
+  }
+
+  func testAsyncDeploymentWaitsForKeyboardOwnershipToBeReleased() async throws {
+    let id = try importedProfile()
+    let holder = try DictionaryHolder(store: sharedDictionaryStore())
+    let coordinator = coordinator()
+    let deployment = Task { try await coordinator.deploy(profileID: id, dictionaryWaitTimeout: 5) }
+    try await Task.sleep(nanoseconds: 100_000_000)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.profile(id).buildStaging.path),
+                   "deployment must not start while another session owns the dictionaries")
+    await holder.release()
+    let outcome = try await deployment.value
+    XCTAssertTrue(outcome.report.succeeded)
+    XCTAssertEqual(try workspace.loadActiveProfile()?.profileID, id)
+  }
+
+  func testAsyncDeploymentRefusesOwnershipAfterItsWaitExpires() async throws {
+    let id = try importedProfile()
+    let holder = try DictionaryHolder(store: sharedDictionaryStore())
+    do {
+      _ = try await coordinator().deploy(profileID: id, dictionaryWaitTimeout: 0.1)
+      XCTFail("deployment must not bypass another session's ownership")
+    } catch RimeDictionaryAccessError.dictionaryBusy {
+      XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.profile(id).buildStaging.path))
+      XCTAssertNil(try workspace.loadActiveProfile())
+    }
+    await holder.release()
+  }
+
+  func testCancellationStopsWaitingForDictionaryOwnership() async throws {
+    let id = try importedProfile()
+    let holder = try DictionaryHolder(store: sharedDictionaryStore())
+    let coordinator = coordinator()
+    let deployment = Task { try await coordinator.deploy(profileID: id, dictionaryWaitTimeout: 5) }
+    try await Task.sleep(nanoseconds: 100_000_000)
+    deployment.cancel()
+    do {
+      _ = try await deployment.value
+      XCTFail("a cancelled deployment must stop waiting")
+    } catch is CancellationError {
+      XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.profile(id).buildStaging.path))
+    }
+    await holder.release()
+  }
+
   func testDeploySwapsTheBuildAndWritesTheActiveRecord() throws {
     let id = try importedProfile()
     let layout = workspace.profile(id)

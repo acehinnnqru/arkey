@@ -110,6 +110,7 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
     }
 
     let runtime = try engine.captureRuntime()
+    try RimeCustomPhraseFile.connectToSchemas(in: layout.source, workspace: workspace, engine: engine)
     let metadataBefore = fileManager.fileExists(atPath: layout.metadata.path)
       ? try Data(contentsOf: layout.metadata) : nil
     let activeBefore = fileManager.fileExists(atPath: workspace.activeRecord.path)
@@ -231,7 +232,25 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
   public func deploy(profileID: String,
                      fullCheck: Bool = true,
                      activate: Bool = true,
+                     dictionaryWaitTimeout: TimeInterval = 2,
                      progress: (@Sendable (RimeDeploymentProgress) -> Void)? = nil) async throws -> RimeDeploymentOutcome {
+    let deadline = Date().addingTimeInterval(max(0, dictionaryWaitTimeout))
+    while true {
+      try Task.checkCancellation()
+      do {
+        return try await deployOnce(profileID: profileID, fullCheck: fullCheck,
+                                    activate: activate, progress: progress)
+      } catch RimeDictionaryAccessError.dictionaryBusy {
+        // Ownership is acquired before staging or publication, so retrying this refusal
+        // cannot repeat a partial deployment. Never bypass a lock held by a keyboard.
+        guard Date() < deadline else { throw RimeDictionaryAccessError.dictionaryBusy }
+        try await Task.sleep(nanoseconds: 50_000_000)
+      }
+    }
+  }
+
+  private func deployOnce(profileID: String, fullCheck: Bool, activate: Bool,
+                          progress: (@Sendable (RimeDeploymentProgress) -> Void)?) async throws -> RimeDeploymentOutcome {
     try await withCheckedThrowingContinuation { continuation in
       DispatchQueue.global(qos: .userInitiated).async {
         do {
