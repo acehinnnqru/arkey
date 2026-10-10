@@ -110,11 +110,10 @@ struct ProfileLibraryView: View {
       fileImportTask?.cancel()
       resolveUserDataImport(nil)
     }
-    .confirmationDialog(RimeLocalization.text("Delete profile?"),
-                        isPresented: Binding(get: { pendingDeletion != nil },
-                                             set: { if !$0 { pendingDeletion = nil } }),
-                        titleVisibility: .visible,
-                        presenting: pendingDeletion) { entry in
+    .alert(RimeLocalization.text("Delete profile?"),
+           isPresented: Binding(get: { pendingDeletion != nil },
+                                set: { if !$0 { pendingDeletion = nil } }),
+           presenting: pendingDeletion) { entry in
       Button(RimeLocalization.text("Delete profile and keep user dictionaries"), role: .destructive) {
         model.delete(profileID: entry.metadata.id)
         pendingDeletion = nil
