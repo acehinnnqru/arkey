@@ -54,8 +54,7 @@ struct ContentView: View {
             Spacer(minLength: 0)
             NavigationLink(recovery.action.title) {
               switch recovery.action {
-              case .deploy: DeployView(model: model)
-              case .chooseProfile: ProfileLibraryView(model: model)
+              case .deploy, .chooseProfile: ProfileLibraryView(model: model)
               }
             }
             .font(.caption.bold())

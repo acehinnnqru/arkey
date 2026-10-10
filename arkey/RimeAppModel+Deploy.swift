@@ -3,12 +3,21 @@ import Foundation
 import RimeEngine
 import SwiftUI
 
-/// S2 §6's 部署 screen: what the last deploy produced, librime's own log, and the two ways back —
-/// redeploy, or roll back to the previous generation.
+/// A session-local attempt, kept separate from activation and settings-import messages.
+struct DeploymentAttempt: Sendable {
+  let id = UUID()
+  let profileID: String
+  let profileName: String
+  let startedAt = Date()
+  var finishedAt: Date?
+  var message = "Deploying…"
+  var failed = false
+  var logs: [RimeLogRecord] = []
+}
+
+/// Deployment recovery actions shared by the profile library and settings writes.
 @MainActor
 extension RimeAppModel {
-  var deployLog: [RimeLogRecord] { engine.logBuffer.snapshot() }
-
   /// The newest settings backup, which is what "revert" restores. The engine writes one before any
   /// import and `RimePatch` writes one before a patch is touched.
   var latestSettingsBackup: URL? {
@@ -33,11 +42,6 @@ extension RimeAppModel {
       return
     }
     await deploy(profileID: id)
-  }
-
-  func rollbackActiveProfile() {
-    guard let id = activeProfileID ?? profiles.first?.id else { return }
-    rollback(profileID: id)
   }
 
   /// Copies the newest backup's files over the user directory: one action, as S2-AC4 asks.

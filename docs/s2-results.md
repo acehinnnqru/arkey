@@ -200,23 +200,24 @@ schema's translator ignores cannot appear.
 
 **Built**: 配置库 (S1), 方案 / 输入 / 模糊音, 部署, 设置导出导入 (S2), 键盘 (S3), 用户词库 (S5),
 许可证 (S6).
-**Every screen in S2 §6 now exists**: 配置库, 方案, 输入, 模糊音, 标点, 按键, 自定义短语, 键盘, 部署
-and 许可证. What is missing is not a screen but a device: none of this has been run.
+**Every feature in S2 §6 has a screen.** Deployment status and recovery now live in the profile
+library, with logs in a nested detail page. The original verification below covered type checking only.
 
 **Verification**: `scripts/typecheck-app.sh` — `app: no type errors` and `extension: no type errors`. The
 screens are type-checked, not run: no device is attached to this session.
 
-## The 部署 screen
+## Deployment in the profile library
 
-`arkey/DeployView.swift` is S2 §6's last screen and S2-AC4's way back:
+`arkey/ProfileLibraryView.swift` owns deployment and recovery alongside the installed profiles.
+The settings drawer has one profile-library entry; the home screen's recovery link leads there too.
+Profile rows offer deploy/redeploy and rollback, and the settings section offers backup restoration.
+The library retains the current generation's metadata and a compact summary of the latest attempt.
 
-- what is deployed now: profile, generation, deploy duration, warning count and when it happened;
-- **librime's own log**, the last twenty records, errors in red — a generic "deploy failed" tells
-  nobody which file was wrong, which is why the logsink capture exists at all;
-- **重新部署** (S1 §7's re-deploy), **回滚到上一代构建** (S1 §6's swap back), and
-  **恢复上次设置备份并重新部署** — one action, which is what S2-AC4 asks for;
-- the footer states the two rules a user needs to know: a deploy only ever happens in the app, and the
-  keyboard picks the result up at its next appearance.
+`arkey/DeploymentLogView.swift` is a third-level page under Settings → Profile library. It shows
+the latest attempt's profile, timestamps, result, and the engine report's retained log records,
+with errors in red. Logs remain in memory for this app session only. Later typing, activation,
+and rollback cannot overwrite the attempt's result or logs. A failure without an engine report
+shows its error and an explicit empty-log state rather than unrelated engine output.
 
 ## Settings travel (S2 §7, S2-AC5)
 

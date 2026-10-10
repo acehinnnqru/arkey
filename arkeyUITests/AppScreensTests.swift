@@ -23,7 +23,6 @@ final class AppScreensTests: XCTestCase {
     ("标点", "标点", "符号表"),
     ("按键", "按键", "按键绑定"),
     ("自定义短语", "自定义短语", "短语（0）"),
-    ("部署", "部署", "上一次部署"),
     ("许可证", "许可证", "第三方配置与许可证"),
     ("诊断", "诊断", "shared"),
   ]
@@ -83,10 +82,8 @@ final class AppScreensTests: XCTestCase {
       // real failure).
       let pathLeak = app.staticTexts.allElementsBoundByIndex
         .first { $0.label.contains("/Users/") || $0.label.contains("/var/mobile") }
-      // 诊断 and 部署 are where internals are the subject — the workspace's own paths and librime's log, which
-      // is the text a bug report needs. Everywhere else a path is a sentence about the user's phone that the
-      // user cannot act on.
-      if ["诊断", "部署"].contains(screen.menu) {
+      // Only diagnostics exposes internal paths among the top-level settings destinations.
+      if screen.menu == "诊断" {
         XCTAssertNotNil(pathLeak, screen.menu + " shows no real internals at all")
       } else {
         XCTAssertNil(pathLeak, screen.menu + " shows a filesystem path: [" + (pathLeak?.label ?? "") + "]")
@@ -105,6 +102,26 @@ final class AppScreensTests: XCTestCase {
       XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 10),
                     "closing settings did not return home")
     }
+  }
+
+  func testDeploymentLogLivesInsideTheProfileLibrary() {
+    let app = launched()
+    app.openSettingsPage("配置库")
+    let link = app.buttons["deployment-log-link"]
+    XCTAssertTrue(link.waitForExistence(timeout: 10))
+    link.tap()
+    let logBar = app.navigationBars["Deployment log"]
+    XCTAssertTrue(logBar.waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["No deployment log"].exists)
+    logBar.buttons.element(boundBy: 0).tap()
+    let libraryBar = app.navigationBars["配置库"]
+    XCTAssertTrue(libraryBar.waitForExistence(timeout: 10))
+    libraryBar.buttons.element(boundBy: 0).tap()
+    XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+    let list = app.descendants(matching: .any)["settings-list"].firstMatch
+    XCTAssertFalse(list.buttons["部署"].exists)
+    app.buttons["settings-close"].tap()
+    XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 10))
   }
 
   /// The toolbar's 键盘 opens the preview — the keyboard drawn from the shared view code, with the fixture page

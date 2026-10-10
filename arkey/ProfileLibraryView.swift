@@ -30,6 +30,7 @@ struct ProfileLibraryView: View {
   var body: some View {
     List {
       activeSection
+      deploymentSection
       installedSection
       SettingsDeployFooter(model: model)
       settingsSection
@@ -38,6 +39,7 @@ struct ProfileLibraryView: View {
       storageSection
     }
     .navigationTitle("配置库")
+    .accessibilityIdentifier("profile-library")
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
         Button {
@@ -93,12 +95,40 @@ struct ProfileLibraryView: View {
     Section("当前生效") {
       VStack(alignment: .leading, spacing: 4) {
         Text(model.resolvedSummary).font(.body)
+        if let deploy = model.libraryEntries.first(where: { $0.isActive })?.metadata.deploy {
+          Text(deploy.deployedAt.formatted(date: .abbreviated, time: .standard)
+               + " · " + String(deploy.warnings.count) + " warnings")
+            .font(.caption).foregroundStyle(.secondary)
+        }
         Text("键盘在下次出现时采用这里的变化；正在输入的句子不会被切换打断。")
           .font(.caption)
           .foregroundStyle(.secondary)
       }
       Toggle("导入时同时采用用户设置（*.custom.yaml、custom_phrase.txt）", isOn: $adoptUserData)
         .font(.footnote)
+    }
+  }
+
+  private var deploymentSection: some View {
+    Section("Deployment") {
+      if let attempt = model.latestDeployment {
+        HStack(spacing: 8) {
+          if model.isDeploying { ProgressView() }
+          VStack(alignment: .leading, spacing: 4) {
+            Text(attempt.profileName).font(.subheadline)
+            Text(UserFacing.text(attempt.message))
+              .font(.caption)
+              .foregroundStyle(attempt.failed ? Color.red : Color.secondary)
+              .lineLimit(2)
+          }
+        }
+      }
+      NavigationLink {
+        DeploymentLogView(model: model)
+      } label: {
+        Label("Deployment log", systemImage: "doc.text.magnifyingglass")
+      }
+      .accessibilityIdentifier("deployment-log-link")
     }
   }
 
@@ -128,7 +158,7 @@ struct ProfileLibraryView: View {
       Text(entry.metadata.id).font(.caption2).foregroundStyle(.secondary)
       Text(detail(entry)).font(.caption).foregroundStyle(.secondary)
       HStack(spacing: 12) {
-        Button("部署") { deploy(entry) }
+        Button(entry.isActive ? "重新部署" : "部署") { deploy(entry) }
         Button("激活") { model.activate(profileID: entry.metadata.id) }
           .disabled(entry.isActive)
         if entry.metadata.deploy != nil {
@@ -159,6 +189,13 @@ struct ProfileLibraryView: View {
         isPicking = true
       }
       .disabled(model.isImporting)
+      Button {
+        Task { await model.restoreLatestSettingsBackup() }
+      } label: {
+        Text("恢复上次设置备份并重新部署")
+      }
+      .disabled(model.isDeploying || model.isImporting || model.profiles.isEmpty
+                || model.latestSettingsBackup == nil)
     } header: {
       Text("设置")
     } footer: {

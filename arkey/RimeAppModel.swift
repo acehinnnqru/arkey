@@ -56,6 +56,7 @@ final class RimeAppModel: ObservableObject {
   @Published private(set) var engineStatus = "引擎尚未启动"
   @Published private(set) var isDeploying = false
   @Published var deployMessage: String?
+  @Published private(set) var latestDeployment: DeploymentAttempt?
   /// S2 §6's footer state. Only the code that writes knows when a change is pending and when it is
   /// live — an activation is "live" without being a deploy — so the transitions happen here rather
   /// than being inferred from whether a message happens to exist.
@@ -392,13 +393,19 @@ final class RimeAppModel: ObservableObject {
       return
     }
     isDeploying = true
+    let attempt = DeploymentAttempt(profileID: profileID,
+                                    profileName: profiles.first { $0.id == profileID }?.displayName ?? profileID)
+    latestDeployment = attempt
     settingsFooter = .pending
     deployMessage = "正在部署…"
     let coordinator = RimeDeploymentCoordinator(workspace: workspace, engine: engine)
     do {
       let outcome = try await coordinator.deploy(profileID: profileID) { progress in
         Task { @MainActor in
+          guard self.latestDeployment?.id == attempt.id,
+                self.latestDeployment?.finishedAt == nil else { return }
           self.deployMessage = Self.describe(progress)
+          self.latestDeployment?.message = Self.describe(progress)
         }
       }
       // S1 §6: a deploy can succeed while having written nothing (librime's staleness check runs once
@@ -412,6 +419,8 @@ final class RimeAppModel: ObservableObject {
           + String(format: "%.1f s", outcome.durationSeconds) + "，第 " + String(outcome.generation) + " 代"
       }
       deployMessage = "部署完成：" + detail
+      latestDeployment?.message = deployMessage ?? detail
+      latestDeployment?.logs = outcome.report.logs
       settingsFooter = .applied(detail)
     } catch {
       let reason = String(describing: error)
@@ -419,6 +428,7 @@ final class RimeAppModel: ObservableObject {
       RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
         .append(RimeProbeRecord(phase: "app.deploy.failed", message: reason))
       if case RimeDeploymentFailure.deployFailed(let report) = error {
+        latestDeployment?.logs = report.logs
         // The final error is often only "error building config"; earlier compiler errors name
         // the missing include or invalid patch. Use this deployment's report, never typing logs.
         let diagnostics = report.logs.filter { $0.severity >= .warning }.map(\.display)
@@ -427,10 +437,13 @@ final class RimeAppModel: ObservableObject {
                                   message: diagnostics.suffix(80).joined(separator: "\n")))
       }
       deployMessage = text
+      latestDeployment?.message = text
+      latestDeployment?.failed = true
       errorMessage = text
       // The reason only: the footer adds the label itself, so the sentence is not doubled.
       settingsFooter = .failed(reason)
     }
+    latestDeployment?.finishedAt = Date()
     isDeploying = false
     refresh()
   }

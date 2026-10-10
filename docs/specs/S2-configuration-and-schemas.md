@@ -101,7 +101,7 @@ know whether the user set it. Pinned by `S2SettingsModelTests` and `S2PatchTests
 
 | Screen | Contents |
 | --- | --- |
-| **配置库** | S1's profile library: installed configs, size, licence, provenance, activate/delete/rollback. |
+| **Profile library** | Installed configs, size, licence, provenance, deploy/activate/delete/rollback, compact deployment status, and settings backup recovery. |
 | **方案** | The active profile's schemas: enable, order, default, and which one the keyboard is on. |
 | **输入** | Per-schema translator behaviour: 逐码提示, sentence composition, page size, comments, user dictionary. |
 | **模糊音** | The presets above, each with the example pairs it affects (`z=zh`), and a preview of the generated algebra rules. |
@@ -109,7 +109,7 @@ know whether the user set it. Pinned by `S2SettingsModelTests` and `S2PatchTests
 | **按键** | The curated key-binding set. |
 | **自定义短语** | The phrase list, editable, with import/append. |
 | **键盘** | S3's appearance and feedback settings. |
-| **部署** | The last deploy's result, its log, and the revert action. |
+| **Deployment log** | A third-level page under Settings → Profile library, showing the latest attempt's profile, timestamps, result, and deployment-report logs from this app session. |
 | **许可证** | S6's notices screen. |
 
 Every screen that writes shows the same two-state footer: "已修改，待部署" and, once deployed, "已生效".

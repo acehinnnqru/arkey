@@ -141,6 +141,7 @@ liveHolder
 loadInstallation
 loadMetadata
 lock
+logBuffer
 logs
 logText
 luminance

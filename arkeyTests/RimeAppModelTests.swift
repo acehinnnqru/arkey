@@ -297,9 +297,24 @@ final class RimeAppModelTests: XCTestCase {
     await model.deploy(profileID: profile.id)
     XCTAssertTrue((model.deployMessage ?? "").hasPrefix("部署完成"),
                   "the first deploy said: " + (model.deployMessage ?? "nothing"))
+    let firstAttempt = try XCTUnwrap(model.latestDeployment)
+    XCTAssertEqual(firstAttempt.profileID, profile.id)
+    XCTAssertEqual(firstAttempt.profileName, "Lifecycle test")
+    XCTAssertNotNil(firstAttempt.finishedAt)
+    XCTAssertFalse(firstAttempt.failed)
     await model.deploy(profileID: profile.id)
+    let secondAttempt = try XCTUnwrap(model.latestDeployment)
+    XCTAssertNotEqual(firstAttempt.id, secondAttempt.id)
+    XCTAssertFalse(secondAttempt.logs.isEmpty, "the deployment report should retain engine diagnostics")
+    model.engine.logBuffer.removeAll()
+    model.engine.logBuffer.append(RimeLogRecord(severity: .info, message: "Unrelated typing log",
+                                               file: "test", line: 1))
+    XCTAssertEqual(model.latestDeployment?.logs, secondAttempt.logs,
+                   "later engine activity must not replace deployment diagnostics")
 
     model.activate(profileID: profile.id)
+    XCTAssertEqual(model.latestDeployment?.message, secondAttempt.message,
+                   "activation must not relabel the deployment result")
     XCTAssertNil(model.errorMessage, "activation reported: " + (model.errorMessage ?? ""))
     XCTAssertEqual(model.settingsFooter, .applied("已切换"),
                    "the footer after activating: " + String(describing: model.settingsFooter))
@@ -320,6 +335,22 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertFalse(model.profiles.contains { $0.id == profile.id },
                    "the profile is still listed after deletion")
     imported = nil
+  }
+
+  func testDeploymentFailureDoesNotReuseUnrelatedEngineLogs() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    let missingProfileID = "missing-" + UUID().uuidString
+    model.engine.logBuffer.append(RimeLogRecord(severity: .error, message: "Unrelated error",
+                                               file: "test", line: 1))
+    await model.deploy(profileID: missingProfileID)
+    let attempt = try XCTUnwrap(model.latestDeployment)
+    XCTAssertEqual(attempt.profileID, missingProfileID)
+    XCTAssertTrue(attempt.failed)
+    XCTAssertNotNil(attempt.finishedAt)
+    XCTAssertEqual(attempt.message, model.errorMessage)
+    XCTAssertTrue(attempt.logs.isEmpty, "an early failure has no deployment report")
+    XCTAssertFalse(model.isDeploying)
   }
 
   /// S2 §3's rule at the app level: the keyboard's own settings never need a deploy, so writing one leaves the

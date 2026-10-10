@@ -7,7 +7,7 @@ struct SettingsView: View {
 
   private enum Page: Hashable {
     case schema, keyboard, punctuation, keys, phrases, dictionaries
-    case profiles, catalog, deploy, notices, diagnostics
+    case profiles, catalog, notices, diagnostics
   }
 
   var body: some View {
@@ -41,9 +41,6 @@ struct SettingsView: View {
           NavigationLink(value: Page.catalog) {
             Label("下载配置", systemImage: "arrow.down.circle")
           }
-          NavigationLink(value: Page.deploy) {
-            Label("部署", systemImage: "arrow.triangle.2.circlepath")
-          }
         }
 
         Section("About") {
@@ -69,7 +66,6 @@ struct SettingsView: View {
         case .dictionaries: UserDictionaryView(model: model)
         case .profiles: ProfileLibraryView(model: model)
         case .catalog: CatalogView()
-        case .deploy: DeployView(model: model)
         case .notices: NoticesView(model: model)
         case .diagnostics: DiagnosticsView()
         }
