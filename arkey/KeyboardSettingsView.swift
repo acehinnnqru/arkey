@@ -14,7 +14,6 @@ struct KeyboardSettingsView: View {
     List {
       if isLoading { ProgressView("Loading settings…") }
       auxiliarySection
-      SettingsDeployFooter(model: model)
       compositionSection
       appearanceSection
       feedbackSection

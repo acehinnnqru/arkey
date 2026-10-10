@@ -39,7 +39,6 @@ struct PunctuationView: View {
       } footer: {
         Text("Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches.")
       }
-      SettingsDeployFooter(model: model)
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .disabled(isLoading)

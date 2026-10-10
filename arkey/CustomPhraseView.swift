@@ -49,8 +49,6 @@ struct CustomPhraseView: View {
         }
       }
 
-      SettingsDeployFooter(model: model)
-
       if !model.rejectedPhraseLines.isEmpty {
         Section("无法读取的行") {
           ForEach(model.rejectedPhraseLines, id: \.line) { entry in

@@ -32,7 +32,6 @@ struct ProfileLibraryView: View {
       activeSection
       deploymentSection
       installedSection
-      SettingsDeployFooter(model: model)
       settingsSection
       if !model.importWarnings.isEmpty { warningsSection }
       if let error = model.errorMessage { errorSection(error) }
