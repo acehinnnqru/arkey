@@ -27,6 +27,23 @@ final class S3PreferencesTests: XCTestCase {
     XCTAssertEqual(store.value.deleteRepeatInterval, 0.1)
   }
 
+  func testReentryExperimentMigratesEnabledAndCanBePersistentlyDisabled() {
+    defaults.set(Data(#"{"paletteMode":"fixed","hapticsEnabled":false}"#.utf8),
+                 forKey: RimeKeyboardPreferencesStore.storageKey)
+    var preferences = store.value
+    XCTAssertTrue(preferences.reentryCompensationEnabled)
+    XCTAssertEqual(preferences.paletteMode, .fixed)
+    XCTAssertFalse(preferences.hapticsEnabled)
+    preferences.reentryCompensationEnabled = false
+    store.value = preferences
+    let reader = RimeKeyboardPreferencesStore(defaults: defaults)
+    XCTAssertFalse(reader.value.reentryCompensationEnabled)
+    XCTAssertFalse(reader.value.hapticsEnabled)
+    XCTAssertEqual(reader.value.paletteMode, .fixed)
+    store.reset()
+    XCTAssertTrue(reader.value.reentryCompensationEnabled)
+  }
+
   func testFullwidthAuxiliaryPunctuationIsStoredAsASCII() throws {
     XCTAssertEqual(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("；"), ";")
     XCTAssertEqual(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("，"), ",")

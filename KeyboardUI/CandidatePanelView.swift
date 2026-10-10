@@ -8,6 +8,9 @@ private final class CandidateScrollView: UICollectionView {
 
 private final class CandidateCollectionCell: UICollectionViewCell {
   let button = UIButton(type: .custom)
+  var textCenterY = KeyboardMetrics.candidateTextCenterY {
+    didSet { if textCenterY != oldValue { setNeedsLayout() } }
+  }
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -27,7 +30,7 @@ private final class CandidateCollectionCell: UICollectionViewCell {
   override func layoutSubviews() {
     // The first row keeps the collapsed strip's text baseline; later rows only add row pitch.
     button.titleEdgeInsets = UIEdgeInsets(
-      top: 2 * (KeyboardMetrics.candidateTextCenterY - bounds.height / 2),
+      top: 2 * (textCenterY - bounds.height / 2),
       left: 0, bottom: 0, right: 0)
     super.layoutSubviews()
   }
@@ -105,6 +108,32 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
 
 /// Expanded candidates use up to six aligned columns and scroll within the keyboard.
 final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
+  /// Follow the actual collapsed slot when the extension applies its experiment.
+  var candidateSlotHeight = KeyboardMetrics.candidateBarHeight {
+    didSet {
+      guard candidateSlotHeight != oldValue else { return }
+      collapseHeightConstraint.constant = candidateSlotHeight
+      updateCandidateAlignment()
+    }
+  }
+  var contentVerticalOffset: CGFloat = 0 {
+    didSet {
+      guard contentVerticalOffset != oldValue else { return }
+      updateCandidateAlignment()
+    }
+  }
+  private var candidateTextCenterY: CGFloat {
+    candidateSlotHeight / 2 + KeyboardMetrics.candidateTextOffset + contentVerticalOffset
+  }
+  private func updateCandidateAlignment() {
+    setNeedsLayout()
+    collapseButton.imageEdgeInsets = UIEdgeInsets(
+      top: 2 * (KeyboardMetrics.candidateTextOffset + contentVerticalOffset), left: 0, bottom: 0, right: 0)
+    for case let cell as CandidateCollectionCell in gridStack.visibleCells {
+      cell.textCenterY = candidateTextCenterY
+    }
+  }
+  private var collapseHeightConstraint: NSLayoutConstraint!
   /// A cell was tapped: the argument is librime's own candidate index, not the cell's position.
   var onSelect: ((Int) -> Void)?
   var onCollapse: (() -> Void)?
@@ -192,6 +221,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     addSubview(loadingIndicator)
 
     headerHeightConstraint = syllableRow.heightAnchor.constraint(equalToConstant: syllableHeight)
+    collapseHeightConstraint = collapseButton.heightAnchor.constraint(equalToConstant: candidateSlotHeight)
     NSLayoutConstraint.activate([
       syllableRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: KeyboardMetrics.sideMargin),
       syllableRow.trailingAnchor.constraint(equalTo: collapseButton.leadingAnchor),
@@ -202,7 +232,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
       collapseButton.trailingAnchor.constraint(equalTo: trailingAnchor),
       collapseButton.topAnchor.constraint(equalTo: topAnchor),
       collapseButton.widthAnchor.constraint(equalToConstant: CandidateBar.accessoryWidth),
-      collapseButton.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
+      collapseHeightConstraint,
       gridStack.leadingAnchor.constraint(equalTo: leadingAnchor,
                                          constant: KeyboardMetrics.sideMargin),
       gridStack.trailingAnchor.constraint(equalTo: collapseButton.leadingAnchor),
@@ -324,6 +354,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "candidate", for: indexPath)
       as! CandidateCollectionCell
     let entry = entries[indexPath.item]
+    cell.textCenterY = candidateTextCenterY
     let button = cell.button
     button.contentHorizontalAlignment = .center
     button.tag = entry.index

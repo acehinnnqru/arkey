@@ -67,6 +67,28 @@ final class KeyboardDiagnosticsTests: XCTestCase {
     XCTAssertNil(trace.finish(reason: "disappear"))
   }
 
+  func testSamplingSnapshotPreservesLaterLayoutAndDisappearance() throws {
+    var trace = KeyboardGeometryTrace()
+    trace.record(height: 270, requestedHeight: 270, needsGlobe: false, message: "appeared")
+    trace.recordDisplayFrame(timestamp: 1, targetTimestamp: 1.01,
+                             modelHeight: 270, presentationHeight: 270, requestedHeight: 270)
+    let initial = try XCTUnwrap(trace.snapshot(reason: "samplingWindowEnded"))
+    XCTAssertFalse(trace.isFinished)
+    XCTAssertTrue(initial.contains("samples=1"))
+
+    trace.record(height: 287, requestedHeight: 270, needsGlobe: false, message: "later layout")
+    trace.record(height: 270, requestedHeight: 270, needsGlobe: false, message: "will disappear")
+    let final = try XCTUnwrap(trace.finish(reason: "disappear"))
+    XCTAssertTrue(final.contains("samples=3"))
+    XCTAssertTrue(final.contains("displaySamples=1"), "late callbacks do not require ongoing display sampling")
+    XCTAssertTrue(final.contains("first: appeared"))
+    XCTAssertTrue(final.contains("peak: later layout"))
+    XCTAssertTrue(final.contains("last: will disappear"))
+    XCTAssertTrue(trace.isFinished)
+    XCTAssertNil(trace.snapshot(reason: "after disappearance"))
+    XCTAssertNil(trace.finish(reason: "duplicate disappearance"))
+  }
+
   func testLegacyFramesAreGroupedWithoutLosingOtherPresentations() {
     var records = (0..<104).map { index in
       RimeProbeRecord(phase: "keyboard.geometry.displayFrame",

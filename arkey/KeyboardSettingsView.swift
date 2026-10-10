@@ -16,6 +16,7 @@ struct KeyboardSettingsView: View {
       compositionSection
       appearanceSection
       feedbackSection
+      experimentsSection
       resetSection
       // The auxiliary prefix deploys; the other keyboard preferences need no deploy.
       Section {
@@ -142,6 +143,19 @@ struct KeyboardSettingsView: View {
       Text("反馈")
     } footer: {
       Text("气泡只在手机类设备上出现，且被限制在键盘自身范围内；连删的默认值是出厂共识，真机校准后改这里一处即可。")
+    }
+  }
+
+  private var experimentsSection: some View {
+    Section {
+      Toggle("iOS 27 keyboard height fix", isOn: Binding(
+        get: { model.keyboardPreferences.reentryCompensationEnabled },
+        set: { value in model.updatePreferences { $0.reentryCompensationEnabled = value } }))
+        .accessibilityIdentifier("keyboard-reentry-compensation")
+    } header: {
+      Text("Experiments")
+    } footer: {
+      Text("Adjusts keyboard height after switching back on iPhone. Turn off if spacing looks wrong. Changes apply the next time Arkey appears.")
     }
   }
 

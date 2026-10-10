@@ -10,7 +10,7 @@ import RimeEngine
 @MainActor
 final class KeyboardLeaseTests: XCTestCase {
   func testTheKeyboardClaimsTheLeaseAtAppearanceAndReleasesItAtDismissal() throws {
-    let controller = KeyboardViewController()
+    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
     controller.loadViewIfNeeded()
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
     controller.viewWillAppear(false)

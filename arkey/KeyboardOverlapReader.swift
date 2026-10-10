@@ -87,7 +87,7 @@ final class KeyboardOverlapView: UIView {
 
   private func flushHostGeometry() {
     guard let first = diagnosticFirst, let last = diagnosticLast else { return }
-    var message = "host geometry trace=height-4 changes=\(diagnosticChanges)"
+    var message = "host geometry trace=height-7 changes=\(diagnosticChanges)"
       + " peakOverlap=\(String(format: "%.2f", diagnosticPeakHeight))\nfirst: " + first
     if let peak = diagnosticPeak, peak != first, peak != last { message += "\npeak: " + peak }
     if last != first { message += "\nlast: " + last }

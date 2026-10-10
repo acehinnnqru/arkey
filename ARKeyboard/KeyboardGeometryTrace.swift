@@ -1,6 +1,6 @@
 import Foundation
 
-/// One bounded record per keyboard presentation, retaining the transient peak.
+/// Bounded snapshots across a keyboard presentation, retaining the transient peak.
 struct KeyboardGeometryTrace {
   private(set) var isFinished = false
   private var count = 0
@@ -49,8 +49,15 @@ struct KeyboardGeometryTrace {
   }
 
   mutating func finish(reason: String) -> String? {
-    guard !isFinished, let first, let last else { return nil }
+    guard let summary = snapshot(reason: reason) else { return nil }
     isFinished = true
+    return summary
+  }
+
+  /// Ending display-link sampling must not stop later lifecycle/layout records.
+  /// Keep only the first, peak and latest geometry, regardless of session length.
+  func snapshot(reason: String) -> String? {
+    guard !isFinished, let first, let last else { return nil }
     let heights = requestedHeights.sorted().map { String(format: "%.2f", $0) }.joined(separator: ",")
     let states = globeStates.map(String.init).sorted().joined(separator: ",")
     var parts = ["geometry summary reason=\(reason) samples=\(count)"

@@ -88,6 +88,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public var auxiliaryKeySide: AuxiliaryKeySide
   public var compositionDisplay: CompositionDisplay
   public var paletteMode: PaletteMode
+  /// Experimental compensation for the host spacing retained by iOS 27.
+  public var reentryCompensationEnabled: Bool
   /// S3 §5: the click sound and the haptic fire only when the user enabled them.
   public var keyClickEnabled: Bool
   public var hapticsEnabled: Bool
@@ -100,6 +102,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public init(auxiliaryPrefix: String = ",",
               auxiliaryKeySide: AuxiliaryKeySide = .right,
               paletteMode: PaletteMode = .followHost,
+              reentryCompensationEnabled: Bool = true,
               compositionDisplay: CompositionDisplay = .rawInput,
               keyClickEnabled: Bool = true,
               hapticsEnabled: Bool = true,
@@ -111,6 +114,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     self.auxiliaryKeySide = auxiliaryKeySide
     self.compositionDisplay = compositionDisplay
     self.paletteMode = paletteMode
+    self.reentryCompensationEnabled = reentryCompensationEnabled
     self.keyClickEnabled = keyClickEnabled
     self.hapticsEnabled = hapticsEnabled
     self.calloutEnabled = calloutEnabled
@@ -135,6 +139,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
       ?? standard.compositionDisplay
     paletteMode = try container.decodeIfPresent(PaletteMode.self, forKey: .paletteMode)
       ?? standard.paletteMode
+    reentryCompensationEnabled = try container.decodeIfPresent(Bool.self, forKey: .reentryCompensationEnabled)
+      ?? standard.reentryCompensationEnabled
     keyClickEnabled = try container.decodeIfPresent(Bool.self, forKey: .keyClickEnabled)
       ?? standard.keyClickEnabled
     hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled)

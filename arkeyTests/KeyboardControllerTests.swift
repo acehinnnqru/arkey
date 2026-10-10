@@ -22,7 +22,7 @@ final class KeyboardControllerTests: XCTestCase {
   /// candidate bar, the rows and the bottom inset the constraints ask for. Off a window nothing lays itself
   /// out, so the test gives it the size the system would give it on a phone.
   private func booted() -> KeyboardViewController {
-    let controller = KeyboardViewController()
+    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
     controllers.append(controller)
     controller.loadViewIfNeeded()
     controller.viewWillAppear(false)
@@ -128,7 +128,7 @@ final class KeyboardControllerTests: XCTestCase {
   /// The host must be able to measure the keyboard before appearance begins, and
   /// intermediate dismissal frames must not expose keys outside that surface.
   func testKeyboardHeightIsReadyBeforePresentation() throws {
-    let controller = KeyboardViewController()
+    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
     controllers.append(controller)
     controller.loadViewIfNeeded()
     let root = try XCTUnwrap(controller.inputView)
@@ -172,7 +172,7 @@ final class KeyboardControllerTests: XCTestCase {
   }
 
   func testHostHeightFromAnotherKeyboardDoesNotChangeFittingHeight() throws {
-    let controller = KeyboardViewController()
+    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
     controllers.append(controller)
     controller.loadViewIfNeeded()
     let root = try XCTUnwrap(controller.inputView)
@@ -270,7 +270,7 @@ final class KeyboardControllerTests: XCTestCase {
   /// tall instead of 45, with the cut running straight across all four. The grid used to start one row gap below
   /// the candidate bar — 11 pt lower than the slot the height counts — so the bottom row hung below the frame.
   func testTheFrameTheExtensionAsksForHoldsEveryKey() throws {
-    let controller = KeyboardViewController()
+    let controller = KeyboardViewController(reentryCompatibility: .init(isEnabled: false))
     controllers.append(controller)
     controller.loadViewIfNeeded()
     controller.viewWillAppear(false)
