@@ -261,6 +261,10 @@ tables, a source directory that does not exist), and the screen only maps the an
 
 ## Punctuation and key bindings
 
+Current status: the key-binding settings screen and its preset implementation have been removed.
+Existing schema and user-patch bindings are preserved. The key-binding details below record the
+earlier implementation.
+
 S2 §3's last two rows, both **composed** rather than appended — the rule 模糊音 already follows, for the
 same reason.
 

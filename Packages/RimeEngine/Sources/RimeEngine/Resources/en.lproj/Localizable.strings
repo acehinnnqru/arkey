@@ -46,7 +46,6 @@
 "Backup failed: {0}" = "Backup failed: {0}";
 "Backups (three most recent per dictionary)" = "Backups (three most recent per dictionary)";
 "Binding profile…" = "Binding profile…";
-"Brackets select the first and last characters of a word when they do not conflict with paging." = "Brackets select the first and last characters of a word when they do not conflict with paging.";
 "Build {0}" = "Build {0}";
 "Built-in data" = "Built-in data";
 "Built-in data ({0})" = "Built-in data ({0})";
@@ -60,8 +59,6 @@
 "Changes are saved to {0}.custom.yaml and deployed automatically. The keyboard adopts them next time it opens." = "Changes are saved to {0}.custom.yaml and deployed automatically. The keyboard adopts them next time it opens.";
 "Changes take effect when the keyboard next opens; current input is not interrupted." = "Changes take effect when the keyboard next opens; current input is not interrupted.";
 "Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens." = "Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens.";
-"Character selection conflicts with paging using [ and ]: disable one before using the other.\nChanges are saved to key_binder/bindings and deployed again." = "Character selection conflicts with paging using [ and ]: disable one before using the other.\nChanges are saved to key_binder/bindings and deployed again.";
-"Character selection: [ and ]" = "Character selection: [ and ]";
 "Chinese is the default. The keyboard uses this language the next time it opens." = "Chinese is the default. The keyboard uses this language the next time it opens.";
 "Choose a scheme" = "Choose a scheme";
 "Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches." = "Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches.";
@@ -75,7 +72,6 @@
 "Clear {0} records" = "Clear records ({0})";
 "Code (for example, ni hao)" = "Code (for example, ni hao)";
 "Collapse candidates" = "Collapse candidates";
-"Common Rime convention: minus for previous page, equals for next page." = "Common Rime convention: minus for previous page, equals for next page.";
 "Compiling dictionaries and schemes… (large profiles may take tens of seconds)" = "Compiling dictionaries and schemes… (large profiles may take tens of seconds)";
 "Completion" = "Completion";
 "Composition display" = "Composition display";
@@ -157,7 +153,6 @@
 "Failed to restore backup: {0}" = "Failed to restore backup: {0}";
 "Failed to restore default sync folder: {0}" = "Failed to restore default sync folder: {0}";
 "Failed to save custom phrases: {0}" = "Failed to save custom phrases: {0}";
-"Failed to save key settings: {0}" = "Failed to save key settings: {0}";
 "Failed to save punctuation settings: {0}" = "Failed to save punctuation settings: {0}";
 "Failed to save settings: {0}" = "Failed to save settings: {0}";
 "Failed to select a file: {0}" = "Failed to select a file: {0}";
@@ -210,7 +205,6 @@
 "Interface language" = "Interface language";
 "Join" = "Join";
 "Keep existing; ignore import" = "Keep existing; ignore import";
-"Key bindings" = "Key bindings";
 "Key input failed: " = "Key input failed: ";
 "Key popups" = "Key popups";
 "Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device." = "Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device.";
@@ -218,7 +212,6 @@
 "Keyboard" = "Keyboard";
 "Keyboard log ({0} records)" = "Keyboard log ({0})";
 "Keyboard preview" = "Keyboard preview";
-"Keys" = "Keys";
 "Language" = "Language";
 "Learning belongs to dictionary names, so switching profiles and back preserves learned words." = "Learning belongs to dictionary names, so switching profiles and back preserves learned words.";
 "Left of Space" = "Left of Space";
@@ -271,8 +264,6 @@
 "Original keys" = "Original keys";
 "Other" = "Other";
 "Other device {0}" = "Other device {0}";
-"Paging: - and =" = "Paging: - and =";
-"Paging: [ and ]" = "Paging: [ and ]";
 "Peak {0}" = "Peak {0}";
 "Phrase (for example, 你好)" = "Phrase (for example, 你好)";
 "Phrases ({0})" = "Phrases ({0})";
@@ -331,8 +322,6 @@
 "Search dictionary names" = "Search dictionary names";
 "See upstream for license" = "See upstream for license";
 "Selected sync folder is unavailable; using the default folder: {0}" = "Selected sync folder is unavailable; using the default folder: {0}";
-"Selection: ; and '" = "Selection: ; and '";
-"Semicolon selects the second candidate; apostrophe selects the third." = "Semicolon selects the second candidate; apostrophe selects the third.";
 "Send" = "Send";
 "Sentence confidence threshold" = "Sentence confidence threshold";
 "Sentence input" = "Sentence input";
@@ -394,7 +383,6 @@
 "Unreadable lines" = "Unreadable lines";
 "Up to date; no tables rebuilt. Generation {0}" = "Up to date; no tables rebuilt. Generation {0}";
 "Upstream repository" = "Upstream repository";
-"Use brackets for paging, keeping minus and equals available." = "Use brackets for paging, keeping minus and equals available.";
 "Use engine default" = "Use engine default";
 "User dictionaries" = "User dictionaries";
 "User dictionaries belong to dictionary names. Deleting a profile keeps them by default, preserving learned words when you switch back." = "User dictionaries belong to dictionary names. Deleting a profile keeps them by default, preserving learned words when you switch back.";

@@ -23,7 +23,6 @@ final class RimeAppModelTests: XCTestCase {
     let readers: [(String, @MainActor () async -> Void)] = [
       ("schema", { await model.refreshSettings() }),
       ("keyboard", { await model.refreshPreferences() }),
-      ("keys", { await model.refreshKeyBindings() }),
       ("dictionaries", { await model.refreshDictionariesInBackground() }),
     ]
     for (name, load) in readers {

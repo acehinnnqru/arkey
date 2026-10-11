@@ -64,10 +64,12 @@ consequences the UI must respect:
 | User dictionary on/off | `translator/enable_user_dict` | Turning it off has S5 consequences; the screen says so. |
 | 模糊音 | `speller/algebra` (composed) | Presets: zh/z, ch/c, sh/s, n/l, f/h, r/l, an/ang, en/eng, in/ing, ian/iang, uan/uang. |
 | Punctuation style | `punctuator` preset import / `switches` for 全半角 | rime-ice consumes `symbols_v.yaml`; the app exposes the choice, not the tables. |
-| Key bindings | `key_binder/bindings` | A curated set (page keys `-`/`=`, select keys, commit keys), not a free editor. |
 | Custom phrases | the `custom_phrase` translator's dictionary file | Import/append/edit with an explicit merge; never a silent overwrite. |
 | Candidate presentation | `menu/page_size`, `translator/always_show_comments`, `spelling_hints` | Comment display is a per-schema choice. |
 | Appearance, key feedback, layout | our own settings (not Rime) | S3 owns the values. |
+
+Key-binding presets are not exposed in Settings. Existing schema and user-patch
+`key_binder/bindings` values remain unchanged.
 
 Each row carries a "needs redeploy" flag: everything except the appearance and feedback rows does.
 
@@ -107,7 +109,6 @@ know whether the user set it. Pinned by `S2SettingsModelTests` and `S2PatchTests
 | **输入** | Per-schema translator behaviour: 逐码提示, sentence composition, page size, comments, user dictionary. |
 | **模糊音** | The presets above, each with the example pairs it affects (`z=zh`), and a preview of the generated algebra rules. |
 | **标点** | Chinese/English punctuation, full/half shape, and the selected symbols preset. |
-| **按键** | The curated key-binding set. |
 | **自定义短语** | The phrase list, editable, with import/append. |
 | **键盘** | S3's appearance and feedback settings. |
 | **Deployment log** | A third-level page under Settings → Profile library, showing the latest attempt's profile, timestamps, result, and deployment-report logs from this app session. |

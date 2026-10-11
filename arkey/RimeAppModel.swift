@@ -106,7 +106,6 @@ final class RimeAppModel: ObservableObject {
   @Published var auxiliarySpelling: RimeAuxiliarySpelling = .fullPinyin
   @Published var customPhrases: [RimeCustomPhrase] = []
   @Published var rejectedPhraseLines: [RimeCustomPhraseFile.RejectedLine] = []
-  @Published var enabledKeyBindingOptions: [String] = []
   @Published var punctuationChoices = RimePunctuation.presets.map {
     (preset: $0, isAvailable: $0.requiresFile == nil)
   }

@@ -46,7 +46,6 @@
 "Backup failed: {0}" = "备份失败：{0}";
 "Backups (three most recent per dictionary)" = "备份（每个词库保留最近三份）";
 "Binding profile…" = "正在绑定配置…";
-"Brackets select the first and last characters of a word when they do not conflict with paging." = "在没有翻页冲突的方案里，方括号取词的首字与末字。";
 "Build {0}" = "构建 {0}";
 "Built-in data" = "内置数据";
 "Built-in data ({0})" = "内置数据（{0}）";
@@ -60,8 +59,6 @@
 "Changes are saved to {0}.custom.yaml and deployed automatically. The keyboard adopts them next time it opens." = "改动写入 {0}.custom.yaml，随后自动部署；键盘在下次出现时采用。";
 "Changes take effect when the keyboard next opens; current input is not interrupted." = "键盘在下次出现时采用这里的变化；正在输入的句子不会被切换打断。";
 "Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens." = "辅码前导键修改后会部署 Rime 方案；其他键盘设置下次出现时读取。";
-"Character selection conflicts with paging using [ and ]: disable one before using the other.\nChanges are saved to key_binder/bindings and deployed again." = "以词定字与「翻页：[ 和 ]」冲突：同一个键不能既翻页又取字，先关掉一个。\n改动写入 key_binder/bindings 并重新部署。";
-"Character selection: [ and ]" = "以词定字：[ 和 ]";
 "Chinese is the default. The keyboard uses this language the next time it opens." = "默认中文。键盘会在下次打开时使用此语言。";
 "Choose a scheme" = "选择方案";
 "Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches." = "选择符号表后会重新部署。全角/半角和中英标点仍由方案开关控制。";
@@ -75,7 +72,6 @@
 "Clear {0} records" = "清理 {0} 条记录";
 "Code (for example, ni hao)" = "编码（例如 ni hao）";
 "Collapse candidates" = "收起候选面板";
-"Common Rime convention: minus for previous page, equals for next page." = "常见的 Rime 习惯：减号上一页，等号下一页。";
 "Compiling dictionaries and schemes… (large profiles may take tens of seconds)" = "正在编译词库与方案…（大配置需要几十秒）";
 "Completion" = "逐码提示";
 "Composition display" = "输入中显示";
@@ -157,7 +153,6 @@
 "Failed to restore backup: {0}" = "恢复备份失败：{0}";
 "Failed to restore default sync folder: {0}" = "恢复默认同步文件夹失败：{0}";
 "Failed to save custom phrases: {0}" = "写入自定义短语失败：{0}";
-"Failed to save key settings: {0}" = "写入按键设置失败：{0}";
 "Failed to save punctuation settings: {0}" = "写入标点设置失败：{0}";
 "Failed to save settings: {0}" = "写入设置失败：{0}";
 "Failed to select a file: {0}" = "选择文件失败：{0}";
@@ -210,7 +205,6 @@
 "Interface language" = "界面语言";
 "Join" = "加入";
 "Keep existing; ignore import" = "保留现有，忽略导入";
-"Key bindings" = "按键绑定";
 "Key input failed: " = "按键出错：";
 "Key popups" = "按键气泡";
 "Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device." = "气泡只在手机类设备上出现，且被限制在键盘自身范围内；连删的默认值是出厂共识，真机校准后改这里一处即可。";
@@ -218,7 +212,6 @@
 "Keyboard" = "键盘";
 "Keyboard log ({0} records)" = "键盘日志（{0} 条）";
 "Keyboard preview" = "键盘预览";
-"Keys" = "按键";
 "Language" = "语言";
 "Learning belongs to dictionary names, so switching profiles and back preserves learned words." = "词库属于词库名而不是配置：换配置再换回来，学过的词还在。";
 "Left of Space" = "空格左侧";
@@ -271,8 +264,6 @@
 "Original keys" = "原始按键";
 "Other" = "其他";
 "Other device {0}" = "其他设备 {0}";
-"Paging: - and =" = "翻页：- 和 =";
-"Paging: [ and ]" = "翻页：[ 和 ]";
 "Peak {0}" = "峰值 {0}";
 "Phrase (for example, 你好)" = "词条（例如 你好）";
 "Phrases ({0})" = "短语（{0}）";
@@ -331,8 +322,6 @@
 "Search dictionary names" = "按词库名搜索";
 "See upstream for license" = "许可证见上游";
 "Selected sync folder is unavailable; using the default folder: {0}" = "已选同步文件夹不可用，回落到默认目录：{0}";
-"Selection: ; and '" = "选词：; 和 '";
-"Semicolon selects the second candidate; apostrophe selects the third." = "分号选第二候选，引号选第三候选。";
 "Send" = "发送";
 "Sentence confidence threshold" = "整句可信度阈值";
 "Sentence input" = "整句输入";
@@ -394,7 +383,6 @@
 "Unreadable lines" = "无法读取的行";
 "Up to date; no tables rebuilt. Generation {0}" = "已是最新，未重建任何表，第 {0} 代";
 "Upstream repository" = "上游仓库";
-"Use brackets for paging, keeping minus and equals available." = "把翻页交给方括号，减号与等号留给别处。";
 "Use engine default" = "使用引擎默认值";
 "User dictionaries" = "用户词库";
 "User dictionaries belong to dictionary names. Deleting a profile keeps them by default, preserving learned words when you switch back." = "用户词库属于词库名而不是配置，删除配置默认会保留它们，这样换配置再换回来时学过的词还在。";

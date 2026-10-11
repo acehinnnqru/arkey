@@ -10,7 +10,7 @@ struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
 
   private enum Page: Hashable {
-    case schema, keyboard, punctuation, keys, phrases, dictionaries
+    case schema, keyboard, punctuation, phrases, dictionaries
     case profiles, notices, diagnostics
   }
 
@@ -27,9 +27,6 @@ struct SettingsView: View {
           }
           NavigationLink(value: Page.punctuation) {
             Label(RimeLocalization.text("Punctuation"), systemImage: "textformat.123")
-          }
-          NavigationLink(value: Page.keys) {
-            Label(RimeLocalization.text("Keys"), systemImage: "command")
           }
           NavigationLink(value: Page.phrases) {
             Label(RimeLocalization.text("Custom phrases"), systemImage: "text.bubble")
@@ -78,7 +75,6 @@ struct SettingsView: View {
         case .schema: SchemaSettingsView(model: model)
         case .keyboard: KeyboardSettingsView(model: model)
         case .punctuation: PunctuationView(model: model)
-        case .keys: KeyBindingsView(model: model)
         case .phrases: CustomPhraseView(model: model)
         case .dictionaries: UserDictionaryView(model: model)
         case .profiles: ProfileLibraryView(model: model)
