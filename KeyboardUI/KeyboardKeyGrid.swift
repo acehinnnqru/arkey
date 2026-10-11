@@ -112,6 +112,10 @@ final class KeyboardKeyGrid: UIView {
                                     needsGlobeRow: needsGlobeRow, style: rowStyle(width: max(width, 1))).height
   }
 
+  func cancelActivePresses() {
+    for button in buttons { button.view.cancelTracking(with: nil) }
+  }
+
   func configure(theme: KeyboardTheme,
                  layer: KeyLayer,
                  asciiMode: Bool,

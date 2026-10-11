@@ -318,6 +318,7 @@ final class KeyboardViewController: UIInputViewController {
   }
 
   override func viewWillDisappear(_ animated: Bool) {
+    keyGrid.cancelActivePresses()
     releaseEngine()
     super.viewWillDisappear(animated)
     recordGeometry("willDisappear", force: true)
@@ -577,6 +578,7 @@ final class KeyboardViewController: UIInputViewController {
   /// UIKit can suspend the extension. A disappearance callback may arrive too late
   /// after an explicit input-mode switch.
   func prepareForInputModeSwitch() {
+    keyGrid.cancelActivePresses()
     releaseEngine()
   }
 
@@ -593,6 +595,7 @@ final class KeyboardViewController: UIInputViewController {
     }
     if feedbackPreferences.hapticsEnabled {
       haptic.impactOccurred()
+      haptic.prepare()
     }
   }
 

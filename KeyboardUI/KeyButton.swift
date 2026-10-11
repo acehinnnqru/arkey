@@ -34,7 +34,6 @@ final class KeyButton: UIControl {
   var feedback = RimeKeyFeedback.standard
 
   private var repeatTimer: Timer?
-  private var repeatDelayWorkItem: DispatchWorkItem?
   private var isPressed = false
 
   override init(frame: CGRect) {
@@ -76,7 +75,6 @@ final class KeyButton: UIControl {
 
   deinit {
     repeatTimer?.invalidate()
-    repeatDelayWorkItem?.cancel()
   }
 
   func apply(theme: KeyboardTheme, style: Style, role: RimeKeyCapRole) {
@@ -143,32 +141,44 @@ final class KeyButton: UIControl {
     if isPressed { handleTouchUp() }
   }
 
+  override func cancelTracking(with event: UIEvent?) {
+    if isPressed { handleTouchUp() }
+    super.cancelTracking(with: event)
+  }
+
   override func willMove(toSuperview newSuperview: UIView?) {
     if newSuperview == nil && isPressed { handleTouchUp() }
     super.willMove(toSuperview: newSuperview)
   }
 
+  override func willMove(toWindow newWindow: UIWindow?) {
+    if newWindow == nil && isPressed { handleTouchUp() }
+    super.willMove(toWindow: newWindow)
+  }
+
   @objc private func handleTouchDown() {
+    guard !isPressed else { return }
     isPressed = true
     onTouchDown?(CGPoint(x: bounds.midX, y: bounds.midY))
     // S3 §5: the cap shifts to its pressed fill and nothing else moves. The fill is the palette's,
     // so it moves in the direction the measured appearance says it moves.
     backgroundColor = theme.fill(for: pressedRole)
     guard repeatsWhileHeld else { return }
-    let feedback = self.feedback
-    let work = DispatchWorkItem { [weak self] in
-      guard let self else { return }
-      self.repeatTimer = Timer.scheduledTimer(withTimeInterval: feedback.deleteRepeatInterval,
-                                              repeats: true) { [weak self] _ in
-        self?.sendActions(for: .primaryActionTriggered)
-      }
+    // Delete immediately, then repeat after the hold delay. Common modes keep the
+    // timer running while UIKit tracks the finger.
+    let timer = Timer(fire: Date(timeIntervalSinceNow: feedback.deleteRepeatDelay),
+                      interval: feedback.deleteRepeatInterval, repeats: true) { [weak self] _ in
+      guard let self, self.isPressed, self.repeatsWhileHeld else { return }
+      self.sendActions(for: .primaryActionTriggered)
     }
-    repeatDelayWorkItem = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + feedback.deleteRepeatDelay, execute: work)
+    repeatTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+    sendActions(for: .primaryActionTriggered)
   }
 
-  /// Single entry point for the controller: one action per tap, plus repeats from the timer.
+  /// Delete fires on touch down; other keys commit on release.
   @objc private func handlePrimary() {
+    guard !repeatsWhileHeld else { return }
     sendActions(for: .primaryActionTriggered)
   }
 
@@ -176,8 +186,6 @@ final class KeyButton: UIControl {
     isPressed = false
     onTouchEnded?()
     backgroundColor = theme.fill(for: role)
-    repeatDelayWorkItem?.cancel()
-    repeatDelayWorkItem = nil
     repeatTimer?.invalidate()
     repeatTimer = nil
   }
