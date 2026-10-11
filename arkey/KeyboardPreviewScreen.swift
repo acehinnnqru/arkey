@@ -15,7 +15,8 @@ struct KeyboardPreviewScreen: View {
           .font(.footnote)
           .foregroundStyle(.secondary)
         KeyboardPreview(auxiliaryPrefix: model.keyboardPreferences.auxiliaryPrefix,
-                        auxiliaryKeySide: model.keyboardPreferences.auxiliaryKeySide)
+                        leftSpaceKey: model.keyboardPreferences.leftSpaceKey,
+                        rightSpaceKey: model.keyboardPreferences.rightSpaceKey)
           .frame(height: KeyboardMetrics.totalHeight(needsGlobeRow: true))
           .clipShape(RoundedRectangle(cornerRadius: 10))
       }

@@ -9,17 +9,18 @@ import RimeEngine
 /// views here turns that class of bug into something a screenshot catches.
 struct KeyboardPreview: UIViewRepresentable {
   var auxiliaryPrefix: String = ","
-  var auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right
+  var leftSpaceKey = RimeSpaceSideKey()
+  var rightSpaceKey = RimeSpaceSideKey()
 
   func makeUIView(context: Context) -> KeyboardPreviewView {
     let view = KeyboardPreviewView()
-    view.configure(auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
+    view.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
     return view
   }
 
   func updateUIView(_ uiView: KeyboardPreviewView, context: Context) {
     uiView.refreshLocalizedLabels()
-    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
+    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
   }
 }
 
@@ -65,7 +66,7 @@ final class KeyboardPreviewView: UIView {
   }
 
   func configure(auxiliaryPrefix: String,
-                 auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide) {
+                 leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey) {
     keyGrid.configure(theme: KeyboardTheme.current(for: .light),
                       layer: .letters,
                       asciiMode: false,
@@ -73,7 +74,7 @@ final class KeyboardPreviewView: UIView {
                       showsGlobeRow: true,
                       language: RimeLanguageKey(label: "中", isASCII: false),
                       auxiliaryPrefix: auxiliaryPrefix,
-                      auxiliaryKeySide: auxiliaryKeySide)
+                      leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
   }
 
   required init?(coder: NSCoder) {

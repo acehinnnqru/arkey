@@ -479,3 +479,15 @@
 
 "Resume personal words for {0}" = "Resume personal words for {0}";
 "Failed to resume personal words for {0}: {1}" = "Failed to resume personal words for {0}: {1}";
+
+"Keys beside Space" = "Keys beside Space";
+
+"Custom character" = "Custom character";
+
+"Custom character for {0}" = "Custom character for {0}";
+
+"Enter one letter, number, or half-width symbol. The last valid character remains active." = "Enter one letter, number, or half-width symbol. The last valid character remains active.";
+
+"Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme.";
+
+"Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules." = "Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules.";

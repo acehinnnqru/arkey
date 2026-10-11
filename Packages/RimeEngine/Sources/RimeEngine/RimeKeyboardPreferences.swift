@@ -43,6 +43,38 @@ public enum RimeAuxiliarySpelling: String, Sendable, Hashable, CaseIterable {
   }
 }
 
+/// An optional key immediately beside Space. Character keys use the normal Rime input path.
+public struct RimeSpaceSideKey: Codable, Sendable, Equatable {
+  public enum Mode: String, Codable, Sendable, CaseIterable {
+    case disabled, auxiliary, character
+  }
+
+  public var mode: Mode
+  public var character: String
+
+  public init(mode: Mode = .disabled, character: String = ",") {
+    self.mode = mode
+    self.character = character
+  }
+
+  /// Accept one printable ASCII key, including fullwidth equivalents.
+  public static func normalizedCharacter(_ value: String) -> String? {
+    guard value.unicodeScalars.count == 1, let scalar = value.unicodeScalars.first else { return nil }
+    let code = scalar.value
+    let ascii = (0xFF01...0xFF5E).contains(code) ? code - 0xFEE0 : code
+    guard (33...126).contains(ascii), let normalized = UnicodeScalar(ascii) else { return nil }
+    return String(normalized)
+  }
+
+  public func input(auxiliaryPrefix: String?) -> String? {
+    switch mode {
+    case .disabled: return nil
+    case .auxiliary: return auxiliaryPrefix.flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
+    case .character: return Self.normalizedCharacter(character)
+    }
+  }
+}
+
 // MARK: - Preferences
 
 /// The settings that are ours rather than Rime's (S2 §3's last row, S3 §4/§5's decisions).
@@ -84,7 +116,10 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     normalizedAuxiliaryPrefix(value) != nil
   }
 
+  public var leftSpaceKey: RimeSpaceSideKey
+  public var rightSpaceKey: RimeSpaceSideKey
   public var auxiliaryPrefix: String
+  /// Retained for decoding older exports; side-key visibility is configured independently.
   public var auxiliaryKeySide: AuxiliaryKeySide
   public var compositionDisplay: CompositionDisplay
   public var paletteMode: PaletteMode
@@ -99,6 +134,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
 
   public init(auxiliaryPrefix: String = ",",
               auxiliaryKeySide: AuxiliaryKeySide = .right,
+              leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+              rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
               paletteMode: PaletteMode = .followHost,
               compositionDisplay: CompositionDisplay = .rawInput,
               keyClickEnabled: Bool = true,
@@ -109,6 +146,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
               deleteRepeatInterval: TimeInterval = RimeKeyFeedback.standard.deleteRepeatInterval) {
     self.auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(auxiliaryPrefix) ?? ","
     self.auxiliaryKeySide = auxiliaryKeySide
+    self.leftSpaceKey = leftSpaceKey
+    self.rightSpaceKey = rightSpaceKey
     self.compositionDisplay = compositionDisplay
     self.paletteMode = paletteMode
     self.keyClickEnabled = keyClickEnabled
@@ -127,6 +166,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let standard = RimeKeyboardPreferences()
+    leftSpaceKey = (try? container.decode(RimeSpaceSideKey.self, forKey: .leftSpaceKey)) ?? standard.leftSpaceKey
+    rightSpaceKey = (try? container.decode(RimeSpaceSideKey.self, forKey: .rightSpaceKey)) ?? standard.rightSpaceKey
     let prefix = try container.decodeIfPresent(String.self, forKey: .auxiliaryPrefix) ?? standard.auxiliaryPrefix
     auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(prefix) ?? standard.auxiliaryPrefix
     auxiliaryKeySide = try container.decodeIfPresent(AuxiliaryKeySide.self, forKey: .auxiliaryKeySide)

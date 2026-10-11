@@ -42,6 +42,39 @@ final class S3PreferencesTests: XCTestCase {
     }
   }
 
+  func testSpaceSideKeysDefaultOffForFreshAndLegacyPreferences() throws {
+    XCTAssertEqual(store.value.leftSpaceKey.mode, .disabled)
+    XCTAssertEqual(store.value.rightSpaceKey.mode, .disabled)
+    defaults.set(Data(#"{"auxiliaryKeySide":"left","auxiliaryPrefix":";","hapticsEnabled":false}"#.utf8),
+                 forKey: RimeKeyboardPreferencesStore.storageKey)
+    XCTAssertEqual(store.value.leftSpaceKey.mode, .disabled)
+    XCTAssertEqual(store.value.rightSpaceKey.mode, .disabled)
+    XCTAssertEqual(store.value.auxiliaryPrefix, ";")
+    XCTAssertFalse(store.value.hapticsEnabled)
+  }
+
+  func testIndependentSpaceSideKeysPersistAndReset() {
+    var preferences = store.value
+    preferences.leftSpaceKey = RimeSpaceSideKey(mode: .character, character: ";")
+    preferences.rightSpaceKey = RimeSpaceSideKey(mode: .auxiliary)
+    store.value = preferences
+    XCTAssertEqual(store.value, preferences)
+    XCTAssertEqual(store.value.leftSpaceKey.input(auxiliaryPrefix: ","), ";")
+    XCTAssertEqual(store.value.rightSpaceKey.input(auxiliaryPrefix: ","), ",")
+    store.reset()
+    XCTAssertEqual(store.value.leftSpaceKey.mode, .disabled)
+    XCTAssertEqual(store.value.rightSpaceKey.mode, .disabled)
+  }
+
+  func testCustomSpaceSideKeyValidation() {
+    for (input, expected) in [("；", ";"), ("Ａ", "A"), ("1", "1"), ("?", "?")] {
+      XCTAssertEqual(RimeSpaceSideKey.normalizedCharacter(input), expected)
+    }
+    for input in ["", "ab", "\n", " ", "你好"] {
+      XCTAssertNil(RimeSpaceSideKey.normalizedCharacter(input))
+    }
+  }
+
   func testFullwidthAuxiliaryPunctuationIsStoredAsASCII() throws {
     XCTAssertEqual(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("；"), ";")
     XCTAssertEqual(RimeKeyboardPreferences.normalizedAuxiliaryPrefix("，"), ",")

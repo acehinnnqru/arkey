@@ -884,7 +884,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                       language: languageKey ?? RimeLanguageKey(label: asciiMode ? "英" : "中", isASCII: asciiMode),
                       feedback: preferences.feedback,
                       auxiliaryPrefix: schemaAuxiliaryPrefix ?? preferences.auxiliaryPrefix,
-                      auxiliaryKeySide: preferences.auxiliaryKeySide)
+                      leftSpaceKey: preferences.leftSpaceKey,
+                      rightSpaceKey: preferences.rightSpaceKey)
   }
 
   /// The switch declaration belongs to the schema, not to each keystroke. Reading its

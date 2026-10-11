@@ -19,21 +19,71 @@ final class S3LayoutTests: XCTestCase {
                                     returnKey: returnKey, needsGlobeRow: globe, style: style)
   }
 
+  func testIndependentSideKeysAcrossLayersAndPhoneWidths() throws {
+    let configurations = [RimeSpaceSideKey(), RimeSpaceSideKey(mode: .character, character: ";"),
+                          RimeSpaceSideKey(mode: .auxiliary)]
+    for width: CGFloat in [320, 375, 430] {
+      var fitted = RimeKeyboardStyle.systemAligned
+      fitted.spaceKeyWidth = width - 2 * fitted.sideMargin - 3 * fitted.horizontalGap
+        - fitted.layerKeyWidth - fitted.emojiKeyWidth - fitted.returnKeyWidth
+      for layer in RimeKeyboardLayer.allCases {
+        for left in configurations {
+          for right in configurations {
+            let keys = RimeKeyboardLayoutEngine.layout(width: width, layer: layer, style: fitted,
+              auxiliaryPrefix: ",", leftSpaceKey: left, rightSpaceKey: right).rows[3].keys
+            let spaceIndex = try XCTUnwrap(keys.firstIndex { $0.kind == .space })
+            let count = (left.mode == .disabled ? 0 : 1) + (right.mode == .disabled ? 0 : 1)
+            XCTAssertEqual(keys.count, 4 + count)
+            let enter = try XCTUnwrap(keys.last)
+            XCTAssertEqual(keys[spaceIndex].frame.width + enter.frame.width,
+              fitted.spaceKeyWidth + fitted.returnKeyWidth
+                - CGFloat(count) * (fitted.letterKeyWidth(for: width) + fitted.horizontalGap),
+              accuracy: 0.01)
+            if right.mode == .disabled {
+              XCTAssertGreaterThan(enter.frame.width, fitted.returnKeyWidth)
+              XCTAssertLessThanOrEqual(enter.frame.width, RimeKeyboardStyle.measured.returnKeyWidth)
+              XCTAssertGreaterThanOrEqual(keys[spaceIndex].frame.width + 0.01, enter.frame.width)
+              if width == 430 {
+                XCTAssertEqual(enter.frame.width, 96.4, accuracy: 0.01)
+              }
+            } else {
+              XCTAssertEqual(enter.frame.width, fitted.returnKeyWidth, accuracy: 0.01)
+            }
+            XCTAssertEqual(try XCTUnwrap(keys.last).frame.maxX, width - fitted.sideMargin, accuracy: 0.01)
+            for (previous, next) in zip(keys, keys.dropFirst()) {
+              XCTAssertGreaterThan(previous.frame.width, 0)
+              XCTAssertEqual(next.frame.minX - previous.frame.maxX, fitted.horizontalGap, accuracy: 0.01)
+            }
+            if left.mode != .disabled {
+              XCTAssertEqual(keys[spaceIndex - 1].kind, .character(left.mode == .auxiliary ? "," : ";"))
+              XCTAssertEqual(keys[spaceIndex - 1].isAuxiliary, left.mode == .auxiliary)
+            }
+            if right.mode != .disabled {
+              XCTAssertEqual(keys[spaceIndex + 1].kind, .character(right.mode == .auxiliary ? "," : ";"))
+              XCTAssertEqual(keys[spaceIndex + 1].isAuxiliary, right.mode == .auxiliary)
+            }
+          }
+        }
+      }
+    }
+  }
+
   func testAuxiliaryKeyKeepsReturnPositionAndCanSwapSides() throws {
     let baseline = layout().rows[3].keys
     let originalReturn = try XCTUnwrap(baseline.last).frame
     for side in RimeKeyboardPreferences.AuxiliaryKeySide.allCases {
       let keys = RimeKeyboardLayoutEngine.layout(width: referenceWidth, style: style,
-                                                   auxiliaryPrefix: ";", auxiliaryKeySide: side).rows[3].keys
+                                                   auxiliaryPrefix: ";",
+                                                   leftSpaceKey: RimeSpaceSideKey(mode: side == .left ? .auxiliary : .disabled),
+                                                   rightSpaceKey: RimeSpaceSideKey(mode: side == .right ? .auxiliary : .disabled)).rows[3].keys
       XCTAssertEqual(keys.count, baseline.count + 1)
       let actionFrame = try XCTUnwrap(keys.last).frame
       XCTAssertEqual(actionFrame.minX, originalReturn.minX, accuracy: 0.01)
       XCTAssertEqual(actionFrame.width, originalReturn.width, accuracy: 0.01)
       let spaceIndex = try XCTUnwrap(keys.firstIndex { if case .space = $0.kind { return true }; return false })
       let auxiliaryIndex = try XCTUnwrap(keys.firstIndex { $0.accessibilityLabel == "辅码前导键 ;" })
-      XCTAssertEqual(auxiliaryIndex, spaceIndex + (side == .right ? 1 : -2))
-      XCTAssertEqual(keys[spaceIndex - 1].kind, .character(","))
-      XCTAssertEqual(keys[spaceIndex - 1].accessibilityLabel, ",")
+      XCTAssertEqual(auxiliaryIndex, spaceIndex + (side == .right ? 1 : -1))
+      XCTAssertTrue(keys[auxiliaryIndex].isAuxiliary)
       XCTAssertEqual(keys[auxiliaryIndex].frame.width, style.letterKeyWidth(for: referenceWidth), accuracy: 0.01)
     }
   }
@@ -70,9 +120,9 @@ final class S3LayoutTests: XCTestCase {
     // The seven letters that fill the middle land on the letter width.
     XCTAssertEqual(thirdRow.keys[1].frame.width, 32.6, accuracy: 0.1)
 
-    // The comma borrows one letter key and one gap from the measured space region.
+    // Disabled side keys leave the entire space region available.
     let bottom = letters.rows[3]
-    for (key, expected) in zip(bottom.keys, [43.4, 43.1, 32.6, 159.1, 96.4]) {
+    for (key, expected) in zip(bottom.keys, [43.4, 43.1, 201.4, 96.4]) {
       XCTAssertEqual(key.frame.width, expected, accuracy: 0.01)
     }
     XCTAssertEqual(try XCTUnwrap(bottom.keys.last).frame.maxX, referenceWidth - 8.3, accuracy: 0.01)
@@ -166,10 +216,10 @@ final class S3LayoutTests: XCTestCase {
 
   func testEachLayerHasTheShapeTheSpecDescribes() throws {
     let letters = layout(.letters)
-    XCTAssertEqual(letters.rows.map { $0.keys.count }, [10, 9, 9, 5])
+    XCTAssertEqual(letters.rows.map { $0.keys.count }, [10, 9, 9, 4])
 
     let numbers = layout(.numbers)
-    XCTAssertEqual(numbers.rows.map { $0.keys.count }, [10, 10, 7, 5])
+    XCTAssertEqual(numbers.rows.map { $0.keys.count }, [10, 10, 7, 4])
     XCTAssertEqual(numbers.rows[0].keys.map(\.label).joined(), "1234567890")
     XCTAssertEqual(numbers.rows[1].keys.map(\.label).joined(), "-/:;()$&@\"")
     XCTAssertEqual(numbers.rows[2].keys.map(\.label), ["#+=", ".", ",", "?", "!", "'", "⌫"])
@@ -183,7 +233,7 @@ final class S3LayoutTests: XCTestCase {
     XCTAssertEqual(try XCTUnwrap(numbers.rows[3].keys.first).label, "ABC")
 
     let symbols = layout(.symbols)
-    XCTAssertEqual(symbols.rows.map { $0.keys.count }, [10, 10, 7, 5])
+    XCTAssertEqual(symbols.rows.map { $0.keys.count }, [10, 10, 7, 4])
     XCTAssertEqual(symbols.rows[0].keys.map(\.label).joined(), "[]{}#%^*+=")
     XCTAssertEqual(try XCTUnwrap(symbols.rows[3].keys.first).label, "ABC")
     XCTAssertEqual(try XCTUnwrap(letters.rows[3].keys.first).label, "123")
@@ -247,7 +297,7 @@ final class S3LayoutTests: XCTestCase {
     let withLanguage = RimeKeyboardLayoutEngine.layout(width: referenceWidth, layer: .letters,
                                                        language: language, style: style)
     let bottom = withLanguage.rows[3]
-    XCTAssertEqual(bottom.keys.count, 5)
+    XCTAssertEqual(bottom.keys.count, 4)
     XCTAssertEqual(bottom.keys.map(\.frame.width), layout().rows[3].keys.map(\.frame.width),
                    "the language key preserves the bottom row geometry")
     XCTAssertEqual(bottom.keys[1].label, "中文")

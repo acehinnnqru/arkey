@@ -15,10 +15,43 @@ final class KeyboardGeometryTests: XCTestCase {
                    layer: layer,
                    asciiMode: false,
                    returnKeyLabel: "换行",
-                   showsGlobeRow: globe)
+                   showsGlobeRow: globe,
+                   leftSpaceKey: RimeSpaceSideKey(mode: .character),
+                   rightSpaceKey: RimeSpaceSideKey(mode: .auxiliary))
     grid.setNeedsLayout()
     grid.layoutIfNeeded()
     return grid
+  }
+
+  func testSideKeyChangesRefreshActionsWithoutChangingKeyCount() throws {
+    let grid = KeyboardKeyGrid(frame: CGRect(x: 0, y: 0, width: 390, height: 400))
+    func configure(left: RimeSpaceSideKey = RimeSpaceSideKey(),
+                   right: RimeSpaceSideKey = RimeSpaceSideKey()) {
+      grid.configure(theme: KeyboardTheme.current(for: .light), layer: .letters, asciiMode: false,
+        returnKeyLabel: "Return", showsGlobeRow: false, leftSpaceKey: left, rightSpaceKey: right)
+      grid.layoutIfNeeded()
+    }
+    configure()
+    let originalSpace = try XCTUnwrap(keys(grid).first { $0.key == .space }).frame
+    let originalReturn = try XCTUnwrap(keys(grid).first { $0.key == .returnKey }).frame
+    XCTAssertEqual(originalReturn.width, 96.4, accuracy: 0.01)
+    XCTAssertFalse(keys(grid).contains { if case .auxiliary = $0.key { return true }; return false })
+    configure(left: RimeSpaceSideKey(mode: .character, character: ";"),
+              right: RimeSpaceSideKey(mode: .auxiliary))
+    XCTAssertLessThan(try XCTUnwrap(keys(grid).first { $0.key == .returnKey }).frame.width, originalReturn.width)
+    XCTAssertTrue(keys(grid).contains { $0.key == .character(";") })
+    XCTAssertTrue(keys(grid).contains { $0.key == .auxiliary(",") })
+    configure(left: RimeSpaceSideKey(mode: .auxiliary),
+              right: RimeSpaceSideKey(mode: .character, character: "!"))
+    let space = try XCTUnwrap(keys(grid).first { $0.key == .space })
+    let left = try XCTUnwrap(keys(grid).first { $0.key == .auxiliary(",") })
+    let right = try XCTUnwrap(keys(grid).first { $0.key == .character("!") })
+    XCTAssertLessThan(left.frame.minX, space.frame.minX)
+    XCTAssertGreaterThan(right.frame.minX, space.frame.minX)
+    XCTAssertFalse(keys(grid).contains { $0.key == .character(";") })
+    configure()
+    XCTAssertEqual(try XCTUnwrap(keys(grid).first { $0.key == .space }).frame, originalSpace)
+    XCTAssertEqual(try XCTUnwrap(keys(grid).first { $0.key == .returnKey }).frame, originalReturn)
   }
 
   private func keys(_ grid: KeyboardKeyGrid) -> [KeyButton] {

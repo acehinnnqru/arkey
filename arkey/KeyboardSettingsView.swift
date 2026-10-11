@@ -15,6 +15,7 @@ struct KeyboardSettingsView: View {
     let _ = interfaceLocale
     List {
       if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
+      spaceSideSection
       auxiliarySection
       compositionSection
       appearanceSection
@@ -34,6 +35,21 @@ struct KeyboardSettingsView: View {
       await model.refreshPreferences()
       auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
       isLoading = false
+    }
+  }
+
+  private var spaceSideSection: some View {
+    Section {
+      SpaceSideKeySettings(title: RimeLocalization.text("Left of Space"), configuration: Binding(
+        get: { model.keyboardPreferences.leftSpaceKey },
+        set: { value in model.updatePreferences { $0.leftSpaceKey = value } }))
+      SpaceSideKeySettings(title: RimeLocalization.text("Right of Space"), configuration: Binding(
+        get: { model.keyboardPreferences.rightSpaceKey },
+        set: { value in model.updatePreferences { $0.rightSpaceKey = value } }))
+    } header: {
+      Text(RimeLocalization.text("Keys beside Space"))
+    } footer: {
+      Text(RimeLocalization.text("Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme."))
     }
   }
 
@@ -73,16 +89,10 @@ struct KeyboardSettingsView: View {
           Text(spelling.label).tag(spelling)
         }
       }
-      Picker(RimeLocalization.text("Position"), selection: Binding(
-        get: { model.keyboardPreferences.auxiliaryKeySide },
-        set: { value in model.updatePreferences { $0.auxiliaryKeySide = value } })) {
-        Text(RimeLocalization.text("Left of Space")).tag(RimeKeyboardPreferences.AuxiliaryKeySide.left)
-        Text(RimeLocalization.text("Right of Space")).tag(RimeKeyboardPreferences.AuxiliaryKeySide.right)
-      }
     } header: {
       Text(RimeLocalization.text("Auxiliary key"))
     } footer: {
-      Text(RimeLocalization.text("Enter one half-width special character. Full-width equivalents are converted automatically. The default is a comma to the right of Space. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules."))
+      Text(RimeLocalization.text("Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules."))
     }
   }
 
@@ -161,6 +171,52 @@ struct KeyboardSettingsView: View {
       }
     } footer: {
       Text(RimeLocalization.text("Restore keyboard appearance and key settings. Keep the auxiliary prefix and spelling configured in the Rime scheme."))
+    }
+  }
+}
+
+private struct SpaceSideKeySettings: View {
+  @Environment(\.locale) private var interfaceLocale
+  let title: String
+  @Binding var configuration: RimeSpaceSideKey
+  @State private var draft = ""
+
+  var body: some View {
+    let _ = interfaceLocale
+    Group {
+      Picker(title, selection: $configuration.mode) {
+        Text(RimeLocalization.text("Off")).tag(RimeSpaceSideKey.Mode.disabled)
+        Text(RimeLocalization.text("Auxiliary key")).tag(RimeSpaceSideKey.Mode.auxiliary)
+        Text(RimeLocalization.text("Custom character")).tag(RimeSpaceSideKey.Mode.character)
+      }
+      // Attach draft synchronization to the stable picker, not conditional validation rows.
+      .onAppear { draft = configuration.character }
+      .onChange(of: configuration.character) { _, value in draft = value }
+      if configuration.mode == .character {
+        TextField(RimeLocalization.text("Custom character for \(title)"), text: Binding(
+          get: { draft },
+          set: { value in
+            let candidate: String
+            if draft.count == 1, value.count == 2, value.hasPrefix(draft) {
+              candidate = String(value.suffix(1))
+            } else if draft.count == 1, value.count == 2, value.hasSuffix(draft) {
+              candidate = String(value.prefix(1))
+            } else {
+              candidate = value
+            }
+            draft = candidate
+            if let character = RimeSpaceSideKey.normalizedCharacter(candidate) {
+              configuration.character = character
+              draft = character
+            }
+          }))
+          .autocorrectionDisabled()
+          .textInputAutocapitalization(.never)
+        if RimeSpaceSideKey.normalizedCharacter(draft) == nil {
+          Text(RimeLocalization.text("Enter one letter, number, or half-width symbol. The last valid character remains active."))
+            .font(.caption).foregroundStyle(.orange)
+        }
+      }
     }
   }
 }

@@ -254,7 +254,8 @@ public enum RimeKeyboardLayoutEngine {
                             needsGlobeRow: Bool = false,
                             style: RimeKeyboardStyle = .measured,
                             auxiliaryPrefix: String? = nil,
-                            auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right) -> RimeKeyboardLayout {
+                            leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+                            rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey()) -> RimeKeyboardLayout {
     var y = style.candidateSlotHeight
     var rows: [RimeKeyboardRow] = []
 
@@ -269,7 +270,7 @@ public enum RimeKeyboardLayoutEngine {
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .numbers,
                                                           style: style, returnKey: returnKey,
                                                           language: language, auxiliaryPrefix: auxiliaryPrefix,
-                                                          auxiliaryKeySide: auxiliaryKeySide)))
+                                                          leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)))
     case .numbers, .symbols:
       let first = layer == .numbers
         ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
@@ -294,7 +295,7 @@ public enum RimeKeyboardLayoutEngine {
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .letters,
                                                           style: style, returnKey: returnKey,
                                                           language: language, auxiliaryPrefix: auxiliaryPrefix,
-                                                          auxiliaryKeySide: auxiliaryKeySide)))
+                                                          leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)))
     }
 
     y += style.keyHeight
@@ -421,7 +422,7 @@ public enum RimeKeyboardLayoutEngine {
     return keys
   }
 
-  /// The bottom row adds a comma immediately before space. The second slot holds the
+  /// The bottom row supports optional keys beside Space. The second slot holds the
   /// 中/英 key when the schema has an 中英 state (S3 §5), and the emoji key otherwise — an emoji key
   /// with no panel behind it is a key that does nothing, which is worse than one that works.
   private static func bottomRow(width: CGFloat, layer: RimeKeyboardLayer,
@@ -429,7 +430,8 @@ public enum RimeKeyboardLayoutEngine {
                                 returnKey: RimeReturnKey,
                                 language: RimeLanguageKey?,
                                 auxiliaryPrefix: String?,
-                                auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide) -> [RimeKeyboardKey] {
+                                leftSpaceKey: RimeSpaceSideKey,
+                                rightSpaceKey: RimeSpaceSideKey) -> [RimeKeyboardKey] {
     var keys: [RimeKeyboardKey] = []
     var x = style.sideMargin
     keys.append(RimeKeyboardKey(kind: .layer(layer),
@@ -451,37 +453,39 @@ public enum RimeKeyboardLayoutEngine {
                                   label: "☺", accessibilityLabel: RimeLocalization.text("Emoji")))
     }
     x += style.emojiKeyWidth + style.horizontalGap
-    let prefix = auxiliaryPrefix.flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
-    let extraKeyCount: CGFloat = prefix == nil ? 1 : 2
+    let leftInput = leftSpaceKey.input(auxiliaryPrefix: auxiliaryPrefix)
+    let rightInput = rightSpaceKey.input(auxiliaryPrefix: auxiliaryPrefix)
+    let extraKeyCount = CGFloat([leftInput, rightInput].compactMap { $0 }.count)
     let punctuationWidth = min(style.letterKeyWidth(for: width),
-                               max(1, (style.spaceKeyWidth - 1) / extraKeyCount - style.horizontalGap))
-    let auxiliaryWidth = punctuationWidth
-    let spaceWidth = style.spaceKeyWidth - extraKeyCount * (punctuationWidth + style.horizontalGap)
-    if let prefix, auxiliaryKeySide == .left {
-      keys.append(RimeKeyboardKey(kind: .character(prefix),
-                                  frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
-                                  label: prefix, accessibilityLabel: RimeLocalization.text("Auxiliary prefix \(prefix)"), isAuxiliary: true))
-      x += auxiliaryWidth + style.horizontalGap
+                               max(1, (style.spaceKeyWidth - 1) / max(1, extraKeyCount) - style.horizontalGap))
+    let availableSpaceWidth = style.spaceKeyWidth - extraKeyCount * (punctuationWidth + style.horizontalGap)
+    // With no right-side key, restore the wider measured Return cap. On narrow
+    // keyboards, limit the expansion so Space stays at least as wide as Return.
+    let returnExpansion = rightInput == nil
+      ? min(max(0, RimeKeyboardStyle.measured.returnKeyWidth - style.returnKeyWidth),
+            max(0, (availableSpaceWidth - style.returnKeyWidth) / 2))
+      : 0
+    let returnWidth = style.returnKeyWidth + returnExpansion
+    let spaceWidth = availableSpaceWidth - returnExpansion
+    func appendSideKey(_ configuration: RimeSpaceSideKey, input: String?) {
+      guard let input else { return }
+      let isAuxiliary = configuration.mode == .auxiliary
+      keys.append(RimeKeyboardKey(kind: .character(input),
+                                  frame: CGRect(x: x, y: 0, width: punctuationWidth, height: style.keyHeight),
+                                  label: input,
+                                  accessibilityLabel: isAuxiliary ? RimeLocalization.text("Auxiliary prefix \(input)") : input,
+                                  isAuxiliary: isAuxiliary))
+      x += punctuationWidth + style.horizontalGap
     }
-    // Send the ASCII keysym through the normal character path so Rime's active
-    // punctuation table and full_shape/ascii_punct options determine the output.
-    keys.append(RimeKeyboardKey(kind: .character(","),
-                                frame: CGRect(x: x, y: 0, width: punctuationWidth, height: style.keyHeight),
-                                label: ",", accessibilityLabel: ","))
-    x += punctuationWidth + style.horizontalGap
+    appendSideKey(leftSpaceKey, input: leftInput)
     keys.append(RimeKeyboardKey(kind: .space,
                                 frame: CGRect(x: x, y: 0, width: spaceWidth,
                                               height: style.keyHeight),
                                 label: "", accessibilityLabel: RimeLocalization.text("Space")))
     x += spaceWidth + style.horizontalGap
-    if let prefix, auxiliaryKeySide == .right {
-      keys.append(RimeKeyboardKey(kind: .character(prefix),
-                                  frame: CGRect(x: x, y: 0, width: auxiliaryWidth, height: style.keyHeight),
-                                  label: prefix, accessibilityLabel: RimeLocalization.text("Auxiliary prefix \(prefix)"), isAuxiliary: true))
-      x += auxiliaryWidth + style.horizontalGap
-    }
+    appendSideKey(rightSpaceKey, input: rightInput)
     keys.append(RimeKeyboardKey(kind: .returnKey,
-                                frame: CGRect(x: x, y: 0, width: style.returnKeyWidth,
+                                frame: CGRect(x: x, y: 0, width: returnWidth,
                                               height: style.keyHeight),
                                 label: returnKey.label,
                                 accessibilityLabel: returnKey.label))

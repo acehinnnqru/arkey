@@ -479,3 +479,15 @@
 
 "Resume personal words for {0}" = "恢复向 {0} 自动补入个人词条";
 "Failed to resume personal words for {0}: {1}" = "恢复向 {0} 补入个人词条失败：{1}";
+
+"Keys beside Space" = "空格两侧按键";
+
+"Custom character" = "自定义字符";
+
+"Custom character for {0}" = "{0}的自定义字符";
+
+"Enter one letter, number, or half-width symbol. The last valid character remains active." = "请输入一个字母、数字或半角符号。当前仍使用上次有效的字符。";
+
+"Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "两个按键默认关闭，左右可独立配置。关闭右侧按键后，回车键会加宽，同时为空格键保留足够空间。自定义字符支持单个字母、数字或半角符号，输入结果遵循当前输入方案。";
+
+"Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules." = "输入一个半角特殊字符，全角字符会自动转换。在空格任一侧选择「辅助码键」即可显示。前导符和拼写方案会保存到当前方案与 radical_pinyin，并自动部署。请选择你使用的拼写方案；各方案共用辅助码规则。";

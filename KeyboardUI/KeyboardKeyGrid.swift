@@ -76,14 +76,15 @@ final class KeyboardKeyGrid: UIView {
   private var showsGlobeRow = false
   private var feedback = RimeKeyFeedback.standard
   private var auxiliaryPrefix = ","
-  private var auxiliaryKeySide = RimeKeyboardPreferences.AuxiliaryKeySide.right
+  private var leftSpaceKey = RimeSpaceSideKey()
+  private var rightSpaceKey = RimeSpaceSideKey()
 
   /// Last configuration actually applied. Restyling the whole grid on every keystroke (fonts,
   /// SF Symbol lookups, colours) was a measurable part of the input latency.
   private var applied: (keyLayer: KeyLayer, shift: RimeShiftState, asciiMode: Bool,
                         returnKeyLabel: String, spaceKeyLabel: String, showsGlobeRow: Bool,
                         appearance: UIKeyboardAppearance, language: RimeLanguageKey?,
-                        auxiliaryPrefix: String, auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide)?
+                        auxiliaryPrefix: String, leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey)?
   private var laidOutWidth: CGFloat = 0
 
   /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
@@ -114,7 +115,8 @@ final class KeyboardKeyGrid: UIView {
                  language: RimeLanguageKey? = nil,
                  feedback: RimeKeyFeedback = .standard,
                  auxiliaryPrefix: String = ",",
-                 auxiliaryKeySide: RimeKeyboardPreferences.AuxiliaryKeySide = .right) {
+                 leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+                 rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey()) {
     if self.feedback != feedback {
       self.feedback = feedback
       for entry in buttons { entry.view.feedback = feedback }
@@ -126,7 +128,8 @@ final class KeyboardKeyGrid: UIView {
     let previousShift = applied?.shift
     let previousLayer = applied?.keyLayer
     let previousAuxiliaryPrefix = applied?.auxiliaryPrefix
-    let previousAuxiliaryKeySide = applied?.auxiliaryKeySide
+    let previousLeftSpaceKey = applied?.leftSpaceKey
+    let previousRightSpaceKey = applied?.rightSpaceKey
     if let applied,
        applied.keyLayer == layer,
        applied.shift == shift,
@@ -137,10 +140,11 @@ final class KeyboardKeyGrid: UIView {
        applied.appearance == theme.appearance,
        applied.language == language,
        applied.auxiliaryPrefix == auxiliaryPrefix,
-       applied.auxiliaryKeySide == auxiliaryKeySide {
+       applied.leftSpaceKey == leftSpaceKey,
+       applied.rightSpaceKey == rightSpaceKey {
       return
     }
-    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language, auxiliaryPrefix, auxiliaryKeySide)
+    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language, auxiliaryPrefix, leftSpaceKey, rightSpaceKey)
 
     self.theme = theme
     self.currentLayer = layer
@@ -152,7 +156,8 @@ final class KeyboardKeyGrid: UIView {
     self.language = language
     self.feedback = feedback
     self.auxiliaryPrefix = auxiliaryPrefix
-    self.auxiliaryKeySide = auxiliaryKeySide
+    self.leftSpaceKey = leftSpaceKey
+    self.rightSpaceKey = rightSpaceKey
 
     // Shift changes both the cap and the key value. Update the existing controls in place so a
     // one-shot Shift press does not destroy and recreate the whole keyboard twice.
@@ -161,14 +166,16 @@ final class KeyboardKeyGrid: UIView {
       && previousLayer == layer
       && previousLanguage == language
       && previousAuxiliaryPrefix == auxiliaryPrefix
-      && previousAuxiliaryKeySide == auxiliaryKeySide
+      && previousLeftSpaceKey == leftSpaceKey
+      && previousRightSpaceKey == rightSpaceKey
       && buttons.count == layout.keys.count
     let needsRebuild = buttons.isEmpty
       || buttons.count != layout.keys.count
       || previousLayer != layer
       || previousLanguage != language
       || previousAuxiliaryPrefix != auxiliaryPrefix
-      || previousAuxiliaryKeySide != auxiliaryKeySide
+      || previousLeftSpaceKey != leftSpaceKey
+      || previousRightSpaceKey != rightSpaceKey
     if onlyShiftChanged {
       updateKeys(in: layout)
     } else if needsRebuild {
@@ -212,7 +219,7 @@ final class KeyboardKeyGrid: UIView {
       language: language,
       needsGlobeRow: showsGlobeRow,
       style: Self.rowStyle(width: width),
-      auxiliaryPrefix: auxiliaryPrefix, auxiliaryKeySide: auxiliaryKeySide)
+      auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
   }
 
   private func rebuild() {
@@ -349,10 +356,8 @@ final class KeyboardKeyGrid: UIView {
   private func applyContent(for key: KeyboardKey, to button: KeyButton) {
     switch key {
     case .character(let value), .auxiliary(let value):
-      let uppercase = !value.isEmpty
-        && value.rangeOfCharacter(from: .letters) != nil
-        && shift.isUppercase
-      button.setTitle(uppercase ? value.uppercased() : value, pointSize: 25, verticalOffset: -2)
+      // The layout supplies the exact character sent on tap, including shifted letters.
+      button.setTitle(value, pointSize: 25, verticalOffset: -2)
     case .space:
       button.setTitle(currentLayer == .numbers ? "" : spaceKeyLabel, pointSize: 16)
     case .returnKey:
