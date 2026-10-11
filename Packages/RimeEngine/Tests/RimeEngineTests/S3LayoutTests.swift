@@ -7,6 +7,28 @@ import CoreGraphics
 /// constraint conflict) cannot happen in a value type, and the arithmetic can be checked without a
 /// simulator.
 final class S3LayoutTests: XCTestCase {
+  func testSwitchingInputModeUsesSeparateSideKeysAndRecoversSpace() throws {
+    var preferences = RimeKeyboardPreferences(leftSpaceKey: .init(mode: .character, character: ";"),
+                                             rightSpaceKey: .init(mode: .auxiliary))
+    func bottomRow(isASCII: Bool) -> [RimeKeyboardKey] {
+      let sides = preferences.spaceSideKeys(isASCII: isASCII)
+      return RimeKeyboardLayoutEngine.layout(width: 390,
+        language: RimeLanguageKey(label: isASCII ? "English" : "Chinese", isASCII: isASCII),
+        auxiliaryPrefix: ",", leftSpaceKey: sides.left, rightSpaceKey: sides.right).rows[3].keys
+    }
+    let chinese = bottomRow(isASCII: false)
+    let english = bottomRow(isASCII: true)
+    XCTAssertTrue(chinese.contains { $0.isAuxiliary })
+    XCTAssertFalse(english.contains { $0.isAuxiliary })
+    XCTAssertFalse(english.contains { if case .character = $0.kind { return true }; return false })
+    let chineseSpace = try XCTUnwrap(chinese.first { $0.kind == .space })
+    let englishSpace = try XCTUnwrap(english.first { $0.kind == .space })
+    XCTAssertGreaterThan(englishSpace.frame.width, chineseSpace.frame.width)
+    preferences.englishRightSpaceKey = .init(mode: .character, character: ".")
+    XCTAssertTrue(bottomRow(isASCII: true).contains { $0.kind == .character(".") && !$0.isAuxiliary })
+    XCTAssertEqual(bottomRow(isASCII: false).map(\.kind), chinese.map(\.kind))
+  }
+
   func testPunctuationLabelsPreserveInputAndAuxiliaryKeys() throws {
     let definitions = RimePunctuationKeyLabels(
       halfShape: [".": .map(["commit": .string("。")]),

@@ -8,6 +8,7 @@ import RimeEngine
 /// globe, which is precisely how a layout crash reached a device unnoticed. Rendering the same
 /// views here turns that class of bug into something a screenshot catches.
 struct KeyboardPreview: UIViewRepresentable {
+  var asciiMode = false
   var chineseInputOnly = false
   var auxiliaryPrefix: String = ","
   var leftSpaceKey = RimeSpaceSideKey()
@@ -15,13 +16,13 @@ struct KeyboardPreview: UIViewRepresentable {
 
   func makeUIView(context: Context) -> KeyboardPreviewView {
     let view = KeyboardPreviewView()
-    view.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly)
+    view.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly, asciiMode: asciiMode)
     return view
   }
 
   func updateUIView(_ uiView: KeyboardPreviewView, context: Context) {
     uiView.refreshLocalizedLabels()
-    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly)
+    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly, asciiMode: asciiMode)
   }
 }
 
@@ -67,13 +68,13 @@ final class KeyboardPreviewView: UIView {
   }
 
   func configure(auxiliaryPrefix: String,
-                 leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey, chineseInputOnly: Bool) {
+                 leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey, chineseInputOnly: Bool, asciiMode: Bool = false) {
     keyGrid.configure(theme: KeyboardTheme.current(for: .light),
                       layer: .letters,
-                      asciiMode: false,
+                      asciiMode: asciiMode,
                       returnKeyLabel: RimeLocalization.text("Return"),
                       showsGlobeRow: true,
-                      language: RimeLanguageKey(label: "中", isASCII: false),
+                      language: RimeLanguageKey(label: asciiMode ? "英" : "中", isASCII: asciiMode),
                       auxiliaryPrefix: auxiliaryPrefix,
                       leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly)
   }

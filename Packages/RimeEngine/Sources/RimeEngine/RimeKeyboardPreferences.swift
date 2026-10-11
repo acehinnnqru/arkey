@@ -116,8 +116,11 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     normalizedAuxiliaryPrefix(value) != nil
   }
 
+  /// Existing storage keys remain the Chinese layout settings for backward compatibility.
   public var leftSpaceKey: RimeSpaceSideKey
   public var rightSpaceKey: RimeSpaceSideKey
+  public var englishLeftSpaceKey: RimeSpaceSideKey
+  public var englishRightSpaceKey: RimeSpaceSideKey
   public var auxiliaryPrefix: String
   /// Retained for decoding older exports; side-key visibility is configured independently.
   public var auxiliaryKeySide: AuxiliaryKeySide
@@ -137,6 +140,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
               auxiliaryKeySide: AuxiliaryKeySide = .right,
               leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
               rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+              englishLeftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+              englishRightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
               paletteMode: PaletteMode = .followHost,
               compositionDisplay: CompositionDisplay = .rawInput,
               keyClickEnabled: Bool = true,
@@ -150,6 +155,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     self.auxiliaryKeySide = auxiliaryKeySide
     self.leftSpaceKey = leftSpaceKey
     self.rightSpaceKey = rightSpaceKey
+    self.englishLeftSpaceKey = Self.englishSideKey(englishLeftSpaceKey)
+    self.englishRightSpaceKey = Self.englishSideKey(englishRightSpaceKey)
     self.compositionDisplay = compositionDisplay
     self.paletteMode = paletteMode
     self.keyClickEnabled = keyClickEnabled
@@ -159,6 +166,17 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     self.chineseInputOnly = chineseInputOnly
     self.deleteRepeatDelay = deleteRepeatDelay
     self.deleteRepeatInterval = deleteRepeatInterval
+  }
+
+  /// Resolve from the engine input mode, independently of the interface language.
+  public func spaceSideKeys(isASCII: Bool) -> (left: RimeSpaceSideKey, right: RimeSpaceSideKey) {
+    isASCII
+      ? (Self.englishSideKey(englishLeftSpaceKey), Self.englishSideKey(englishRightSpaceKey))
+      : (leftSpaceKey, rightSpaceKey)
+  }
+
+  private static func englishSideKey(_ key: RimeSpaceSideKey) -> RimeSpaceSideKey {
+    key.mode == .auxiliary ? RimeSpaceSideKey(mode: .disabled, character: key.character) : key
   }
 
   public static let standard = RimeKeyboardPreferences()
@@ -171,6 +189,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     let standard = RimeKeyboardPreferences()
     leftSpaceKey = (try? container.decode(RimeSpaceSideKey.self, forKey: .leftSpaceKey)) ?? standard.leftSpaceKey
     rightSpaceKey = (try? container.decode(RimeSpaceSideKey.self, forKey: .rightSpaceKey)) ?? standard.rightSpaceKey
+    englishLeftSpaceKey = Self.englishSideKey((try? container.decode(RimeSpaceSideKey.self, forKey: .englishLeftSpaceKey)) ?? standard.englishLeftSpaceKey)
+    englishRightSpaceKey = Self.englishSideKey((try? container.decode(RimeSpaceSideKey.self, forKey: .englishRightSpaceKey)) ?? standard.englishRightSpaceKey)
     let prefix = try container.decodeIfPresent(String.self, forKey: .auxiliaryPrefix) ?? standard.auxiliaryPrefix
     auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(prefix) ?? standard.auxiliaryPrefix
     auxiliaryKeySide = try container.decodeIfPresent(AuxiliaryKeySide.self, forKey: .auxiliaryKeySide)

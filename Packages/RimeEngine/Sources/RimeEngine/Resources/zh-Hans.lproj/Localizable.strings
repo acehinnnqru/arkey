@@ -495,3 +495,15 @@
 "Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available." = "隐藏中英切换键并加宽空格。可通过地球键切换到其他键盘。数字、符号和输入方案的中英混输仍可使用。";
 
 "These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style." = "这里设置的是方案启动时的默认状态，部署完成后，下次打开键盘时生效。半角模式也可以使用中文标点；标点风格由方案的中英文标点开关控制。";
+
+"Chinese keyboard — keys beside Space" = "中文键盘 — 空格两侧按键";
+
+"English keyboard — keys beside Space" = "英文键盘 — 空格两侧按键";
+
+"Both keys are off by default. English input supports custom characters only; these settings apply when you switch to English." = "两侧按键默认关闭。英文输入仅支持自定义字符；切换到英文时应用这些设置。";
+
+"Chinese keyboard" = "中文键盘";
+
+"English keyboard" = "英文键盘";
+
+"Input mode" = "输入模式";

@@ -18,6 +18,42 @@ final class S3PreferencesTests: XCTestCase {
     defaults.removePersistentDomain(forName: suite)
   }
 
+  func testLegacySideKeysRemainChineseAndEnglishDefaultsOff() throws {
+    let data = Data(#"{"leftSpaceKey":{"mode":"character","character":";"},"rightSpaceKey":{"mode":"auxiliary","character":","},"hapticsEnabled":false}"#.utf8)
+    let preferences = try RimeJSON.decode(RimeKeyboardPreferences.self, from: data)
+    XCTAssertEqual(preferences.spaceSideKeys(isASCII: false).left.input(auxiliaryPrefix: ","), ";")
+    XCTAssertEqual(preferences.spaceSideKeys(isASCII: false).right.mode, .auxiliary)
+    XCTAssertEqual(preferences.spaceSideKeys(isASCII: true).left.mode, .disabled)
+    XCTAssertEqual(preferences.spaceSideKeys(isASCII: true).right.mode, .disabled)
+    XCTAssertFalse(preferences.hapticsEnabled)
+  }
+
+  func testEnglishSideKeysPersistIndependentlyAndReset() throws {
+    var preferences = RimeKeyboardPreferences(leftSpaceKey: .init(mode: .auxiliary))
+    preferences.englishLeftSpaceKey = .init(mode: .character, character: ",")
+    preferences.englishRightSpaceKey = .init(mode: .character, character: ".")
+    store.value = preferences
+    XCTAssertEqual(store.value, preferences)
+    let imported = try RimeJSON.decode(RimeKeyboardPreferences.self, from: RimeJSON.encode(preferences))
+    XCTAssertEqual(imported, preferences)
+    XCTAssertEqual(imported.spaceSideKeys(isASCII: false).left.mode, .auxiliary)
+    XCTAssertEqual(imported.spaceSideKeys(isASCII: false).right.mode, .disabled)
+    XCTAssertEqual(imported.spaceSideKeys(isASCII: true).left.character, ",")
+    XCTAssertEqual(imported.spaceSideKeys(isASCII: true).right.character, ".")
+    store.reset()
+    XCTAssertEqual(store.value.englishLeftSpaceKey.mode, .disabled)
+    XCTAssertEqual(store.value.englishRightSpaceKey.mode, .disabled)
+  }
+
+  func testEnglishAuxiliarySettingsAreIgnoredWithoutLosingChineseSettings() throws {
+    let data = Data(#"{"rightSpaceKey":{"mode":"auxiliary","character":","},"englishLeftSpaceKey":{"mode":"auxiliary","character":";"}}"#.utf8)
+    var preferences = try RimeJSON.decode(RimeKeyboardPreferences.self, from: data)
+    XCTAssertEqual(preferences.englishLeftSpaceKey.mode, .disabled)
+    preferences.englishRightSpaceKey = .init(mode: .auxiliary)
+    XCTAssertEqual(preferences.spaceSideKeys(isASCII: true).right.mode, .disabled)
+    XCTAssertEqual(preferences.spaceSideKeys(isASCII: false).right.mode, .auxiliary)
+  }
+
   func testChineseInputOnlyDefaultsOffAndPersistsWithoutResettingOtherSettings() throws {
     XCTAssertFalse(store.value.chineseInputOnly)
     defaults.set(Data(#"{"hapticsEnabled":false}"#.utf8),

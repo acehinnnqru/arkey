@@ -17,6 +17,7 @@ struct KeyboardSettingsView: View {
       if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       inputModeSection
       spaceSideSection
+      englishSpaceSideSection
       auxiliarySection
       compositionSection
       appearanceSection
@@ -59,9 +60,24 @@ struct KeyboardSettingsView: View {
         get: { model.keyboardPreferences.rightSpaceKey },
         set: { value in model.updatePreferences { $0.rightSpaceKey = value } }))
     } header: {
-      Text(RimeLocalization.text("Keys beside Space"))
+      Text(RimeLocalization.text("Chinese keyboard — keys beside Space"))
     } footer: {
       Text(RimeLocalization.text("Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme."))
+    }
+  }
+
+  private var englishSpaceSideSection: some View {
+    Section {
+      SpaceSideKeySettings(title: RimeLocalization.text("Left of Space"), configuration: Binding(
+        get: { model.keyboardPreferences.englishLeftSpaceKey },
+        set: { value in model.updatePreferences { $0.englishLeftSpaceKey = value } }), allowsAuxiliary: false)
+      SpaceSideKeySettings(title: RimeLocalization.text("Right of Space"), configuration: Binding(
+        get: { model.keyboardPreferences.englishRightSpaceKey },
+        set: { value in model.updatePreferences { $0.englishRightSpaceKey = value } }), allowsAuxiliary: false)
+    } header: {
+      Text(RimeLocalization.text("English keyboard — keys beside Space"))
+    } footer: {
+      Text(RimeLocalization.text("Both keys are off by default. English input supports custom characters only; these settings apply when you switch to English."))
     }
   }
 
@@ -191,6 +207,7 @@ private struct SpaceSideKeySettings: View {
   @Environment(\.locale) private var interfaceLocale
   let title: String
   @Binding var configuration: RimeSpaceSideKey
+  var allowsAuxiliary = true
   @State private var draft = ""
 
   var body: some View {
@@ -198,7 +215,9 @@ private struct SpaceSideKeySettings: View {
     Group {
       Picker(title, selection: $configuration.mode) {
         Text(RimeLocalization.text("Off")).tag(RimeSpaceSideKey.Mode.disabled)
-        Text(RimeLocalization.text("Auxiliary key")).tag(RimeSpaceSideKey.Mode.auxiliary)
+        if allowsAuxiliary {
+          Text(RimeLocalization.text("Auxiliary key")).tag(RimeSpaceSideKey.Mode.auxiliary)
+        }
         Text(RimeLocalization.text("Custom character")).tag(RimeSpaceSideKey.Mode.character)
       }
       // Attach draft synchronization to the stable picker, not conditional validation rows.

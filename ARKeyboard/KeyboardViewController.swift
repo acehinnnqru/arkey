@@ -883,6 +883,7 @@ final class KeyboardViewController: UIInputViewController {
     // keyboard the next time it appears — no deploy, and nothing for the extension to write.
     feedbackPreferences = preferences
 
+    let sideKeys = preferences.spaceSideKeys(isASCII: asciiMode)
     keyGrid.configure(theme: theme,
                       layer: keyLayer,
                       asciiMode: asciiMode,
@@ -893,8 +894,8 @@ final class KeyboardViewController: UIInputViewController {
                       language: languageKey ?? RimeLanguageKey(label: asciiMode ? "英" : "中", isASCII: asciiMode),
                       feedback: preferences.feedback,
                       auxiliaryPrefix: schemaAuxiliaryPrefix ?? preferences.auxiliaryPrefix,
-                      leftSpaceKey: preferences.leftSpaceKey,
-                      rightSpaceKey: preferences.rightSpaceKey,
+                      leftSpaceKey: sideKeys.left,
+                      rightSpaceKey: sideKeys.right,
                       chineseInputOnly: preferences.chineseInputOnly)
   }
 
