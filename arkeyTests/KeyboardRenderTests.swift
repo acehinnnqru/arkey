@@ -22,6 +22,79 @@ import UIKit
 /// defect in the reader it drives: a glyph's antialiased edge can match the material's luminance and split
 /// its cap into three rectangles, which is fixed in RimeKeyboardCapture.keyRects (one key, one rectangle).
 final class KeyboardRenderTests: XCTestCase {
+  func testFullwidthKeyInkIsCenteredAtNormalAndNarrowWidths() throws {
+    let fullwidth = (0xFF01...0xFF5E).compactMap(UnicodeScalar.init).map(String.init)
+    let labels = fullwidth + ["、", "。", "「", "」", "『", "』", "【", "】", "《", "》",
+                              "〈", "〉", "“", "”", "‘", "’", "“”", "‘’", "（）", "￥"]
+    let button = KeyButton(frame: .zero)
+    button.apply(theme: .current(for: .dark), style: .letter, role: .letter)
+    for width: CGFloat in [25, 36, 70] {
+      button.frame = CGRect(x: 0, y: 0, width: width, height: 45)
+      for label in labels {
+        button.setTitle(label, pointSize: 25, verticalOffset: -2)
+        button.layoutIfNeeded()
+        XCTAssertEqual(try renderedInkCenterX(button), width / 2, accuracy: 1,
+                       "Visible ink must be centered: \(label), width \(width)")
+      }
+      // Reusing a cap for ASCII must remove the fullwidth offset.
+      button.setTitle("，", pointSize: 25, verticalOffset: -2)
+      button.layoutIfNeeded()
+      button.setTitle("H", pointSize: 25, verticalOffset: -2)
+      button.layoutIfNeeded()
+      XCTAssertEqual(try renderedInkCenterX(button), width / 2, accuracy: 1)
+    }
+  }
+
+  func testChineseCommaSideKeyInkIsCenteredWithAndWithoutLanguageKey() throws {
+    for width: CGFloat in [320, 430] {
+      let grid = KeyboardKeyGrid(frame: CGRect(x: 0, y: 0, width: width, height: 213))
+      grid.punctuationLabels = [",": "，"]
+      for chineseOnly in [false, true, false] {
+        grid.configure(theme: .current(for: .dark), layer: .letters, asciiMode: false,
+          returnKeyLabel: "Return", showsGlobeRow: false,
+          leftSpaceKey: RimeSpaceSideKey(mode: .character, character: ","),
+          chineseInputOnly: chineseOnly)
+        grid.layoutIfNeeded()
+        let comma = try XCTUnwrap(grid.subviews.compactMap { $0 as? KeyButton }.first {
+          $0.key == .character(",")
+        })
+        comma.layoutIfNeeded()
+        XCTAssertEqual(comma.title, "，")
+        XCTAssertEqual(try renderedInkCenterX(comma), comma.bounds.midX, accuracy: 1)
+        var received: KeyboardKey?
+        grid.onKey = { received = $0 }
+        comma.sendActions(for: .primaryActionTriggered)
+        XCTAssertEqual(received, .character(","))
+      }
+    }
+  }
+
+  /// Measure the rendered white glyph, independently of the label's layout rectangle.
+  private func renderedInkCenterX(_ button: KeyButton) throws -> CGFloat {
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 3
+    let image = UIGraphicsImageRenderer(size: button.bounds.size, format: format).image {
+      button.layer.render(in: $0.cgContext)
+    }
+    let cgImage = try XCTUnwrap(image.cgImage)
+    let width = cgImage.width
+    let height = cgImage.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    try pixels.withUnsafeMutableBytes { bytes in
+      let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: width, height: height,
+        bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+      context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+    }
+    var columns: [Int] = []
+    for y in 0..<height {
+      for x in 0..<width where pixels[(y * width + x) * 4] > 180 {
+        columns.append(x)
+      }
+    }
+    return CGFloat(try XCTUnwrap(columns.min()) + XCTUnwrap(columns.max()) + 1) / 2 / format.scale
+  }
+
   func testLetterTypographyMatchesDeviceReference() throws {
     let reference = ["q": CGSize(width: 33, height: 52), "w": CGSize(width: 51, height: 38),
                      "e": CGSize(width: 31, height: 39), "t": CGSize(width: 20, height: 48),

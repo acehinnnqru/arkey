@@ -1,4 +1,5 @@
 import UIKit
+import CoreText
 import RimeEngine
 
 /// One key cap. Drawn as a plain view so that the system-like fill, corner radius and
@@ -12,7 +13,7 @@ final class KeyButton: UIControl {
     case plain
   }
 
-  private let titleLabel = UILabel()
+  private let titleLabel = KeyTitleLabel()
   private let imageView = UIImageView()
   private var titleCenterY: NSLayoutConstraint!
   private var style: Style = .letter
@@ -98,11 +99,14 @@ final class KeyButton: UIControl {
     titleLabel.text = title
     titleLabel.font = .systemFont(ofSize: pointSize, weight: .regular)
     titleCenterY.constant = verticalOffset
+    titleLabel.prepareCenteredGlyphs()
     imageView.image = nil
+    setNeedsLayout()
   }
 
   func setSymbol(_ name: String, pointSize: CGFloat = 20) {
     titleLabel.text = nil
+    titleLabel.prepareCenteredGlyphs()
     imageView.image = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular))
   }
 
@@ -176,5 +180,52 @@ final class KeyButton: UIControl {
     repeatDelayWorkItem = nil
     repeatTimer?.invalidate()
     repeatTimer = nil
+  }
+}
+
+/// Fullwidth punctuation carries asymmetric spacing inside its advance width. Use the same
+/// Core Text line to measure and draw it, rather than combining Core Text bounds with UILabel's
+/// different fallback-font shaping. Ordinary labels retain UIKit typography.
+private final class KeyTitleLabel: UILabel {
+  private var centeredLine: CTLine?
+  private var inkBounds = CGRect.zero
+  private var advance: CGFloat = 0
+
+  func prepareCenteredGlyphs() {
+    centeredLine = nil
+    if let text, text.unicodeScalars.contains(where: {
+      (0x3000...0x303F).contains($0.value) || (0xFF01...0xFF60).contains($0.value)
+        || (0xFFE0...0xFFE6).contains($0.value) || (0x2018...0x201F).contains($0.value)
+    }) {
+      let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [
+        .font: font!, NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
+      ]))
+      let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+      if !ink.isNull, !ink.isEmpty {
+        centeredLine = line
+        inkBounds = ink
+        advance = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+      }
+    }
+    setNeedsDisplay()
+  }
+
+  override func drawText(in rect: CGRect) {
+    guard let line = centeredLine, let context = UIGraphicsGetCurrentContext() else {
+      super.drawText(in: rect)
+      return
+    }
+    // Fit pairs as a whole, including on narrow keys. Keep the normal punctuation baseline;
+    // only the horizontal center is based on the visible outline.
+    let scale = min(1, rect.width / max(advance, inkBounds.width))
+    let baseline = rect.midY + (font.ascender + font.descender) * scale / 2
+    context.saveGState()
+    context.setFillColor(textColor.cgColor)
+    context.textMatrix = .identity
+    context.translateBy(x: rect.midX - inkBounds.midX * scale, y: baseline)
+    context.scaleBy(x: scale, y: -scale)
+    context.textPosition = .zero
+    CTLineDraw(line, context)
+    context.restoreGState()
   }
 }
