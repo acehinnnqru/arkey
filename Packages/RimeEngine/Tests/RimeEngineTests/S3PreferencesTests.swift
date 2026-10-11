@@ -18,6 +18,20 @@ final class S3PreferencesTests: XCTestCase {
     defaults.removePersistentDomain(forName: suite)
   }
 
+  func testChineseInputOnlyDefaultsOffAndPersistsWithoutResettingOtherSettings() throws {
+    XCTAssertFalse(store.value.chineseInputOnly)
+    defaults.set(Data(#"{"hapticsEnabled":false}"#.utf8),
+                 forKey: RimeKeyboardPreferencesStore.storageKey)
+    XCTAssertFalse(store.value.chineseInputOnly)
+    var preferences = store.value
+    preferences.chineseInputOnly = true
+    store.value = preferences
+    XCTAssertTrue(store.value.chineseInputOnly)
+    XCTAssertFalse(store.value.hapticsEnabled)
+    store.reset()
+    XCTAssertFalse(store.value.chineseInputOnly)
+  }
+
   func testAFreshStoreHandsBackTheShippedDefaults() {
     XCTAssertEqual(store.value, .standard)
     XCTAssertEqual(store.value.paletteMode, .followHost, "the material path is the recommendation")

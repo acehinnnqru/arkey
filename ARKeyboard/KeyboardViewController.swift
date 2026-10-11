@@ -389,6 +389,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         try setup.engine.clearComposition()
         KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
         try KeyboardEngine.ensureInputSchema(setup.engine)
+        if preferences.chineseInputOnly { try setup.engine.setOption("ascii_mode", false) }
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.configuration",
                                             message: try setup.engine.inputConfigurationSummary()))
         engine = setup.engine
@@ -450,6 +451,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func toggleAsciiMode() {
+    guard !preferences.chineseInputOnly else { return }
     if engine == nil { prepareEngine() }
     guard let engine else { return }
     do {
@@ -609,7 +611,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     let start = DispatchTime.now().uptimeNanoseconds
     do {
-      let output = try engine.processKey(keysym)
+      let output = try engine.processKey(keysym, chineseInputOnly: preferences.chineseInputOnly)
       if output.needsLiteralFallback {
         textDocumentProxy.insertText(value)
         markedText = nil
@@ -632,7 +634,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     guard let keysym = value.first.flatMap(RimeKey.ascii) else { return }
     let start = DispatchTime.now().uptimeNanoseconds
     do {
-      let output = try engine.processKey(keysym)
+      let output = try engine.processKey(keysym, chineseInputOnly: preferences.chineseInputOnly)
       if output.needsLiteralFallback { textDocumentProxy.insertText(value) }
       apply(output)
       recordKeyLatency(since: start)
@@ -648,7 +650,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     let start = DispatchTime.now().uptimeNanoseconds
     do {
-      let output = try engine.processKey(keysym)
+      let output = try engine.processKey(keysym, chineseInputOnly: preferences.chineseInputOnly)
       if output.needsLiteralFallback, let fallback {
         textDocumentProxy.insertText(fallback)
       }
@@ -885,7 +887,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                       feedback: preferences.feedback,
                       auxiliaryPrefix: schemaAuxiliaryPrefix ?? preferences.auxiliaryPrefix,
                       leftSpaceKey: preferences.leftSpaceKey,
-                      rightSpaceKey: preferences.rightSpaceKey)
+                      rightSpaceKey: preferences.rightSpaceKey,
+                      chineseInputOnly: preferences.chineseInputOnly)
   }
 
   /// The switch declaration belongs to the schema, not to each keystroke. Reading its

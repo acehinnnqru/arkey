@@ -69,6 +69,7 @@ final class KeyboardKeyGrid: UIView {
   private var theme = KeyboardTheme.current(for: .default)
   private var currentLayer: KeyLayer = .letters
   private var asciiMode = false
+  private var chineseInputOnly = false
   private var shift: RimeShiftState = .off
   private var language: RimeLanguageKey?
   private var returnKeyLabel = RimeLocalization.text("Return")
@@ -84,7 +85,7 @@ final class KeyboardKeyGrid: UIView {
   private var applied: (keyLayer: KeyLayer, shift: RimeShiftState, asciiMode: Bool,
                         returnKeyLabel: String, spaceKeyLabel: String, showsGlobeRow: Bool,
                         appearance: UIKeyboardAppearance, language: RimeLanguageKey?,
-                        auxiliaryPrefix: String, leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey)?
+                        auxiliaryPrefix: String, leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey, chineseInputOnly: Bool)?
   private var laidOutWidth: CGFloat = 0
 
   /// The style the grid lays its rows out with: the candidate slot and the bottom inset belong to
@@ -116,7 +117,8 @@ final class KeyboardKeyGrid: UIView {
                  feedback: RimeKeyFeedback = .standard,
                  auxiliaryPrefix: String = ",",
                  leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
-                 rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey()) {
+                 rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+                 chineseInputOnly: Bool = false) {
     if self.feedback != feedback {
       self.feedback = feedback
       for entry in buttons { entry.view.feedback = feedback }
@@ -124,6 +126,7 @@ final class KeyboardKeyGrid: UIView {
     // The 中/英 label is part of the *key*, not a style applied to it, so a label that changes on its own
     // needs new keys rather than a restyle — and it is the one applied field the comparison below did not
     // look at, which kept the old word on the cap (found by KeyboardLayerTests, round 148).
+    let previousChineseInputOnly = applied?.chineseInputOnly
     let previousLanguage = applied?.language
     let previousShift = applied?.shift
     let previousLayer = applied?.keyLayer
@@ -131,6 +134,7 @@ final class KeyboardKeyGrid: UIView {
     let previousLeftSpaceKey = applied?.leftSpaceKey
     let previousRightSpaceKey = applied?.rightSpaceKey
     if let applied,
+       applied.chineseInputOnly == chineseInputOnly,
        applied.keyLayer == layer,
        applied.shift == shift,
        applied.asciiMode == asciiMode,
@@ -144,11 +148,12 @@ final class KeyboardKeyGrid: UIView {
        applied.rightSpaceKey == rightSpaceKey {
       return
     }
-    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language, auxiliaryPrefix, leftSpaceKey, rightSpaceKey)
+    applied = (layer, shift, asciiMode, returnKeyLabel, spaceKeyLabel, showsGlobeRow, theme.appearance, language, auxiliaryPrefix, leftSpaceKey, rightSpaceKey, chineseInputOnly)
 
     self.theme = theme
     self.currentLayer = layer
     self.asciiMode = asciiMode
+    self.chineseInputOnly = chineseInputOnly
     self.shift = shift
     self.returnKeyLabel = returnKeyLabel
     self.spaceKeyLabel = spaceKeyLabel
@@ -163,6 +168,7 @@ final class KeyboardKeyGrid: UIView {
     // one-shot Shift press does not destroy and recreate the whole keyboard twice.
     let layout = currentLayout(width: max(laidOutWidth, 1))
     let onlyShiftChanged = previousShift != shift
+      && previousChineseInputOnly == chineseInputOnly
       && previousLayer == layer
       && previousLanguage == language
       && previousAuxiliaryPrefix == auxiliaryPrefix
@@ -171,6 +177,7 @@ final class KeyboardKeyGrid: UIView {
       && buttons.count == layout.keys.count
     let needsRebuild = buttons.isEmpty
       || buttons.count != layout.keys.count
+      || previousChineseInputOnly != chineseInputOnly
       || previousLayer != layer
       || previousLanguage != language
       || previousAuxiliaryPrefix != auxiliaryPrefix
@@ -219,7 +226,8 @@ final class KeyboardKeyGrid: UIView {
       language: language,
       needsGlobeRow: showsGlobeRow,
       style: Self.rowStyle(width: width),
-      auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
+      auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
+      chineseInputOnly: chineseInputOnly)
   }
 
   private func rebuild() {

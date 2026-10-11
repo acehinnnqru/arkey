@@ -255,7 +255,8 @@ public enum RimeKeyboardLayoutEngine {
                             style: RimeKeyboardStyle = .measured,
                             auxiliaryPrefix: String? = nil,
                             leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
-                            rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey()) -> RimeKeyboardLayout {
+                            rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
+                            chineseInputOnly: Bool = false) -> RimeKeyboardLayout {
     var y = style.candidateSlotHeight
     var rows: [RimeKeyboardRow] = []
 
@@ -270,7 +271,8 @@ public enum RimeKeyboardLayoutEngine {
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .numbers,
                                                           style: style, returnKey: returnKey,
                                                           language: language, auxiliaryPrefix: auxiliaryPrefix,
-                                                          leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)))
+                                                          leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
+                                                          chineseInputOnly: chineseInputOnly)))
     case .numbers, .symbols:
       let first = layer == .numbers
         ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
@@ -295,7 +297,8 @@ public enum RimeKeyboardLayoutEngine {
       rows.append(row(y: y, style: style, keys: bottomRow(width: width, layer: .letters,
                                                           style: style, returnKey: returnKey,
                                                           language: language, auxiliaryPrefix: auxiliaryPrefix,
-                                                          leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)))
+                                                          leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
+                                                          chineseInputOnly: chineseInputOnly)))
     }
 
     y += style.keyHeight
@@ -431,7 +434,8 @@ public enum RimeKeyboardLayoutEngine {
                                 language: RimeLanguageKey?,
                                 auxiliaryPrefix: String?,
                                 leftSpaceKey: RimeSpaceSideKey,
-                                rightSpaceKey: RimeSpaceSideKey) -> [RimeKeyboardKey] {
+                                rightSpaceKey: RimeSpaceSideKey,
+                                chineseInputOnly: Bool) -> [RimeKeyboardKey] {
     var keys: [RimeKeyboardKey] = []
     var x = style.sideMargin
     keys.append(RimeKeyboardKey(kind: .layer(layer),
@@ -440,19 +444,21 @@ public enum RimeKeyboardLayoutEngine {
                                 label: layer.switchLabel,
                                 accessibilityLabel: layer.accessibilityLabel))
     x += style.layerKeyWidth + style.horizontalGap
-    if let language {
-      keys.append(RimeKeyboardKey(kind: .language(language),
-                                  frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
-                                                height: style.keyHeight),
-                                  label: language.label,
-                                  accessibilityLabel: language.isASCII ? RimeLocalization.text("Switch to Chinese input") : RimeLocalization.text("Switch to English input")))
-    } else {
-      keys.append(RimeKeyboardKey(kind: .emoji,
-                                  frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
-                                                height: style.keyHeight),
-                                  label: "☺", accessibilityLabel: RimeLocalization.text("Emoji")))
+    if !chineseInputOnly {
+      if let language {
+        keys.append(RimeKeyboardKey(kind: .language(language),
+                                    frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
+                                                  height: style.keyHeight),
+                                    label: language.label,
+                                    accessibilityLabel: language.isASCII ? RimeLocalization.text("Switch to Chinese input") : RimeLocalization.text("Switch to English input")))
+      } else {
+        keys.append(RimeKeyboardKey(kind: .emoji,
+                                    frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
+                                                  height: style.keyHeight),
+                                    label: "☺", accessibilityLabel: RimeLocalization.text("Emoji")))
+      }
+      x += style.emojiKeyWidth + style.horizontalGap
     }
-    x += style.emojiKeyWidth + style.horizontalGap
     let leftInput = leftSpaceKey.input(auxiliaryPrefix: auxiliaryPrefix)
     let rightInput = rightSpaceKey.input(auxiliaryPrefix: auxiliaryPrefix)
     let extraKeyCount = CGFloat([leftInput, rightInput].compactMap { $0 }.count)
@@ -466,7 +472,9 @@ public enum RimeKeyboardLayoutEngine {
             max(0, (availableSpaceWidth - style.returnKeyWidth) / 2))
       : 0
     let returnWidth = style.returnKeyWidth + returnExpansion
-    let spaceWidth = availableSpaceWidth - returnExpansion
+    // Give the entire removed key and its gap to Space; keep Return unchanged.
+    let recoveredWidth = chineseInputOnly ? style.emojiKeyWidth + style.horizontalGap : 0
+    let spaceWidth = availableSpaceWidth - returnExpansion + recoveredWidth
     func appendSideKey(_ configuration: RimeSpaceSideKey, input: String?) {
       guard let input else { return }
       let isAuxiliary = configuration.mode == .auxiliary

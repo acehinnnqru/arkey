@@ -55,6 +55,28 @@ final class S4InputTests: XCTestCase {
     try? FileManager.default.removeItem(at: scratch)
   }
 
+  func testChineseOnlyRestoresCompositionFromASCIIAndPreservesCommit() throws {
+    try engine.openSession()
+    try engine.setOption("ascii_mode", true)
+    let output = try engine.processKey(Int32(Character("n").asciiValue!), chineseInputOnly: true)
+    XCTAssertEqual(output.status?.isAsciiMode, false)
+    XCTAssertEqual(output.input, "n")
+    XCTAssertNil(output.commit)
+    var composing = output
+    for character in "ihao" {
+      composing = try engine.processKey(Int32(character.asciiValue!), chineseInputOnly: true)
+    }
+    XCTAssertEqual(composing.input, "nihao")
+    XCTAssertFalse(composing.candidates.isEmpty)
+    let committed = try engine.processKey(RimeKey.returnKey, chineseInputOnly: true)
+    XCTAssertEqual(committed.commit, "nihao")
+    XCTAssertNil(try engine.refresh().commit)
+    try engine.setOption("ascii_mode", true)
+    let english = try engine.processKey(Int32(Character("a").asciiValue!))
+    XCTAssertEqual(english.status?.isAsciiMode, true)
+    XCTAssertTrue(english.needsLiteralFallback)
+  }
+
   private func makeDriver() throws -> RimeInputDriver {
     try engine.openSession()
     return RimeInputDriver(engine: engine)

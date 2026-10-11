@@ -127,6 +127,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public var keyClickEnabled: Bool
   public var hapticsEnabled: Bool
   public var calloutEnabled: Bool
+  public var chineseInputOnly: Bool
   public var capsLockEnabled: Bool
   /// The calibrated repeat timing, so a device pass changes one stored value rather than a constant.
   public var deleteRepeatDelay: TimeInterval
@@ -142,6 +143,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
               hapticsEnabled: Bool = true,
               calloutEnabled: Bool = true,
               capsLockEnabled: Bool = true,
+              chineseInputOnly: Bool = false,
               deleteRepeatDelay: TimeInterval = RimeKeyFeedback.standard.deleteRepeatDelay,
               deleteRepeatInterval: TimeInterval = RimeKeyFeedback.standard.deleteRepeatInterval) {
     self.auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(auxiliaryPrefix) ?? ","
@@ -154,6 +156,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     self.hapticsEnabled = hapticsEnabled
     self.calloutEnabled = calloutEnabled
     self.capsLockEnabled = capsLockEnabled
+    self.chineseInputOnly = chineseInputOnly
     self.deleteRepeatDelay = deleteRepeatDelay
     self.deleteRepeatInterval = deleteRepeatInterval
   }
@@ -182,6 +185,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
       ?? standard.hapticsEnabled
     calloutEnabled = try container.decodeIfPresent(Bool.self, forKey: .calloutEnabled)
       ?? standard.calloutEnabled
+    chineseInputOnly = try container.decodeIfPresent(Bool.self, forKey: .chineseInputOnly)
+      ?? standard.chineseInputOnly
     capsLockEnabled = try container.decodeIfPresent(Bool.self, forKey: .capsLockEnabled)
       ?? standard.capsLockEnabled
     deleteRepeatDelay = try container.decodeIfPresent(TimeInterval.self, forKey: .deleteRepeatDelay)

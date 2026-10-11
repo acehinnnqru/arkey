@@ -19,6 +19,46 @@ final class S3LayoutTests: XCTestCase {
                                     returnKey: returnKey, needsGlobeRow: globe, style: style)
   }
 
+  func testChineseOnlyGivesExactlyTheRemovedKeyWidthAndGapToSpace() throws {
+    let configurations = [RimeSpaceSideKey(), RimeSpaceSideKey(mode: .character, character: ";"),
+                          RimeSpaceSideKey(mode: .auxiliary)]
+    for width: CGFloat in [320, 375, 430] {
+      var fitted = RimeKeyboardStyle.systemAligned
+      fitted.spaceKeyWidth = width - 2 * fitted.sideMargin - 3 * fitted.horizontalGap
+        - fitted.layerKeyWidth - fitted.emojiKeyWidth - fitted.returnKeyWidth
+      for layer in RimeKeyboardLayer.allCases {
+        for left in configurations {
+          for right in configurations {
+            for language in [nil, RimeLanguageKey(label: "English", isASCII: true)] {
+              let original = RimeKeyboardLayoutEngine.layout(width: width, layer: layer,
+                language: language, style: fitted, auxiliaryPrefix: ",", leftSpaceKey: left,
+                rightSpaceKey: right).rows[3].keys
+              let keys = RimeKeyboardLayoutEngine.layout(width: width, layer: layer,
+                language: language, style: fitted, auxiliaryPrefix: ",", leftSpaceKey: left,
+                rightSpaceKey: right, chineseInputOnly: true).rows[3].keys
+              XCTAssertEqual(keys.count, original.count - 1)
+              XCTAssertFalse(keys.contains { key in
+                switch key.kind { case .language, .emoji: return true; default: return false }
+              })
+              let space = try XCTUnwrap(keys.first { $0.kind == .space })
+              let originalSpace = try XCTUnwrap(original.first { $0.kind == .space })
+              XCTAssertEqual(space.frame.width - originalSpace.frame.width,
+                             fitted.emojiKeyWidth + fitted.horizontalGap, accuracy: 0.01)
+              let enter = try XCTUnwrap(keys.last)
+              let originalEnter = try XCTUnwrap(original.last)
+              XCTAssertEqual(enter.frame.minX, originalEnter.frame.minX, accuracy: 0.01)
+              XCTAssertEqual(enter.frame.size, originalEnter.frame.size)
+              for (previous, next) in zip(keys, keys.dropFirst()) {
+                XCTAssertGreaterThan(previous.frame.width, 0)
+                XCTAssertEqual(next.frame.minX - previous.frame.maxX, fitted.horizontalGap, accuracy: 0.01)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   func testIndependentSideKeysAcrossLayersAndPhoneWidths() throws {
     let configurations = [RimeSpaceSideKey(), RimeSpaceSideKey(mode: .character, character: ";"),
                           RimeSpaceSideKey(mode: .auxiliary)]

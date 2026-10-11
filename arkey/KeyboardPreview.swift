@@ -8,19 +8,20 @@ import RimeEngine
 /// globe, which is precisely how a layout crash reached a device unnoticed. Rendering the same
 /// views here turns that class of bug into something a screenshot catches.
 struct KeyboardPreview: UIViewRepresentable {
+  var chineseInputOnly = false
   var auxiliaryPrefix: String = ","
   var leftSpaceKey = RimeSpaceSideKey()
   var rightSpaceKey = RimeSpaceSideKey()
 
   func makeUIView(context: Context) -> KeyboardPreviewView {
     let view = KeyboardPreviewView()
-    view.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
+    view.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly)
     return view
   }
 
   func updateUIView(_ uiView: KeyboardPreviewView, context: Context) {
     uiView.refreshLocalizedLabels()
-    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
+    uiView.configure(auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly)
   }
 }
 
@@ -66,7 +67,7 @@ final class KeyboardPreviewView: UIView {
   }
 
   func configure(auxiliaryPrefix: String,
-                 leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey) {
+                 leftSpaceKey: RimeSpaceSideKey, rightSpaceKey: RimeSpaceSideKey, chineseInputOnly: Bool) {
     keyGrid.configure(theme: KeyboardTheme.current(for: .light),
                       layer: .letters,
                       asciiMode: false,
@@ -74,7 +75,7 @@ final class KeyboardPreviewView: UIView {
                       showsGlobeRow: true,
                       language: RimeLanguageKey(label: "中", isASCII: false),
                       auxiliaryPrefix: auxiliaryPrefix,
-                      leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey)
+                      leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey, chineseInputOnly: chineseInputOnly)
   }
 
   required init?(coder: NSCoder) {

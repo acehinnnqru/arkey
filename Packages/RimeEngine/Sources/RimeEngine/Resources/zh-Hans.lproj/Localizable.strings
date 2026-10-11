@@ -491,3 +491,5 @@
 "Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "两个按键默认关闭，左右可独立配置。关闭右侧按键后，回车键会加宽，同时为空格键保留足够空间。自定义字符支持单个字母、数字或半角符号，输入结果遵循当前输入方案。";
 
 "Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules." = "输入一个半角特殊字符，全角字符会自动转换。在空格任一侧选择「辅助码键」即可显示。前导符和拼写方案会保存到当前方案与 radical_pinyin，并自动部署。请选择你使用的拼写方案；各方案共用辅助码规则。";
+"Chinese input only" = "仅使用中文输入";
+"Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available." = "隐藏中英切换键并加宽空格。可通过地球键切换到其他键盘。数字、符号和输入方案的中英混输仍可使用。";

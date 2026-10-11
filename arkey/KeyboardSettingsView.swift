@@ -15,6 +15,7 @@ struct KeyboardSettingsView: View {
     let _ = interfaceLocale
     List {
       if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
+      inputModeSection
       spaceSideSection
       auxiliarySection
       compositionSection
@@ -35,6 +36,17 @@ struct KeyboardSettingsView: View {
       await model.refreshPreferences()
       auxiliaryPrefixDraft = model.keyboardPreferences.auxiliaryPrefix
       isLoading = false
+    }
+  }
+
+  private var inputModeSection: some View {
+    Section {
+      Toggle(RimeLocalization.text("Chinese input only"), isOn: Binding(
+        get: { model.keyboardPreferences.chineseInputOnly },
+        set: { value in model.updatePreferences { $0.chineseInputOnly = value } }))
+        .accessibilityIdentifier("chinese-input-only")
+    } footer: {
+      Text(RimeLocalization.text("Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available."))
     }
   }
 

@@ -1,6 +1,45 @@
 import XCTest
 
 final class LocalizationUITests: XCTestCase {
+  func testChineseInputOnlySettingPersistsAfterRelaunch() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launch()
+    XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 30))
+    app.buttons["settings-open"].tap()
+    openLanguagePicker(app)
+    app.buttons["简体中文"].tap()
+    let settingsList = app.collectionViews["settings-list"]
+    let keyboardSettings = app.buttons["keyboard-settings-open"]
+    for _ in 0..<5 {
+      if keyboardSettings.isHittable { break }
+      settingsList.swipeDown()
+    }
+    XCTAssertTrue(keyboardSettings.isHittable)
+    keyboardSettings.tap()
+    let toggle = app.switches["chinese-input-only"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+    XCTAssertTrue(toggle.label.contains("仅使用中文输入"))
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: toggle)
+    XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    let original = toggle.value as? String
+    let changed = original == "1" ? "0" : "1"
+    toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+    let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", changed), object: toggle)
+    XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 10), .completed)
+    app.terminate()
+    app.launch()
+    XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 30))
+    app.buttons["settings-open"].tap()
+    XCTAssertTrue(keyboardSettings.waitForExistence(timeout: 10))
+    keyboardSettings.tap()
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+    XCTAssertEqual(toggle.value as? String, changed)
+    toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+    let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", original ?? "0"), object: toggle)
+    XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
+  }
+
   func testPersonalSourceExportIsAvailableAndLocalizedInBothLanguages() {
     continueAfterFailure = false
     let app = XCUIApplication()

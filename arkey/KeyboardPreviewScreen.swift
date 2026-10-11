@@ -14,7 +14,8 @@ struct KeyboardPreviewScreen: View {
         Text(RimeLocalization.text("This preview uses the same views as the keyboard extension and shows appearance only."))
           .font(.footnote)
           .foregroundStyle(.secondary)
-        KeyboardPreview(auxiliaryPrefix: model.keyboardPreferences.auxiliaryPrefix,
+        KeyboardPreview(chineseInputOnly: model.keyboardPreferences.chineseInputOnly,
+                        auxiliaryPrefix: model.keyboardPreferences.auxiliaryPrefix,
                         leftSpaceKey: model.keyboardPreferences.leftSpaceKey,
                         rightSpaceKey: model.keyboardPreferences.rightSpaceKey)
           .frame(height: KeyboardMetrics.totalHeight(needsGlobeRow: true))

@@ -67,6 +67,39 @@ final class KeyboardControllerTests: XCTestCase {
                   "the controller has no candidate bar")
   }
 
+  func testChineseOnlyPreferenceRemovesLanguageKeyAndRestoresItOnNextAppearance() throws {
+    let store = try XCTUnwrap(RimeKeyboardPreferencesStore.appGroup())
+    let original = store.value
+    defer { store.value = original }
+    var preferences = original
+    preferences.chineseInputOnly = false
+    store.value = preferences
+    let controller = booted()
+    let initialKeys = try keys(controller)
+    XCTAssertTrue(initialKeys.contains { if case .language? = $0.key { return true }; return false })
+    let initialSpace = try XCTUnwrap(initialKeys.first { $0.key == .space }).frame.width
+    controller.viewWillDisappear(false)
+    preferences.chineseInputOnly = true
+    store.value = preferences
+    controller.viewWillAppear(false)
+    let chineseKeys = try keys(controller)
+    XCTAssertFalse(chineseKeys.contains { if case .language? = $0.key { return true }; return $0.key == .emoji })
+    XCTAssertGreaterThan(try XCTUnwrap(chineseKeys.first { $0.key == .space }).frame.width, initialSpace)
+    if case .success(let setup) = KeyboardEngine.setup {
+      XCTAssertFalse(try setup.engine.getOption("ascii_mode"))
+    } else {
+      XCTFail("The keyboard engine must boot for this test")
+    }
+    controller.viewWillDisappear(false)
+    preferences.chineseInputOnly = false
+    store.value = preferences
+    controller.viewWillAppear(false)
+    let restoredKeys = try keys(controller)
+    XCTAssertTrue(restoredKeys.contains { if case .language? = $0.key { return true }; return false })
+    XCTAssertEqual(try XCTUnwrap(restoredKeys.first { $0.key == .space }).frame.width,
+                   initialSpace, accuracy: 0.01)
+  }
+
   /// A transition cover must not turn the entire temporary host frame into an
   /// opaque rectangle or replace the system material after the transition.
   func testTheTransitionCoverIsBoundedAndCanReturnToTheHostMaterial() throws {

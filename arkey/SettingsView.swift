@@ -25,6 +25,7 @@ struct SettingsView: View {
           NavigationLink(value: Page.keyboard) {
             Label(RimeLocalization.text("Keyboard"), systemImage: "keyboard")
           }
+          .accessibilityIdentifier("keyboard-settings-open")
           NavigationLink(value: Page.punctuation) {
             Label(RimeLocalization.text("Punctuation"), systemImage: "textformat.123")
           }

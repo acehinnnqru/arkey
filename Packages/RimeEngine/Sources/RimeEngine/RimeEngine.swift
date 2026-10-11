@@ -148,8 +148,9 @@ public final class RimeEngine: @unchecked Sendable {
   // MARK: - Input
 
   @discardableResult
-  public func processKey(_ keyCode: Int32, modifiers: RimeModifier = .none) throws -> RimeOutput {
-    try perform { try processKeyLocked(keyCode, modifiers: modifiers) }
+  public func processKey(_ keyCode: Int32, modifiers: RimeModifier = .none,
+                         chineseInputOnly: Bool = false) throws -> RimeOutput {
+    try perform { try processKeyLocked(keyCode, modifiers: modifiers, chineseInputOnly: chineseInputOnly) }
   }
 
   /// Convenience for tests and for replaying a whole string of ASCII input.
@@ -334,11 +335,16 @@ public final class RimeEngine: @unchecked Sendable {
 
   // MARK: - Input (queue)
 
-  private func processKeyLocked(_ keyCode: Int32, modifiers: RimeModifier) throws -> RimeOutput {
+  private func processKeyLocked(_ keyCode: Int32, modifiers: RimeModifier,
+                                chineseInputOnly: Bool = false) throws -> RimeOutput {
     let api = try requireAPI()
     let session = try inputSession(api: api)
     guard let processKey = api.pointee.process_key else { throw RimeEngineError.apiUnavailable }
+    // Normalize restored state before input and schema key bindings after input.
+    // Read the result only once so committed text is delivered exactly once.
+    if chineseInputOnly { try setOptionLocked("ascii_mode", false) }
     let handled = processKey(session, keyCode, modifiers.rawValue)
+    if chineseInputOnly { try setOptionLocked("ascii_mode", false) }
     return readOutput(api: api, session: session, handled: handled)
   }
 
