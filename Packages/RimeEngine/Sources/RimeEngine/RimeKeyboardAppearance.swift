@@ -195,13 +195,14 @@ public enum RimeKeyFeedbackPolicy {
                                    isPhoneClass: Bool = true,
                                    isRepeatingDelete: Bool = false,
                                    feedback: RimeKeyFeedback = .standard) -> Bool {
+    guard key.isCore, !key.isAuxiliary else { return false }
     if feedback.calloutOnPhoneClassOnly, !isPhoneClass { return false }
     if isRepeatingDelete, !feedback.calloutWhileRepeatingDelete { return false }
     switch key.kind {
-    case .character, .space:
+    case .character:
       return true
-    case .shift, .delete, .layer, .emoji, .language, .returnKey, .globe:
-      return feedback.calloutForModifierKeys
+    case .space, .shift, .delete, .layer, .emoji, .language, .returnKey, .globe:
+      return false
     }
   }
 

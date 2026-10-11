@@ -3,7 +3,10 @@ import RimeEngine
 
 /// The host may retain another keyboard's height while switching input modes.
 /// Report our content height without fitting against that temporary host constraint.
-final class KeyboardInputView: UIInputView {
+final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
+  /// UIKit queries the visible input view, not its controller, for click support.
+  var enableInputClicksWhenVisible: Bool { true }
+
   var onGeometry: ((String, String) -> Void)?
   private let contentBacking = UIView()
   private(set) var backingMode = "transition"
@@ -121,11 +124,7 @@ private final class CandidateLoadCancellation {
 /// The whole input path is synchronous. The engine owns a serial queue, so a key press is one
 /// call plus one UI update with no scheduling hops; an earlier build hopped through an actor
 /// twice per key and updated every view on screen each time, which read as a laggy keyboard.
-final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
-  /// S3 §5's click sound: the documented path is this protocol plus @B@playInputClick()@B@, which only
-  /// makes a sound while the keyboard is visible and only when the user enabled it in Settings.
-  var enableInputClicksWhenVisible: Bool { true }
-
+final class KeyboardViewController: UIInputViewController {
   private let candidateBar = CandidateBar()
   /// S4 §6's expanded panel: it replaces the keyboard area, so the keys are hidden while it is open.
   private lazy var candidatePanel = CandidatePanelView()
@@ -137,7 +136,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private let preferencesStore = RimeKeyboardPreferencesStore.appGroup()
   private var preferences: RimeKeyboardPreferences = .standard
   /// Prepared on touch down so the impact lands with the key rather than after the first use.
-  private lazy var haptic = UIImpactFeedbackGenerator(style: .light)
+  private lazy var haptic: UIImpactFeedbackGenerator = {
+    if #available(iOS 17.5, *) {
+      return UIImpactFeedbackGenerator(style: .light, view: view)
+    }
+    return UIImpactFeedbackGenerator(style: .light)
+  }()
   private var isPanelExpanded = false
   private var loadedCandidates: [RimeCandidateItem] = []
   private var candidateLoadGeneration = 0
@@ -269,7 +273,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     candidateBar.onSelect = { [weak self] index in
       guard let self else { return }
-      self.selectCandidate(index)
+      self.selectCandidate(index, providesFeedback: true)
       if self.isPanelExpanded { self.collapsePanel() }
     }
     candidateBar.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
@@ -279,7 +283,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     keyGrid.onKey = { [weak self] key in self?.handle(key) }
     keyGrid.onKeyTouchDown = { [weak self] key, point in
-      self?.haptic.prepare()
+      if self?.feedbackPreferences.hapticsEnabled == true { self?.haptic.prepare() }
       self?.showCallout(for: key, at: point)
     }
     keyGrid.onKeyTouchMove = { [weak self] key, point in self?.moveCallout(for: key, at: point) }
@@ -427,11 +431,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     candidateBar.setMessage(userVisible + reason)
   }
 
-  private func selectCandidate(_ index: Int) {
+  private func selectCandidate(_ index: Int, providesFeedback: Bool = false) {
     guard let engine else { return }
     candidateLoadCancellation?.cancel()
     do {
       apply(try engine.selectCandidate(at: index))
+      if providesFeedback { playFeedback() }
     } catch {
       report("select.failed", error, userVisible: RimeLocalization.text("Candidate selection failed: "))
     }
@@ -513,6 +518,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   // MARK: - Input
 
   private func handle(_ key: KeyboardKey) {
+    playFeedback()
     switch key {
     case .character(let value):
       typeLiteralKey(value)
@@ -565,7 +571,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       prepareForInputModeSwitch()
       advanceToNextInputMode()
     }
-    playFeedback()
   }
 
   /// Release both the session lease and librime's cached dictionary handles before
@@ -581,8 +586,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     engine = nil
   }
 
-  /// S3 §5's key-up feedback: the action has already fired, and both signals are optional. Nothing
-  /// here can block the input path — a click and an impact are fire-and-forget.
+  /// Emit feedback before key processing so engine work cannot delay a tap or hide the input view.
   private func playFeedback() {
     if feedbackPreferences.keyClickEnabled {
       UIDevice.current.playInputClick()
@@ -868,6 +872,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     guard loadedCandidates.indices.contains(index) else { return }
     do {
       apply(try engine.selectCandidate(at: index))
+      playFeedback()
     } catch {
       report("select.failed", error, userVisible: RimeLocalization.text("Candidate selection failed: "))
     }

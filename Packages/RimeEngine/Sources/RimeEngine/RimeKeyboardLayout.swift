@@ -196,18 +196,21 @@ public struct RimeKeyboardKey: Sendable, Hashable {
   /// What VoiceOver says (S3 §8): the character, or the action in the keyboard's language.
   public let accessibilityLabel: String
   public let isAuxiliary: Bool
+  /// Whether the key belongs to the main character rows rather than the bottom controls.
+  public let isCore: Bool
 
-  public init(kind: Kind, frame: CGRect, label: String, accessibilityLabel: String, isAuxiliary: Bool = false) {
+  public init(kind: Kind, frame: CGRect, label: String, accessibilityLabel: String, isAuxiliary: Bool = false, isCore: Bool = true) {
     self.kind = kind
     self.frame = frame
     self.label = label
     self.accessibilityLabel = accessibilityLabel
     self.isAuxiliary = isAuxiliary
+    self.isCore = isCore
   }
 
   /// The same key at another frame, which is how a row places its keys.
-  init(kind: Kind, label: String, accessibilityLabel: String, frame: CGRect, isAuxiliary: Bool = false) {
-    self.init(kind: kind, frame: frame, label: label, accessibilityLabel: accessibilityLabel, isAuxiliary: isAuxiliary)
+  init(kind: Kind, label: String, accessibilityLabel: String, frame: CGRect, isAuxiliary: Bool = false, isCore: Bool = true) {
+    self.init(kind: kind, frame: frame, label: label, accessibilityLabel: accessibilityLabel, isAuxiliary: isAuxiliary, isCore: isCore)
   }
 
   public var isCharacter: Bool {
@@ -309,12 +312,17 @@ public enum RimeKeyboardLayoutEngine {
       y += style.globeRowHeight
     }
     let height = y + style.bottomInset
-    rows = rows.map { row in
+    rows = rows.enumerated().map { rowIndex, row in
       RimeKeyboardRow(frame: row.frame, keys: row.keys.map { key in
-        guard case .character(let input) = key.kind, !key.isAuxiliary,
-              let label = punctuationLabels[input] else { return key }
+        let label: String
+        if case .character(let input) = key.kind, !key.isAuxiliary {
+          label = punctuationLabels[input] ?? key.label
+        } else {
+          label = key.label
+        }
         return RimeKeyboardKey(kind: key.kind, frame: key.frame, label: label,
-                               accessibilityLabel: label)
+                               accessibilityLabel: label == key.label ? key.accessibilityLabel : label,
+                               isAuxiliary: key.isAuxiliary, isCore: rowIndex < 3)
       })
     }
 
@@ -335,7 +343,7 @@ public enum RimeKeyboardLayoutEngine {
     let height = keys.first?.frame.height ?? style.keyHeight
     let placed = keys.map { key in
       RimeKeyboardKey(kind: key.kind, label: key.label, accessibilityLabel: key.accessibilityLabel,
-                      frame: CGRect(x: key.frame.minX, y: y, width: key.frame.width, height: height), isAuxiliary: key.isAuxiliary)
+                      frame: CGRect(x: key.frame.minX, y: y, width: key.frame.width, height: height), isAuxiliary: key.isAuxiliary, isCore: key.isCore)
     }
     return RimeKeyboardRow(frame: CGRect(x: 0, y: y, width: width, height: height), keys: placed)
   }

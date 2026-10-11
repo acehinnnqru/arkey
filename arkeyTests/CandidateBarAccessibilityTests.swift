@@ -6,6 +6,22 @@ import RimeEngine
 /// and index". The engine's macOS tests pin the model's labels; this pins what the **buttons** carry
 /// after the view has applied that model, which is what VoiceOver actually reads.
 final class CandidateBarAccessibilityTests: XCTestCase {
+  func testCandidateHitTargetsIncludePaddingInBothPresentations() throws {
+    let collapsed = bar(.init(cells: [RimeCandidateCell(index: 0, text: "A")]))
+    let expanded = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 430, height: 254))
+    expanded.applyContinuation([RimeCandidateItem(text: "A")], startingAt: 0)
+    expanded.layoutIfNeeded()
+    for view: UIView in [collapsed, expanded] {
+      let button = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "A" })
+      XCTAssertGreaterThanOrEqual(button.bounds.width, 44)
+      for point in [CGPoint(x: 1, y: 1),
+                    CGPoint(x: button.bounds.maxX - 1, y: button.bounds.maxY - 1)] {
+        let target = view.hitTest(button.convert(point, to: view), with: nil)
+        XCTAssertTrue(target === button, "Candidate padding must remain tappable")
+      }
+    }
+  }
+
   func testCandidateTextAndChevronAreVerticallyCentered() throws {
     let view = bar(.init(cells: [RimeCandidateCell(index: 0, text: "你好", comment: "ni hao")]))
     let candidate = try XCTUnwrap(allButtons(in: view).first { $0.attributedTitle(for: .normal) != nil })

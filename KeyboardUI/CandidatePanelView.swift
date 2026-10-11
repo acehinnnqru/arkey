@@ -183,7 +183,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     gridStack.translatesAutoresizingMaskIntoConstraints = false
     gridStack.accessibilityIdentifier = "candidate-scroll"
     gridStack.alwaysBounceVertical = true
-    gridStack.delaysContentTouches = true
+    gridStack.delaysContentTouches = false
     gridStack.canCancelContentTouches = true
     gridStack.delegate = self
     gridStack.dataSource = self

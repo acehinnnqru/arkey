@@ -68,7 +68,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     scrollView.delegate = self
     scrollView.alwaysBounceHorizontal = true
     scrollView.showsHorizontalScrollIndicator = false
-    scrollView.delaysContentTouches = true
+    scrollView.delaysContentTouches = false
     scrollView.canCancelContentTouches = true
     scrollView.contentInsetAdjustmentBehavior = .never
     scrollView.accessibilityIdentifier = "candidate-bar-scroll"

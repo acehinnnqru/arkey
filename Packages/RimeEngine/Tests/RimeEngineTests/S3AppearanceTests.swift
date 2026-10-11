@@ -90,13 +90,11 @@ final class S3AppearanceTests: XCTestCase {
     custom.calloutForModifierKeys = true
 
     for key in letters.keys {
-      let expected = key.isCharacter || key.kind == .space
+      let expected = key.isCharacter && key.isCore && !key.isAuxiliary
       XCTAssertEqual(RimeKeyFeedbackPolicy.raisesCallout(key, feedback: feedback), expected,
                      "callout policy for \(key.kind)")
-      if !expected {
-        XCTAssertTrue(RimeKeyFeedbackPolicy.raisesCallout(key, feedback: custom),
-                      "an explicit override turns modifier callouts on")
-      }
+      XCTAssertEqual(RimeKeyFeedbackPolicy.raisesCallout(key, feedback: custom), expected,
+                     "modifier overrides cannot enable callouts outside core character keys")
     }
 
     let character = try XCTUnwrap(letters.keys.first { $0.isCharacter })
@@ -104,6 +102,21 @@ final class S3AppearanceTests: XCTestCase {
                    "iPad-class devices have no callout")
     XCTAssertFalse(RimeKeyFeedbackPolicy.raisesCallout(character, isRepeatingDelete: true),
                    "nothing raises a callout while delete repeats")
+  }
+
+  func testCalloutsExcludeBottomRowAcrossAllLayers() {
+    for layer: RimeKeyboardLayer in [.letters, .numbers, .symbols] {
+      let keyboard = RimeKeyboardLayoutEngine.layout(
+        width: 430, layer: layer, needsGlobeRow: true,
+        punctuationLabels: [",": "，", ".": "。"])
+      for (rowIndex, row) in keyboard.rows.enumerated() {
+        for key in row.keys {
+          XCTAssertEqual(RimeKeyFeedbackPolicy.raisesCallout(key),
+                         rowIndex < 3 && key.isCharacter,
+                         "Unexpected callout in row \(rowIndex) for \(key.kind)")
+        }
+      }
+    }
   }
 
   // MARK: Callout geometry

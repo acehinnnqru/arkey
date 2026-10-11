@@ -44,6 +44,25 @@ final class KeyboardCalloutTests: XCTestCase {
     return (button, grid)
   }
 
+  func testInputViewEnablesSystemKeyboardClicks() throws {
+    let controller = booted()
+    let feedbackView = try XCTUnwrap(controller.inputView as? UIInputViewAudioFeedback)
+    XCTAssertEqual(feedbackView.enableInputClicksWhenVisible, true)
+  }
+
+  func testSpaceAndBottomControlsDoNotRaiseCallouts() throws {
+    let controller = booted()
+    let callout = try callout(controller)
+    let (_, grid) = try key("g", in: controller)
+    let buttons = grid.subviews.compactMap { $0 as? KeyButton }
+    let space = try XCTUnwrap(buttons.first { $0.key == .space })
+    for button in buttons where button.frame.midY >= space.frame.minY {
+      button.onTouchDown?(CGPoint(x: button.bounds.midX, y: button.bounds.midY))
+      XCTAssertFalse(callout.isShowing)
+      button.onTouchEnded?()
+    }
+  }
+
   func testTheCalloutAppearsOverTheKeyAndFollowsIt() throws {
     let controller = booted()
     let callout = try callout(controller)
