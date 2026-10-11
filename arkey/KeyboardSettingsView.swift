@@ -159,9 +159,16 @@ struct KeyboardSettingsView: View {
       Toggle(RimeLocalization.text("Key popups"), isOn: Binding(
         get: { model.keyboardPreferences.calloutEnabled },
         set: { value in model.updatePreferences { $0.calloutEnabled = value } }))
-      Toggle(RimeLocalization.text("Key sounds"), isOn: Binding(
+      Toggle(isOn: Binding(
         get: { model.keyboardPreferences.keyClickEnabled },
-        set: { value in model.updatePreferences { $0.keyClickEnabled = value } }))
+        set: { value in model.updatePreferences { $0.keyClickEnabled = value } })) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(RimeLocalization.text("Key sounds"))
+          Text(RimeLocalization.text("Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
       Toggle(RimeLocalization.text("Haptic feedback"), isOn: Binding(
         get: { model.keyboardPreferences.hapticsEnabled },
         set: { value in model.updatePreferences { $0.hapticsEnabled = value } }))

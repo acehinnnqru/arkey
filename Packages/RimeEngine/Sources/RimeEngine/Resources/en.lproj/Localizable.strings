@@ -209,6 +209,7 @@
 "Key popups" = "Key popups";
 "Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device." = "Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device.";
 "Key sounds" = "Key sounds";
+"Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds." = "Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds.";
 "Keyboard" = "Keyboard";
 "Keyboard log ({0} records)" = "Keyboard log ({0})";
 "Keyboard preview" = "Keyboard preview";
