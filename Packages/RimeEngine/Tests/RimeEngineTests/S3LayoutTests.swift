@@ -7,6 +7,34 @@ import CoreGraphics
 /// constraint conflict) cannot happen in a value type, and the arithmetic can be checked without a
 /// simulator.
 final class S3LayoutTests: XCTestCase {
+  func testPunctuationLabelsPreserveInputAndAuxiliaryKeys() throws {
+    let definitions = RimePunctuationKeyLabels(
+      halfShape: [".": .map(["commit": .string("。")]),
+                  ",": .string("，"), ";": .list([.string("；"), .string(";")]),
+                  "\"": .map(["pair": .list([.string("“"), .string("”")])])],
+      fullShape: [".": .string("．")])
+    let labels = definitions.labels(isASCII: false, isFullShape: false, isAsciiPunctuation: false)
+    let layout = RimeKeyboardLayoutEngine.layout(width: 430, layer: .numbers,
+                                                 punctuationLabels: labels)
+    let period = try XCTUnwrap(layout.keys.first { $0.kind == .character(".") })
+    XCTAssertEqual(period.label, "。")
+    XCTAssertEqual(period.accessibilityLabel, "。")
+    XCTAssertEqual(labels["\""], "“”")
+    XCTAssertEqual(labels[";"], "；")
+    XCTAssertEqual(definitions.labels(isASCII: false, isFullShape: true,
+                                      isAsciiPunctuation: false)["."], "．")
+    XCTAssertEqual(definitions.labels(isASCII: true, isFullShape: true,
+                                      isAsciiPunctuation: false)["."], "．")
+    XCTAssertEqual(definitions.labels(isASCII: false, isFullShape: true,
+                                      isAsciiPunctuation: true)["1"], "１")
+    XCTAssertTrue(definitions.labels(isASCII: false, isFullShape: false,
+                                     isAsciiPunctuation: true).isEmpty)
+    let letters = RimeKeyboardLayoutEngine.layout(
+      width: 430, auxiliaryPrefix: ",", leftSpaceKey: RimeSpaceSideKey(mode: .auxiliary),
+      punctuationLabels: labels)
+    XCTAssertEqual(letters.keys.first { $0.isAuxiliary }?.label, ",")
+  }
+
   private let referenceWidth: CGFloat = 430
   private let style = RimeKeyboardStyle.measured
 

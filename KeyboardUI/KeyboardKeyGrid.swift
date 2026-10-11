@@ -57,6 +57,12 @@ enum KeyboardKeyLabels {
 
 /// Key rows share the same style and geometry engine as the extension height.
 final class KeyboardKeyGrid: UIView {
+  var punctuationLabels: [String: String] = [:] {
+    didSet {
+      guard oldValue != punctuationLabels, !buttons.isEmpty else { return }
+      updateKeys(in: currentLayout(width: max(laidOutWidth, 1)))
+    }
+  }
   var onKey: ((KeyboardKey) -> Void)?
   /// The touch's life on a key, in the grid's own coordinates, so the caller owns the callout: it has
   /// to be positioned against the whole keyboard, not against the grid — the callout draws into the
@@ -227,7 +233,7 @@ final class KeyboardKeyGrid: UIView {
       needsGlobeRow: showsGlobeRow,
       style: Self.rowStyle(width: width),
       auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
-      chineseInputOnly: chineseInputOnly)
+      chineseInputOnly: chineseInputOnly, punctuationLabels: punctuationLabels)
   }
 
   private func rebuild() {
@@ -365,7 +371,10 @@ final class KeyboardKeyGrid: UIView {
     switch key {
     case .character(let value), .auxiliary(let value):
       // The layout supplies the exact character sent on tap, including shifted letters.
-      button.setTitle(value, pointSize: 25, verticalOffset: -2)
+      let label: String
+      if case .character = key { label = punctuationLabels[value] ?? value }
+      else { label = value }
+      button.setTitle(label, pointSize: 25, verticalOffset: -2)
     case .space:
       button.setTitle(currentLayer == .numbers ? "" : spaceKeyLabel, pointSize: 16)
     case .returnKey:

@@ -493,3 +493,5 @@
 "Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules." = "输入一个半角特殊字符，全角字符会自动转换。在空格任一侧选择「辅助码键」即可显示。前导符和拼写方案会保存到当前方案与 radical_pinyin，并自动部署。请选择你使用的拼写方案；各方案共用辅助码规则。";
 "Chinese input only" = "仅使用中文输入";
 "Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available." = "隐藏中英切换键并加宽空格。可通过地球键切换到其他键盘。数字、符号和输入方案的中英混输仍可使用。";
+
+"These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style." = "这里设置的是方案启动时的默认状态，部署完成后，下次打开键盘时生效。半角模式也可以使用中文标点；标点风格由方案的中英文标点开关控制。";

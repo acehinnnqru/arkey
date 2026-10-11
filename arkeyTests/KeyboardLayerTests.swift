@@ -7,6 +7,23 @@ import RimeEngine
 /// what was never checked is the controller wiring them to the grid, which is the same seam that put the
 /// callout a key to the left (round 147).
 final class KeyboardLayerTests: XCTestCase {
+  func testPunctuationCapAndAccessibilityRefreshWithoutChangingTheTappedKey() throws {
+    let grid = KeyboardKeyGrid(frame: CGRect(x: 0, y: 0, width: 430, height: 300))
+    grid.configure(theme: KeyboardTheme.current(for: .light), layer: .numbers,
+                   asciiMode: false, returnKeyLabel: "return", showsGlobeRow: false)
+    let period = try XCTUnwrap(buttons(grid).first { $0.key == .character(".") })
+    grid.punctuationLabels = [".": "。"]
+    XCTAssertEqual(period.title, "。")
+    XCTAssertEqual(period.accessibilityLabel, "。")
+    var received: KeyboardKey?
+    grid.onKey = { received = $0 }
+    period.sendActions(for: .primaryActionTriggered)
+    XCTAssertEqual(received, .character("."))
+    grid.punctuationLabels = [:]
+    XCTAssertEqual(period.title, ".")
+    XCTAssertEqual(period.accessibilityLabel, ".")
+  }
+
   private func booted() -> KeyboardViewController {
     let controller = KeyboardViewController()
     controller.loadViewIfNeeded()

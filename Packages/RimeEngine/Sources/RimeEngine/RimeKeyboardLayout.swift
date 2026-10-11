@@ -256,7 +256,8 @@ public enum RimeKeyboardLayoutEngine {
                             auxiliaryPrefix: String? = nil,
                             leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
                             rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
-                            chineseInputOnly: Bool = false) -> RimeKeyboardLayout {
+                            chineseInputOnly: Bool = false,
+                            punctuationLabels: [String: String] = [:]) -> RimeKeyboardLayout {
     var y = style.candidateSlotHeight
     var rows: [RimeKeyboardRow] = []
 
@@ -308,6 +309,14 @@ public enum RimeKeyboardLayoutEngine {
       y += style.globeRowHeight
     }
     let height = y + style.bottomInset
+    rows = rows.map { row in
+      RimeKeyboardRow(frame: row.frame, keys: row.keys.map { key in
+        guard case .character(let input) = key.kind, !key.isAuxiliary,
+              let label = punctuationLabels[input] else { return key }
+        return RimeKeyboardKey(kind: key.kind, frame: key.frame, label: label,
+                               accessibilityLabel: label)
+      })
+    }
 
     return RimeKeyboardLayout(size: CGSize(width: width, height: height),
                               candidateSlot: CGRect(x: 0, y: 0, width: width,

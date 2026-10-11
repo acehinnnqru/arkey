@@ -131,6 +131,40 @@ final class S2SettingsModelTests: XCTestCase {
     XCTAssertEqual(offlineASCII.displayLabels, ["中文", "西文"])
   }
 
+  func testPunctuationKeyLabelsFollowDeployedDefaultsAndRuntimeOptions() throws {
+    let patch = RimePatch(engine: engine, configID: "tracer")
+    try patch.set(.list(["ascii_composer", "punctuator", "speller", "selector", "navigator",
+                         "express_editor"].map { .string($0) }), at: "engine/processors")
+    try patch.set(.list(["punct_segmentor", "abc_segmentor", "fallback_segmentor"]
+      .map { .string($0) }), at: "engine/segmentors")
+    try patch.set(.list(["punct_translator", "script_translator"].map { .string($0) }),
+                  at: "engine/translators")
+    try patch.set(.map([".": .map(["commit": .string("。")])]), at: "punctuator/half_shape")
+    try patch.set(.map([".": .map(["commit": .string("．")])]), at: "punctuator/full_shape")
+
+    for (reset, expected) in [(0, "。"), (1, "．")] {
+      try RimeSettingsModel.setSwitchReset(reset, forSwitch: "full_shape",
+                                          schemaID: "tracer", engine: engine)
+      try redeploy()
+      try engine.openSession()
+      let labels = try RimePunctuationKeyLabels.load(engine: engine, schemaID: "tracer")
+      let status = try XCTUnwrap(engine.refresh().status)
+      XCTAssertEqual(status.isFullShape, reset == 1)
+      XCTAssertEqual(labels.labels(isASCII: status.isAsciiMode, isFullShape: status.isFullShape,
+                                   isAsciiPunctuation: status.isAsciiPunctuation)["."], expected)
+      let driver = RimeInputDriver(engine: engine)
+      _ = try driver.refresh()
+      XCTAssertEqual(try driver.handle(.character(46)).insertText, expected)
+      try engine.setOption("ascii_punct", true)
+      let asciiExpected = reset == 1 ? "．" : "."
+      XCTAssertEqual(labels.labels(isASCII: false, isFullShape: status.isFullShape,
+                                   isAsciiPunctuation: true)["."] ?? ".", asciiExpected)
+      XCTAssertEqual(try driver.handle(.character(46)).insertText, asciiExpected)
+      try engine.setOption("ascii_mode", true)
+      XCTAssertEqual(try driver.handle(.character(46)).insertText, asciiExpected)
+    }
+  }
+
   func testAPatchedSwitchResetIsReportedAsTheUsersValue() throws {
     let before = try RimeSettingsModel.describeSchema("tracer", engine: engine)
     XCTAssertEqual(before.switches.map(\.name), ["ascii_mode", "full_shape"])

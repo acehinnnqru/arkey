@@ -171,6 +171,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var languageSchemaID: String?
   private var schemaAuxiliaryPrefix: String?
   private var hasResolvedLanguageSchema = false
+  private var punctuationKeyLabels = RimePunctuationKeyLabels()
   private var markedText: String?
   /// The engine's current page, whose labels decide which physical keys select.
   private var currentPage: RimePage?
@@ -495,6 +496,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     asciiMode = output.status?.isAsciiMode ?? asciiMode
     if let status = output.status {
       refreshLanguageKey(schemaID: status.schemaID, isASCII: status.isAsciiMode)
+      refreshPunctuationLabels(status)
     }
     // The page the bar is showing, kept so a select key can be matched against its labels: a commit clears it,
     // and then no key is a select key any more.
@@ -897,6 +899,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     guard let engine else { return }
     if !hasResolvedLanguageSchema || schemaID != languageSchemaID {
       languageSchemaID = schemaID
+      punctuationKeyLabels = schemaID.flatMap {
+        try? RimePunctuationKeyLabels.load(engine: engine, schemaID: $0)
+      } ?? RimePunctuationKeyLabels()
       schemaAuxiliaryPrefix = schemaID.flatMap { id in
         (try? engine.schemaValue("key_binder/search", schemaID: id)?.stringValue)
           .flatMap(RimeKeyboardPreferences.normalizedAuxiliaryPrefix)
@@ -920,6 +925,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     hasResolvedLanguageSchema = false
     languageKey = nil
     refreshLanguageKey(schemaID: schemaID, isASCII: isASCII)
+    if let status = try? engine.refresh().status { refreshPunctuationLabels(status) }
+  }
+
+  private func refreshPunctuationLabels(_ status: RimeStatusSnapshot) {
+    keyGrid.punctuationLabels = punctuationKeyLabels.labels(
+      isASCII: status.isAsciiMode, isFullShape: status.isFullShape,
+      isAsciiPunctuation: status.isAsciiPunctuation)
   }
 
   private func updateHeight() {

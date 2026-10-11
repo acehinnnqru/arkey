@@ -85,6 +85,7 @@ struct SchemaSettingsView: View {
     } header: {
       Text(RimeLocalization.text("Switches"))
     } footer: {
+      Text(RimeLocalization.text("These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style."))
       // Measured: setting one switch writes the whole list, so the file cannot say which switch the
       // user changed. The section is marked, not each row.
       Text(descriptor.switches.contains { $0.isUserSet }

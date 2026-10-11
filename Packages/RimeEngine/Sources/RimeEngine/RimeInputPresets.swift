@@ -30,6 +30,60 @@ public struct RimePunctuationPreset: Sendable, Hashable, Identifiable {
   }
 }
 
+/// Key-cap hints from the deployed schema. Input still uses the original ASCII key,
+/// allowing Rime to handle candidate lists, alternating pairs, and numeric separators.
+public struct RimePunctuationKeyLabels: Sendable {
+  private let half: [String: String]
+  private let full: [String: String]
+
+  public init(halfShape: [String: RimeConfigValue] = [:],
+              fullShape: [String: RimeConfigValue] = [:]) {
+    half = halfShape.compactMapValues(Self.label)
+    full = fullShape.compactMapValues(Self.label)
+  }
+
+  public static func load(engine: RimeEngine, schemaID: String) throws -> Self {
+    try engine.withSchemaConfig(schemaID) { config in
+      let processors = config.value("engine/processors")?.listValue?.compactMap(\.stringValue) ?? []
+      guard processors.contains("punctuator") else { return Self() }
+      return Self(halfShape: config.value("punctuator/half_shape")?.mapValue ?? [:],
+                  fullShape: config.value("punctuator/full_shape")?.mapValue ?? [:])
+    }
+  }
+
+  public func labels(isASCII: Bool, isFullShape: Bool, isAsciiPunctuation: Bool) -> [String: String] {
+    // Rime's fallback shape processor also widens ASCII punctuation and digits,
+    // including in English mode. Keep letter caps conventional.
+    var labels: [String: String] = [:]
+    if isFullShape {
+      for code in UInt32(0x21)...UInt32(0x7E) {
+        guard !(0x41...0x5A).contains(code), !(0x61...0x7A).contains(code),
+              let key = UnicodeScalar(code), let wide = UnicodeScalar(code + 0xFEE0) else { continue }
+        labels[String(key)] = String(wide)
+      }
+    }
+    if !isASCII, !isAsciiPunctuation {
+      labels.merge(isFullShape ? full : half) { _, configured in configured }
+    }
+    return labels
+  }
+
+  private static func label(_ value: RimeConfigValue) -> String? {
+    let result: String?
+    if let text = value.stringValue {
+      result = text
+    } else if let items = value.listValue {
+      result = items.first?.stringValue
+    } else if let map = value.mapValue {
+      result = map["commit"]?.stringValue
+        ?? map["pair"]?.listValue?.compactMap(\.stringValue).joined()
+    } else {
+      result = nil
+    }
+    return result.flatMap { $0.isEmpty ? nil : $0 }
+  }
+}
+
 public enum RimePunctuation {
   public static var presets: [RimePunctuationPreset] { [
     .init(id: "default", displayName: RimeLocalization.message("Schema default"), importPreset: "default",
