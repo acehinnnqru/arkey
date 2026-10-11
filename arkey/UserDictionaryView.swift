@@ -30,10 +30,13 @@ struct UserDictionaryView: View {
   @State private var importMessage: RimeLocalizedMessage = ""
   @State private var pendingRemoval: String?
   @State private var query = ""
+  @State private var personalExport: URL?
+  @State private var isExportingPersonalSources = false
 
   var body: some View {
     let _ = interfaceLocale
     List {
+      personalSection
       if let report = model.dictionaryReport {
         // S5-AC6: learning off is an explanation, not an error.
         if let reason = model.syncDisabledReason {
@@ -82,7 +85,7 @@ struct UserDictionaryView: View {
       }
       Button(RimeLocalization.text("Cancel"), role: .cancel) { pendingRemoval = nil }
     } message: {
-      Text(RimeLocalization.text("This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop).librime imports add entries; removing a line and importing again does not delete that word."))
+      Text(RimeLocalization.text("This clears the scheme dictionary. Its personal source records are kept, and automatic restoration to this dictionary is paused. To forget one word, hold its candidate in the keyboard. Clearing does not erase exported files or sync backups."))
     }
     .task { await model.refreshDictionariesInBackground() }
     // S5 §5: the file the user picks is a snapshot or a levers export, and the engine tells them apart. The
@@ -100,6 +103,60 @@ struct UserDictionaryView: View {
       case (.syncFolder, .failure(let error)):
         model.errorMessage = RimeLocalization.message("Failed to select a folder: \(String(describing: error))")
       }
+    }
+  }
+
+  private var personalSection: some View {
+    Section(RimeLocalization.text("Personal dictionary")) {
+      Text(RimeLocalization.text("Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails."))
+        .font(.footnote).foregroundStyle(.secondary)
+      if let library = model.personalDictionary {
+        let words = model.personalDictionaryWordCount.formatted(.number.locale(interfaceLocale))
+        let sources = library.latestSources.count.formatted(.number.locale(interfaceLocale))
+        let unconverted = model.personalDictionaryUnconvertedCount.formatted(.number.locale(interfaceLocale))
+        Text(RimeLocalization.text("\(words) recognized personal words from \(sources) dictionaries; \(unconverted) source entries are kept without conversion."))
+          .font(.caption)
+        if !library.pausedDictionaries.isEmpty {
+          Text(RimeLocalization.text("Automatic restoration is paused for cleared dictionaries: \(library.pausedDictionaries.sorted().joined(separator: ", ")). Their source records remain in the export."))
+            .font(.caption).foregroundStyle(.secondary)
+          ForEach(library.pausedDictionaries.sorted(), id: \.self) { name in
+            Button(RimeLocalization.text("Resume personal words for \(name)")) {
+              Task { await model.resumePersonalDictionary(name) }
+            }
+            .disabled(model.isUpdatingPersonalDictionary || model.isDeploying || model.isImporting || model.isSyncing)
+          }
+        }
+      }
+      Text(RimeLocalization.text("Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed."))
+        .font(.footnote).foregroundStyle(.secondary)
+      Text(RimeLocalization.text("Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary."))
+        .font(.footnote).foregroundStyle(.secondary)
+      if let message = model.personalDictionaryMessage {
+        Text(message.text).font(.caption).accessibilityIdentifier("personal-dictionary-status")
+      }
+      HStack {
+        Button(RimeLocalization.text("Refresh personal sources")) {
+          Task { await model.refreshPersonalDictionary() }
+        }
+        .accessibilityIdentifier("refresh-personal-dictionary")
+        Button(RimeLocalization.text("Export personal sources…")) {
+          isExportingPersonalSources = true
+          Task {
+            personalExport = await model.exportPersonalDictionary()
+            isExportingPersonalSources = false
+          }
+        }
+        .accessibilityIdentifier("export-personal-dictionary")
+        if model.isUpdatingPersonalDictionary || isExportingPersonalSources { ProgressView() }
+      }
+      .buttonStyle(.borderless)
+      .disabled(model.isUpdatingPersonalDictionary || model.isDeploying || model.isImporting || model.isSyncing || isExportingPersonalSources)
+      if let url = personalExport {
+        ShareLink(item: url) { Text(RimeLocalization.text("Share personal sources")) }
+          .accessibilityIdentifier("share-personal-dictionary")
+      }
+      Text(RimeLocalization.text("The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning."))
+        .font(.footnote).foregroundStyle(.secondary)
     }
   }
 

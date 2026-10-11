@@ -284,6 +284,7 @@ extension RimeAppModel {
   }
 
   func refreshDictionariesInBackground() async {
+    await refreshPersonalDictionary()
     let readID = UUID()
     dictionaryReadID = readID
     let revision = configurationRevision
@@ -354,9 +355,12 @@ extension RimeAppModel {
   /// additive, so a single word is forgotten from the keyboard's candidate bar (S4 §8), not here.
   func removeDictionary(_ name: String) {
     do {
+      try RimePersonalDictionaryService(workspace: workspace, engine: engine).pauseBeforeClearing(name)
       let editor = RimeDictionaryEditor(workspace: workspace, engine: engine)
       _ = try editor.removeDictionary(name)
+      personalDictionary = try RimePersonalDictionaryService(workspace: workspace, engine: engine).load()
       refreshDictionaries()
+      Task { await refreshPersonalDictionary() }
     } catch {
       errorMessage = RimeLocalization.message("Failed to delete dictionary: \(String(describing: error))")
     }

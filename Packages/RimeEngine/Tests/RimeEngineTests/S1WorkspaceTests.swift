@@ -337,7 +337,7 @@ final class S1WorkspaceTests: XCTestCase {
     XCTAssertGreaterThan(report.totalBytes, 2048)
   }
 
-  func testDeletingAProfileKeepsUserDictionariesUnlessAskedForThem() throws {
+  func testDeletingProfilesAlwaysKeepsSharedUserDictionaries() throws {
     let workspace = try makeWorkspace()
     let layout = try installProfile(workspace, id: "a", withPrevious: true)
     try FileManager.default.createDirectory(at: layout.buildStaging, withIntermediateDirectories: true)
@@ -359,23 +359,9 @@ final class S1WorkspaceTests: XCTestCase {
     XCTAssertTrue(try workspace.storageReport().profiles.isEmpty)
 
     try installProfile(workspace, id: "b")
-    try workspace.deleteProfile("b", removingUserDictionaries: ["tracer"])
-    XCTAssertFalse(FileManager.default.fileExists(atPath: database.path))
-  }
-
-  func testDictionaryCleanupFailureStillClearsTheDeletedActiveProfile() throws {
-    let workspace = try makeWorkspace()
-    try installProfile(workspace, id: "a")
-    try workspace.writeActiveProfile(RimeActiveProfile(profileID: "a", generation: 1))
-    let database = workspace.userData.appendingPathComponent("tracer.userdb", isDirectory: true)
-    try FileManager.default.createDirectory(at: database, withIntermediateDirectories: true)
-
-    XCTAssertThrowsError(try workspace.deleteProfile("a", removingUserDictionaries: ["tracer"],
-      fileManager: DictionaryRemovalFailure()))
-
-    XCTAssertNil(try workspace.loadActiveProfile())
-    XCTAssertTrue(try workspace.loadMetadataList().isEmpty)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: database.path))
+    try workspace.deleteProfile("b")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: database.path),
+                  "removing the last installed profile must also preserve learned words")
   }
 
   func testStoragePolicyExcludesDerivedArtifactsFromBackup() throws {
@@ -407,12 +393,5 @@ final class S1WorkspaceTests: XCTestCase {
     XCTAssertEqual(client.stagingDir, layout.build.path,
                    "failed deployment output must not shadow the published schemas")
     XCTAssertEqual(client.sharedDataDir, layout.source.path)
-  }
-}
-
-private final class DictionaryRemovalFailure: FileManager, @unchecked Sendable {
-  override func removeItem(at URL: URL) throws {
-    if URL.pathExtension == "userdb" { throw CocoaError(.fileWriteNoPermission) }
-    try super.removeItem(at: URL)
   }
 }

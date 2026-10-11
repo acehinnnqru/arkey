@@ -82,6 +82,13 @@ extension RimeEngine {
       guard let levers = RimeLevers.pointer, let backup = levers.pointee.backup_user_dict else {
         throw RimeUserDictionaryError.leversUnavailable
       }
+      // The native backup creates this directory with throwing C++ filesystem APIs. An obsolete
+      // iOS container path or revoked folder access can abort the process across the C boundary.
+      // Resolve the path from the running engine and let Foundation fail before entering native code.
+      guard let path = userDataSyncDirectory(), path.hasPrefix("/") else {
+        throw RimeSyncError.noSyncDirectory
+      }
+      try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
       let box = CStringBox(name)
       return backup(box.raw)
     }

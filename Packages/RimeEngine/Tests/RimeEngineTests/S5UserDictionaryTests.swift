@@ -787,9 +787,7 @@ final class S5UserDictionaryTests: XCTestCase {
                   "it imports as the spelling instead: " + texts)
   }
 
-  /// The scan the profile screen uses to offer "delete with its dictionaries": `.userdb` directories in the user
-  /// data directory, named without the suffix. It had no test and two implementations before this; now it has one
-  /// implementation and this test, including the entries that must *not* be listed.
+  /// Discover user databases independently of installed profiles, excluding snapshots and other files.
   func testTheDatabaseScanListsDirectoriesAndNothingElse() throws {
     let userData = workspace.userData
     try FileManager.default.createDirectory(at: userData.appendingPathComponent("tracer.userdb",

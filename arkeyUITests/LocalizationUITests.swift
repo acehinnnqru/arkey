@@ -1,6 +1,42 @@
 import XCTest
 
 final class LocalizationUITests: XCTestCase {
+  func testPersonalSourceExportIsAvailableAndLocalizedInBothLanguages() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    app.launch()
+    XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 30))
+    app.buttons["settings-open"].tap()
+    openLanguagePicker(app)
+    app.buttons["English"].tap()
+    tapSettingsRow("User dictionaries", in: app)
+    XCTAssertTrue(app.navigationBars["User dictionaries"].waitForExistence(timeout: 10))
+    let export = app.buttons["export-personal-dictionary"]
+    for _ in 0..<5 {
+      if export.isHittable { break }
+      app.swipeUp()
+    }
+    XCTAssertEqual(export.label, "Export personal sources…")
+    XCTAssertTrue(export.isHittable)
+    export.tap()
+    let share = app.buttons["share-personal-dictionary"]
+    XCTAssertTrue(share.waitForExistence(timeout: 20), "source export did not produce a shareable file")
+    XCTAssertEqual(share.label, "Share personal sources")
+
+    app.terminate()
+    app.launch()
+    XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 30))
+    app.buttons["settings-open"].tap()
+    XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+    openLanguagePicker(app)
+    app.buttons["简体中文"].tap()
+    tapSettingsRow("用户词库", in: app)
+    XCTAssertTrue(app.navigationBars["用户词库"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.buttons["export-personal-dictionary"].label, "导出个人源数据…")
+    XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "源数据独立于已安装配置保存")).firstMatch.exists)
+  }
+
   func testLanguageChangesInPlaceAndPersistsAfterRelaunch() {
     continueAfterFailure = false
     let app = XCUIApplication()

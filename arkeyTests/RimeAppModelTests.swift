@@ -106,6 +106,31 @@ final class RimeAppModelTests: XCTestCase {
                  "the app typing check releases its diagnostic lease")
   }
 
+  func testBootstrapRefreshesAnObsoleteSyncPathAndPreservesTheInstallationID() async throws {
+    let model = RimeAppModel()
+    let recordURL = model.workspace.installationRecord
+    let original = try? Data(contentsOf: recordURL)
+    defer {
+      model.engine.shutdown()
+      if let original { try? original.write(to: recordURL, options: .atomic) }
+      else { try? FileManager.default.removeItem(at: recordURL) }
+    }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    scratch = directory
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let obsolete = directory.appendingPathComponent("old-container")
+    try Data("retained".utf8).write(to: obsolete)
+    let installation = try model.workspace.setSyncDirectory(obsolete.appendingPathComponent("ArkeySync"))
+    await model.bootstrap()
+    let current = try XCTUnwrap(model.workspace.loadInstallation())
+    XCTAssertEqual(current.installationID, installation.installationID)
+    let expected = model.workspace.loadSyncChoice().flatMap { try? $0.validate() }
+      ?? RimeSyncLocation.defaultDirectory(workspace: model.workspace)
+    XCTAssertEqual(current.syncDirectory, expected.path)
+    XCTAssertNil(model.errorMessage)
+    XCTAssertEqual(try Data(contentsOf: obsolete), Data("retained".utf8))
+  }
+
   /// The 配置库 path the screens drive: import a folder, deploy it, and the footer says so. It is the app's
   /// half of S1-AC2 and S2's deploy footer, on the shipped engine.
   func testImportingThenDeployingReportsTheDeployInTheFooter() async throws {

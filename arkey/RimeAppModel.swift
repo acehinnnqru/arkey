@@ -97,6 +97,11 @@ final class RimeAppModel: ObservableObject {
   @Published var notices: RimeNotices?
   @Published var isSyncing = false
   @Published var syncMessage: RimeLocalizedMessage?
+  @Published var personalDictionary: RimePersonalDictionary?
+  @Published var personalDictionaryWordCount = 0
+  @Published var personalDictionaryUnconvertedCount = 0
+  @Published var personalDictionaryMessage: RimeLocalizedMessage?
+  @Published var isUpdatingPersonalDictionary = false
   @Published var keyboardPreferences: RimeKeyboardPreferences = .standard
   @Published var auxiliarySpelling: RimeAuxiliarySpelling = .fullPinyin
   @Published var customPhrases: [RimeCustomPhrase] = []
@@ -171,6 +176,12 @@ final class RimeAppModel: ObservableObject {
       }
       try FileManager.default.createDirectory(at: sync, withIntermediateDirectories: true)
       _ = try workspace.seedInstallation(syncDirectory: sync)
+      // iOS can relocate an app container on update. The current preference (or its validated
+      // fallback) owns the path; preserve the installation ID while refreshing that absolute path
+      // before librime caches installation.yaml. Existing snapshots are never removed.
+      if workspace.loadInstallation()?.syncDirectory != sync.path {
+        _ = try workspace.setSyncDirectory(sync)
+      }
       // S5 §6: an unreadable installation.yaml is moved aside rather than overwritten, and the user has
       // to know: a new installation id means a new device directory in the sync folder, and the old
       // snapshots will look like another device's.
@@ -229,6 +240,7 @@ final class RimeAppModel: ObservableObject {
       }
     }
     engineStatus = Self.typingCheck(engine: engine)
+    await refreshPersonalDictionary()
     if let outcome = RimeWorkspaceJanitor().run(workspace: workspace) as RimeWorkspaceJanitor.Outcome? {
       let removed = outcome.removedStagingEntries.count + outcome.removedBuildStaging.count
       if removed > 0 || !outcome.restoredBuilds.isEmpty {
@@ -638,6 +650,7 @@ final class RimeAppModel: ObservableObject {
     latestDeployment?.finishedAt = Date()
     isDeploying = false
     refresh()
+    await refreshPersonalDictionary()
   }
 
   func activate(profileID: String) {
@@ -647,6 +660,7 @@ final class RimeAppModel: ObservableObject {
       deployMessage = RimeLocalization.message("Profile changed. The keyboard adopts it next time it opens, without interrupting current input.")
       settingsFooter = .applied(RimeLocalization.message("Profile changed"))
       refresh()
+      Task { await refreshPersonalDictionary() }
     } catch {
       errorMessage = RimeLocalization.message("Failed to switch: \(String(describing: error))")
     }
@@ -663,12 +677,11 @@ final class RimeAppModel: ObservableObject {
     }
   }
 
-  func delete(profileID: String, removingUserDictionaries: [String] = []) {
+  func delete(profileID: String) {
     guard !isDownloading, !isImporting, !isDeploying else { return }
     let wasActive = activeProfileID == profileID
     errorMessage = nil
-    // Dictionary cleanup can fail after the profile itself has been removed. Reconcile the library
-    // and transient results in either case, so a partial failure never leaves an installed badge.
+    // Reconcile the library and transient results even if clearing activation fails after removal.
     defer {
       refresh()
       if !FileManager.default.fileExists(atPath: workspace.profile(profileID).directory.path) {
@@ -692,23 +705,14 @@ final class RimeAppModel: ObservableObject {
             }
           }
         }
-        if !removingUserDictionaries.isEmpty { refreshDictionaries() }
       }
     }
     do {
       try RimeDeploymentCoordinator(workspace: workspace, engine: engine)
-        .delete(profileID: profileID, removingUserDictionaries: removingUserDictionaries)
+        .delete(profileID: profileID)
     } catch {
       errorMessage = RimeLocalization.message("Delete failed: \(String(describing: error))")
     }
-  }
-
-  /// The dictionary names a profile produced, asked about when the profile is deleted (§7).
-  ///
-  /// This was the same seven lines as the engine's `RimeSyncService.discoveredDatabaseNames()` — two copies of
-  /// one scan, one of them untested — so the app asks the engine now.
-  var userDatabaseNames: [String] {
-    RimeSyncService(workspace: workspace, engine: engine).discoveredDatabaseNames()
   }
 
   // MARK: - Descriptions

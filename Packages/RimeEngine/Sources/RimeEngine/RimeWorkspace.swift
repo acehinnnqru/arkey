@@ -343,7 +343,8 @@ public struct RimeWorkspace: Sendable {
         license: metadata?.license?.spdx))
     }
     return RimeStorageReport(profiles: entries,
-                             userDataBytes: RimeWorkspace.directorySize(userData),
+                             userDataBytes: RimeWorkspace.directorySize(userData)
+                               + RimeWorkspace.directorySize(root.appendingPathComponent("personal-dictionary")),
                              stagingBytes: RimeWorkspace.directorySize(staging))
   }
 
@@ -363,24 +364,16 @@ public struct RimeWorkspace: Sendable {
 
   // MARK: Deletion and policy
 
-  /// Removes a profile. The user dictionaries it produced are shared by dictionary name and live
-  /// in `user/`, so they are only removed when the user asks for that explicitly (§7).
+  /// Removes only a profile. Dictionaries in `user/` are shared across profiles and must be
+  /// managed separately, even after the last profile using them is removed.
   public func deleteProfile(_ id: String,
-                            removingUserDictionaries dictionaryNames: [String] = [],
                             fileManager: FileManager = .default) throws {
     let layout = profile(id)
     let wasActive = try loadActiveProfile()?.profileID == id
     if fileManager.fileExists(atPath: layout.directory.path) {
       try fileManager.removeItem(at: layout.directory)
     }
-    // Clear activation before optional dictionary cleanup, which can fail independently.
     if wasActive { try removeActiveProfile(fileManager: fileManager) }
-    for name in dictionaryNames {
-      let database = userData.appendingPathComponent(name + ".userdb", isDirectory: true)
-      if fileManager.fileExists(atPath: database.path) {
-        try fileManager.removeItem(at: database)
-      }
-    }
   }
 
   /// S1 §3: the workspace must be readable before the first unlock of a boot, and derived

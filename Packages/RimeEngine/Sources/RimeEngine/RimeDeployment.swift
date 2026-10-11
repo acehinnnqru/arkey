@@ -359,10 +359,9 @@ public struct RimeDeploymentCoordinator: @unchecked Sendable {
 
   // MARK: Library operations
 
-  /// Deletes a profile, asking separately about the user dictionaries it produced (§7). Removing
-  /// them is the caller's explicit choice, because they belong to dictionary names, not profiles.
-  public func delete(profileID: String, removingUserDictionaries names: [String] = []) throws {
-    try workspace.deleteProfile(profileID, removingUserDictionaries: names, fileManager: fileManager)
+  /// Deletes only a profile. Shared user dictionaries have an independent lifecycle.
+  public func delete(profileID: String) throws {
+    try workspace.deleteProfile(profileID, fileManager: fileManager)
   }
 
   /// The list the 配置库 screen shows.

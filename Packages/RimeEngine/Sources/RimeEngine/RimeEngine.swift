@@ -199,6 +199,8 @@ public final class RimeEngine: @unchecked Sendable {
     }
 
     let directories = configuration.directories
+    try RimePersonalDictionaryTransaction(userData: URL(fileURLWithPath: directories.userDataDir),
+                                         fileManager: .default).recoverAll()
     // librime's glog writes its own file into `log_dir`, and a missing directory is not handled
     // gracefully: it logs "Could not create logging file" on every record, and under AddressSanitizer
     // that path is a heap-use-after-free inside glog's LogFileObject (measured; see docs/s6-results.md).
@@ -267,6 +269,8 @@ public final class RimeEngine: @unchecked Sendable {
     defer { releaseDictionaryOwnershipIfIdle() }
     let api = try requireAPI()
     if let existing = session, let find = api.pointee.find_session, find(existing) { return }
+    try RimePersonalDictionaryTransaction(userData: URL(fileURLWithPath: directories.userDataDir),
+                                         fileManager: .default).recoverAll()
     guard let create = api.pointee.create_session else { throw RimeEngineError.apiUnavailable }
     let created = create()
     guard created != 0 else { throw RimeEngineError.sessionCreationFailed }

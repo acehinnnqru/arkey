@@ -8,6 +8,7 @@ import UIKit
 /// The text field owns the screen: a keyboard, custom or not, must never push it out of sight.
 struct ContentView: View {
   @Environment(\.locale) private var interfaceLocale
+  @Environment(\.scenePhase) private var scenePhase
   @StateObject private var model = RimeAppModel.shared
   @State private var text = ""
   @State private var keyboardOverlap: CGFloat = 0
@@ -103,6 +104,11 @@ struct ContentView: View {
       }
       .onAppear {
         LaunchProbe.mark("viewAppear")
+      }
+      .onChange(of: scenePhase) { _, phase in
+        if phase == .active, model.personalDictionary != nil {
+          Task { await model.refreshPersonalDictionary() }
+        }
       }
       .task {
         // Bootstrap is a diagnostic plus the workspace seeding, not startup work: entering the app

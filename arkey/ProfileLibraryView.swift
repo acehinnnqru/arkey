@@ -32,8 +32,6 @@ struct ProfileLibraryView: View {
   @State private var isVisible = false
   @State private var showingURLImport = false
   @State private var pendingDeletion: RimeAppModel.LibraryEntry?
-  @State private var pendingDictionaryDeletion: RimeAppModel.LibraryEntry?
-  @State private var dictionariesToDelete: [String] = []
   @State private var busyProfileID: String?
   @State private var exported: URL?
   @State private var zipDownloadURL = ""
@@ -109,32 +107,9 @@ struct ProfileLibraryView: View {
         model.delete(profileID: entry.metadata.id)
         pendingDeletion = nil
       }
-      if !model.userDatabaseNames.isEmpty {
-        Button(RimeLocalization.text("Delete profile and user dictionaries"), role: .destructive) {
-          dictionariesToDelete = model.userDatabaseNames
-          pendingDictionaryDeletion = entry
-          pendingDeletion = nil
-        }
-      }
       Button(RimeLocalization.text("Cancel"), role: .cancel) { pendingDeletion = nil }
     } message: { entry in
       Text(deletionNote(for: entry))
-    }
-    .alert(RimeLocalization.text("Delete shared user dictionaries?"),
-           isPresented: Binding(get: { pendingDictionaryDeletion != nil },
-                                set: { if !$0 { pendingDictionaryDeletion = nil } }),
-           presenting: pendingDictionaryDeletion) { entry in
-      Button(RimeLocalization.text("Delete profile and user dictionaries"), role: .destructive) {
-        model.delete(profileID: entry.id, removingUserDictionaries: dictionariesToDelete)
-        pendingDictionaryDeletion = nil
-        dictionariesToDelete = []
-      }
-      Button(RimeLocalization.text("Cancel"), role: .cancel) {
-        pendingDictionaryDeletion = nil
-        dictionariesToDelete = []
-      }
-    } message: { _ in
-      Text(RimeLocalization.text("These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: \(dictionariesToDelete.joined(separator: ", ")). User settings, custom phrases, and sync backups will be kept."))
     }
   }
 
@@ -392,7 +367,7 @@ struct ProfileLibraryView: View {
 
   private func deletionNote(for entry: RimeAppModel.LibraryEntry) -> String {
     let name = model.catalogEntry(for: entry.metadata)?.displayName ?? entry.metadata.displayName
-    let message = RimeLocalization.message("Deleting \(name) removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default.")
+    let message = RimeLocalization.message("Deleting \(name) removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept. Manage user dictionaries separately in User dictionaries.")
     if entry.isActive {
       return RimeLocalization.text("\(message) This is the active profile. The keyboard will use built-in data the next time it opens.")
     }

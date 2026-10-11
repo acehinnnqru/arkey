@@ -93,7 +93,6 @@
 "Delete" = "Delete";
 "Delete failed: {0}" = "Delete failed: {0}";
 "Delete profile and keep user dictionaries" = "Delete profile and keep user dictionaries";
-"Delete profile and user dictionaries" = "Delete profile and user dictionaries";
 "Delete profile?" = "Delete profile?";
 "Delete repeat delay: %.2f s" = "Delete repeat delay: %.2f s";
 "Delete repeat interval: %.2f s" = "Delete repeat interval: %.2f s";
@@ -460,9 +459,7 @@
 "Release notes" = "Release notes";
 "Installed in Profile library" = "Installed in Profile library";
 "Add profiles" = "Add profiles";
-"Delete shared user dictionaries?" = "Delete shared user dictionaries?";
-"These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: {0}. User settings, custom phrases, and sync backups will be kept." = "These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: {0}. User settings, custom phrases, and sync backups will be kept.";
-"Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default." = "Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default.";
+"Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept. Manage user dictionaries separately in User dictionaries." = "Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept. Manage user dictionaries separately in User dictionaries.";
 "{0} This is the active profile. The keyboard will use built-in data the next time it opens." = "{0} This is the active profile. The keyboard will use built-in data the next time it opens.";
 "Update" = "Update";
 "Installed" = "Installed";
@@ -474,3 +471,23 @@
 "Import with user settings" = "Import with user settings";
 "Import profile only" = "Import profile only";
 "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?" = "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?";
+
+"Personal dictionary" = "Personal dictionary";
+"Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails." = "Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails.";
+"{0} recognized personal words from {1} dictionaries; {2} source entries are kept without conversion." = "{0} recognized personal words from {1} dictionaries; {2} source entries are kept without conversion.";
+"Automatic restoration is paused for cleared dictionaries: {0}. Their source records remain in the export." = "Automatic restoration is paused for cleared dictionaries: {0}. Their source records remain in the export.";
+"Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed." = "Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed.";
+"Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary." = "Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary.";
+"Refresh personal sources" = "Refresh personal sources";
+"Export personal sources…" = "Export personal sources…";
+"Share personal sources" = "Share personal sources";
+"The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning." = "The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning.";
+"Some source records or compatible words could not be updated. Retained sources are unchanged and remain exportable. Details: {0}" = "Some source records or compatible words could not be updated. Retained sources are unchanged and remain exportable. Details: {0}";
+"Automatic compatibility is not available for {0}. Its original records are retained without conversion." = "Automatic compatibility is not available for {0}. Its original records are retained without conversion.";
+"Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept." = "Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept.";
+"Personal sources could not be refreshed. Close the keyboard and retry; previously retained sources can still be exported. Details: {0}" = "Personal sources could not be refreshed. Close the keyboard and retry; previously retained sources can still be exported. Details: {0}";
+"Failed to export personal sources: {0}" = "Failed to export personal sources: {0}";
+"This clears the scheme dictionary. Its personal source records are kept, and automatic restoration to this dictionary is paused. To forget one word, hold its candidate in the keyboard. Clearing does not erase exported files or sync backups." = "This clears the scheme dictionary. Its personal source records are kept, and automatic restoration to this dictionary is paused. To forget one word, hold its candidate in the keyboard. Clearing does not erase exported files or sync backups.";
+
+"Resume personal words for {0}" = "Resume personal words for {0}";
+"Failed to resume personal words for {0}: {1}" = "Failed to resume personal words for {0}: {1}";

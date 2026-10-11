@@ -93,7 +93,6 @@
 "Delete" = "删除";
 "Delete failed: {0}" = "删除失败：{0}";
 "Delete profile and keep user dictionaries" = "删除配置，保留用户词库";
-"Delete profile and user dictionaries" = "删除配置与用户词库";
 "Delete profile?" = "删除配置？";
 "Delete repeat delay: %.2f s" = "连删起始：%.2f s";
 "Delete repeat interval: %.2f s" = "连删间隔：%.2f s";
@@ -460,9 +459,7 @@
 "Release notes" = "版本更新说明";
 "Installed in Profile library" = "已安装到配置库";
 "Add profiles" = "添加配置";
-"Delete shared user dictionaries?" = "删除共享用户词典？";
-"These shared dictionaries may be used by other profiles. Their learned words will be permanently deleted: {0}. User settings, custom phrases, and sync backups will be kept." = "这些共享词典可能被其他配置使用，其中的学习记录将被永久删除：{0}。用户设置、自定义短语和同步备份会保留。";
-"Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept by default." = "删除 {0} 会清除它的源文件、编译文件和上一版构建。默认保留用户词典、设置、自定义短语和同步备份。";
+"Deleting {0} removes its source files, compiled files, and previous build. User dictionaries, settings, custom phrases, and sync backups are kept. Manage user dictionaries separately in User dictionaries." = "删除 {0} 会清除它的源文件、编译文件和上一版构建。用户词库、设置、自定义短语和同步备份会保留。请在「用户词库」页面单独管理词库。";
 "{0} This is the active profile. The keyboard will use built-in data the next time it opens." = "{0} 这是当前生效的配置，键盘下次打开时将使用内置数据。";
 "Update" = "更新";
 "Installed" = "已安装";
@@ -474,3 +471,23 @@
 "Import with user settings" = "一并导入用户配置";
 "Import profile only" = "仅导入方案";
 "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?" = "此配置包含用户配置文件：{0}。导入后会替换用户目录中的同名文件。是否一并导入？";
+
+"Personal dictionary" = "个人词库";
+"Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails." = "源数据独立于已安装配置保存。切换或删除配置都会保留源数据；即使转换失败，原始编码和删词标记也会保留。";
+"{0} recognized personal words from {1} dictionaries; {2} source entries are kept without conversion." = "从 {1} 个词库识别出 {0} 个个人词条；另有 {2} 条源记录原样保留，尚未转换。";
+"Automatic restoration is paused for cleared dictionaries: {0}. Their source records remain in the export." = "已暂停向清空过的词库自动恢复词条：{0}。导出包仍保留它们的源记录。";
+"Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed." = "自动兼容目前支持雾凇、白霜、朙月和四叶草中的普通话无声调拼音，只补入缺失词条，不合并学习分数。其他编码原样保留，供手动处理；不会根据文字猜测读音。";
+"Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary." = "删词标记会阻止旧词被再次补入，但不会删除另一方案词库中已经存在的词条。";
+"Refresh personal sources" = "刷新个人源数据";
+"Export personal sources…" = "导出个人源数据…";
+"Share personal sources" = "分享个人源数据";
+"The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning." = "ZIP 包含原始 Rime 快照、可读的个人词条索引和格式说明。导出的是最近成功保存的记录，整个 ZIP 不能直接导入鼠须管；收起键盘后刷新，可保存最近的学习记录。";
+"Some source records or compatible words could not be updated. Retained sources are unchanged and remain exportable. Details: {0}" = "部分源记录或兼容词条未能更新。已保存的源数据仍然保留，可以导出。详情：{0}";
+"Automatic compatibility is not available for {0}. Its original records are retained without conversion." = "暂不支持对 {0} 自动兼容，其原始记录会保留，不做转换。";
+"Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept." = "个人源数据已更新。兼容方案会补入缺失词条，已有学习分数保留。";
+"Personal sources could not be refreshed. Close the keyboard and retry; previously retained sources can still be exported. Details: {0}" = "个人源数据暂未刷新。请收起键盘后重试；之前保存的源数据仍可导出。详情：{0}";
+"Failed to export personal sources: {0}" = "导出个人源数据失败：{0}";
+"This clears the scheme dictionary. Its personal source records are kept, and automatic restoration to this dictionary is paused. To forget one word, hold its candidate in the keyboard. Clearing does not erase exported files or sync backups." = "这会清空该方案词库。个人源记录会保留，并暂停向这个词库自动恢复词条。要忘记单个词，请在键盘中长按该候选词。清空不会删除导出文件或同步备份。";
+
+"Resume personal words for {0}" = "恢复向 {0} 自动补入个人词条";
+"Failed to resume personal words for {0}: {1}" = "恢复向 {0} 补入个人词条失败：{1}";

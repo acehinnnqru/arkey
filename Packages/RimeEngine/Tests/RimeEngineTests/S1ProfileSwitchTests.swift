@@ -101,6 +101,17 @@ final class S1ProfileSwitchTests: XCTestCase {
     XCTAssertTrue(try exportText("tracer").contains("输入法"),
                   "and the learned word is still in the dictionary afterwards")
     XCTAssertTrue(try engine.userDictionaryNames().contains("tracer"))
+
+    // Removing the old installation must preserve the active profile's shared learned words.
+    _ = try coordinator.deploySync(profileID: second)
+    try coordinator.delete(profileID: first)
+    XCTAssertEqual(try workspace.loadActiveProfile()?.profileID, second)
+    XCTAssertNil(try workspace.loadMetadata(for: first))
+    XCTAssertTrue(try exportText("tracer").contains("输入法"))
+    try engine.openSession()
+    _ = try engine.setInput("shurufa")
+    XCTAssertEqual(try engine.candidateList().first?.text, "输入法")
+    engine.closeSession()
   }
 
   func testTheSecondProfileSharesTheSameUserDirectory() throws {
