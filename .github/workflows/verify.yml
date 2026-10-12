@@ -2,8 +2,7 @@
 # (scripts/verify-all.sh) plus the two steps that need a network or a signing-free build; the device
 # half stays manual and lives in docs/device-run.md, because no runner has a phone or a Mac's Squirrel.
 #
-# Not run yet: this repository has no push behind it, so the workflow is a definition whose commands are
-# separately exercised by scripts/verify-all.sh locally. S6-AC1 stays "partly" until it runs once.
+# Use the same Xcode release as local verification rather than the runner image's default.
 name: verify
 
 on:
@@ -12,15 +11,19 @@ on:
 
 jobs:
   verify:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
 
       - name: Toolchain
         run: |
+          test -d "$DEVELOPER_DIR"
           swift --version
           xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-path
 
       - name: Engine tests, status, wiring, links, repository and type-check
         run: ./scripts/verify-all.sh

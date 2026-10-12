@@ -37,8 +37,10 @@ BUILD_LOG=".build/typecheck-build.log"
 # A fresh clone has no root .build at this point (only the package's own after the tests ran), so the
 # redirect itself would fail and be reported as a compiler failure with an empty log.
 mkdir -p "$(dirname "$BUILD_LOG")"
+# Select the destination SDK in SwiftPM itself, including Clang targets and module imports.
+# Passing only -Xswiftc -sdk leaves other build commands free to use the host macOS SDK.
 if ! swift build --disable-sandbox --package-path "$PACKAGE" --triple "$TARGET" \
-     -Xswiftc -sdk -Xswiftc "$SDK" >"$BUILD_LOG" 2>&1; then
+     --sdk "$SDK" >"$BUILD_LOG" 2>&1; then
   echo "typecheck FAILED: the RimeEngine build for $TARGET failed:" >&2
   tail -30 "$BUILD_LOG" >&2
   exit 1
