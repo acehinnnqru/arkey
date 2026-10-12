@@ -13,7 +13,8 @@
 #   --typecheck   also plant a type error in an app file. Costs a build (a couple of minutes).
 #   a bundle path runs the release-bundle mutation against it; without one, the newest build under
 #   `.build/` is used when there is one, and that mutation is skipped otherwise.
-set -uo pipefail
+set -euo pipefail
+invocation_directory="$(pwd)"
 cd "$(dirname "$0")/.."
 
 root="$(pwd)"
@@ -25,18 +26,23 @@ for argument in "$@"; do
     *) bundle="$argument" ;;
   esac
 done
+if [ -n "$bundle" ]; then
+  case "$bundle" in
+    /*) ;;
+    *) bundle="$invocation_directory/$bundle" ;;
+  esac
+fi
 if [ -z "$bundle" ]; then
   for candidate in "$root/.build/DerivedData-release/Build/Products/Release-iphoneos/arkey.app" \
                    "$root/.build/DerivedData/Build/Products/Debug-iphonesimulator/arkey.app"; do
     [ -d "$candidate" ] && bundle="$candidate" && break
   done
 fi
-# Absolute before the script changes directory into the clone; absent means "skip that mutation" rather
-# than "run it against a path that does not exist" — which is the hole the guard in
-# check-release-bundle.sh now closes.
+# Resolve explicit relative paths before entering the clone. An explicitly requested bundle must
+# exist; only automatic discovery may skip the bundle mutations when no build is available.
 if [ -n "$bundle" ] && [ ! -d "$bundle" ]; then
-  echo "note: $bundle is not a directory; skipping the release-bundle mutations" >&2
-  bundle=""
+  echo "verification setup FAILED: $bundle is not a directory" >&2
+  exit 2
 fi
 
 work="$(mktemp -d /tmp/arkey-checks.XXXXXX)"
@@ -90,6 +96,10 @@ expect_ok "repository check" ./scripts/check-repository-clean.sh
 if [ -n "$bundle" ]; then
   cp -R "$bundle" "$work/pristine.app"
   expect_ok "release bundle (pristine copy)" ./scripts/check-release-bundle.sh "$work/pristine.app"
+fi
+if [ "$violations" -ne 0 ]; then
+  echo "verification scripts FAILED: pristine checks must pass before planting faults" >&2
+  exit 1
 fi
 
 echo "== each check fails when its subject is broken"
