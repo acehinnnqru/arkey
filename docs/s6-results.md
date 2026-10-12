@@ -21,7 +21,7 @@ The two device passes that *have* happened were recorded where they happened, in
 
 ## Engine tests on macOS
 
-`swift test --disable-sandbox` from `Packages/RimeEngine` runs **388 tests across 46 suites**, which is the
+`swift test --disable-sandbox` from `Packages/RimeEngine` runs **389 tests across 46 suites**, which is the
 line `scripts/verify-all.sh` prints on every run. The count is quoted from that run **and checked against it**: `verify-all.sh` hands the number it just observed
 to the status check, which compares it with the S6-AC1 row and fails when they differ. It had already gone stale
 once — 249 in the table while the suite ran 251 — because the row is hand-written and nothing read it. This
@@ -46,7 +46,7 @@ it again on demand:
 
 | Step | Result |
 | --- | --- |
-| engine tests (macOS) | 388 tests, 0 failures |
+| engine tests (macOS) | 389 tests, 0 failures |
 | status evidence | 38 criteria, 38 rows, 91 cited names, ok |
 | type-check | 117 Swift file preparations across app, extension, unit tests and UI tests, including shared keyboard UI and the app/extension sources in the test set; no type errors, existing UIKit deprecation warnings reported |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
