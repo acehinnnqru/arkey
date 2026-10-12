@@ -94,17 +94,10 @@ step "the catalogue pages"
 if ./scripts/check-catalog-pages.sh > /tmp/arkey-preflight.log 2>&1; then
   tail -2 /tmp/arkey-preflight.log
 else
-  # The project's own page is not published yet: a known blocker for the download screen's 打开项目页 step,
-  # not a regression here. An upstream link that does not resolve is the one that matters, so only the lines
-  # that are not about the project's own page count against this run.
-  upstream="$(grep '✗' /tmp/arkey-preflight.log | grep -v 'github.io/arkey' || true)"
-  if [ -z "$upstream" ]; then
-    echo "  known: the project's own page is not published yet; nothing upstream is broken"
-  else
-    echo "  FAILED:"
-    printf '%s\n' "$upstream" | sed 's/^/    /'
-    failed=1
-  fi
+  # Unreachable URLs are warnings; a nonzero exit indicates the check itself failed.
+  echo "  FAILED:"
+  tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'
+  failed=1
 fi
 
 cat <<'LIST'

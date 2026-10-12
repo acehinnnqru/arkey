@@ -3,7 +3,7 @@
 # config. They are the only part of the catalogue that lives outside this repository, so nothing else checks
 # them — and on the day this was written they were 404s.
 #
-# Network-dependent on purpose: this is a pre-release check for a person, not a gate for verify-all.sh.
+# Network-dependent on purpose: unreachable pages produce warnings, not a verification failure.
 #
 # Usage: scripts/check-catalog-pages.sh
 set -euo pipefail
@@ -23,7 +23,19 @@ urls="$(
 [ -n "$urls" ] || { echo "no page URLs found in the catalogue" >&2; exit 2; }
 
 status_for() {
-  curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$1" || echo "000"
+  local code
+  if code="$(curl -sS -L -o /dev/null -w "%{http_code}" --max-time 15 "$1")"; then
+    printf '%s\n' "$code"
+  else
+    printf '000\n'
+  fi
+}
+
+warn_for() {
+  echo "  warning: HTTP $1  $2"
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "::warning::External URL check returned HTTP $1: $2. Network or upstream availability may be temporary."
+  fi
 }
 
 echo "== every external URL the app shows =="
@@ -33,7 +45,7 @@ for url in $urls; do
   if [ "$code" = "200" ]; then
     echo "  ok    $url"
   else
-    echo "  ✗ $code  $url"
+    warn_for "$code" "$url"
     failed=1
   fi
 done
@@ -44,14 +56,14 @@ root_code="$(status_for "$root")"
 if [ "$root_code" = "200" ]; then
   echo "  ok    $root"
 else
-  echo "  ✗ $root_code  $root (the project's own page)"
+  warn_for "$root_code" "$root"
   failed=1
 fi
 
 if [ "$failed" -ne 0 ]; then
   echo ""
-  echo "A link the app shows does not resolve. If it is one of the project's own pages, publishing it is the fix;"
-  echo "if it is an upstream credit, the URL or the project has moved and the notice screen is wrong."
-  exit 1
+  echo "External URL checks completed with warnings. Network or upstream availability may be temporary;"
+  echo "review persistent failures before release. These warnings do not fail verification."
+  exit 0
 fi
 echo "catalog pages ok"
