@@ -617,9 +617,9 @@ final class S5UserDictionaryTests: XCTestCase {
   }
 
   /// S5 §9's corrupt-database row, **measured** in round 110 before it was implemented: librime logs
-  /// `Error opening db '<name>': Corruption: …` and then `… read-only`, rebuilds the database **in
-  /// place** — nothing is renamed, and nothing is restored from the sync folder — and keeps running, with
-  /// the schema still typing from the base dictionary. So the app's half of the row is "surface the
+  /// `Error opening db '<name>': Corruption: …` and attempts to repair the database **in
+  /// place**. Recovery may preserve entries or leave export unavailable, while the schema still types
+  /// from the base dictionary. So the app's half of the row is "surface the
   /// event": librime's own line, in the report and on the screen.
   func testACorruptDictionaryIsReportedWithLibrimesOwnReason() async throws {
     try engine.openSession()
@@ -661,16 +661,25 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertTrue(entry.databaseIssues.contains { $0.message == corruption.message },
                   entry.databaseIssues.map(\.message).joined(separator: " | "))
 
-    // What the user loses, and why the screen must not show "0 条" as if it were merely empty: the
-    // rebuilt database has nothing to export.
+    // Recovery is not guaranteed to lose every entry or fail a subsequent read-only open. Verify
+    // the export contract in either case, and keep the original corruption visible afterwards.
     let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
     let url = scratch.appendingPathComponent("after-corruption.txt")
-    XCTAssertThrowsError(try access.perform { try engine.exportUserDictionary("tracer", to: url) })
-
-    // The second failure comes with the first attempt to *use* the rebuilt database, which is what
-    // tells the user the dictionary cannot be written either.
-    XCTAssertTrue(engine.databaseIssues().contains { $0.dictionary == "tracer" && $0.isReadOnly },
-                  engine.databaseIssues().map(\.message).joined(separator: " | "))
+    do {
+      let count = try access.perform { try engine.exportUserDictionary("tracer", to: url) }
+      let export = try XCTUnwrap(RimeUserDictionaryExport.parse(
+        text: String(contentsOf: url, encoding: .utf8)))
+      XCTAssertGreaterThan(count, 0)
+      XCTAssertEqual(export.entries.count, count)
+    } catch RimeUserDictionaryError.operationFailed(let operation, let name) {
+      XCTAssertEqual(operation, "export_user_dict")
+      XCTAssertEqual(name, "tracer")
+    }
+    let afterExport = try RimeSyncService(workspace: workspace, engine: engine).report()
+    let damaged = try XCTUnwrap(afterExport.dictionaries.first { $0.name == "tracer" })
+    XCTAssertTrue(damaged.isDamaged)
+    XCTAssertTrue(damaged.databaseIssues.contains { $0.message == corruption.message },
+                  damaged.databaseIssues.map(\.message).joined(separator: " | "))
   }
 
   /// S5 §6's alternative transport: the user's folder is stored as a bookmark, validated when it

@@ -252,6 +252,12 @@ points at the two recovery paths the app has — the §4 backups with their 恢�
 import. Pinned by `testACorruptDictionaryIsReportedWithLibrimesOwnReason`, verified from both sides:
 making `databaseIssues()` return nothing fails it.
 
+The CI run on October 12, 2026 detected the same corruption but subsequently exported successfully,
+without a read-only failure. The earlier empty-database/export-failure result is a local observation,
+not a recovery guarantee: [librime's LevelDB implementation](https://github.com/rime/librime/blob/1.17.0/src/rime/dict/level_db.cc)
+attempts repair. The test now validates a successful export's entry count or the specific export
+failure, and requires the original corruption to remain visible in the report after either outcome.
+
 The spec's §9 row is amended in place with this measurement, because the sentence it carried was wrong
 about what librime does.
 
