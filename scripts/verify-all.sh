@@ -18,12 +18,25 @@ step() { printf "\n== %s ==\n" "$1"; }
 step "engine tests (macOS)"
 # The XCTest summary line, not the last three lines: swift-testing appends its own footer, and the count
 # is the part a reader looks for.
-tests_output="$(swift test --disable-sandbox --package-path Packages/RimeEngine 2>&1)"
-echo "$tests_output" | grep -E "Executed [0-9]+ tests" | tail -1
+if tests_output="$(swift test --disable-sandbox --package-path Packages/RimeEngine 2>&1)"; then
+  :
+else
+  tests_status=$?
+  printf '%s\n' "$tests_output" >&2
+  printf 'engine tests FAILED: swift test exited with status %s\n' "$tests_status" >&2
+  exit "$tests_status"
+fi
+tests_summary="$(printf '%s\n' "$tests_output" | awk '/Executed [0-9]+ tests/ { summary = $0 } END { print summary }')"
+if [[ -z "$tests_summary" ]]; then
+  printf '%s\n' "$tests_output" >&2
+  echo "engine tests FAILED: swift test succeeded without an XCTest summary" >&2
+  exit 1
+fi
+printf '%s\n' "$tests_summary"
 # The count the run just produced is handed to the status check, so the one hand-written number in that table
 # cannot drift from the suite again.
 # The *last* such line is the total; the first is one suite.
-tests_ran="$(echo "$tests_output" | grep -oE "Executed [0-9]+ tests" | tail -1 | grep -oE "[0-9]+" || true)"
+tests_ran="$(printf '%s\n' "$tests_summary" | sed -E 's/.*Executed ([0-9]+) tests.*/\1/')"
 
 step "status evidence"
 ./scripts/check-status-evidence.sh --tests "${tests_ran:-}"
@@ -32,19 +45,19 @@ step "localization"
 python3 scripts/check-localization.py
 
 step "screen wiring"
-./scripts/check-ui-wiring.sh | tail -2
+./scripts/check-ui-wiring.sh
 
 step "section coverage"
-./scripts/check-section-coverage.sh | tail -2
+./scripts/check-section-coverage.sh
 
 step "document links"
-./scripts/check-doc-links.sh | tail -2
+./scripts/check-doc-links.sh
 
 step "repository is clean of third-party data"
 ./scripts/check-repository-clean.sh
 
 step "app and extension type-check"
-./scripts/typecheck-app.sh | tail -1
+./scripts/typecheck-app.sh
 
 bundle="${1:-}"
 if [[ -z "$bundle" ]]; then

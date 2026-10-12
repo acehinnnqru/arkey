@@ -123,8 +123,9 @@ echo "== the Swift-file count in the table =="
 # in S6-AC2 for the same measurement — because, like the test count before them, nothing compared them
 # (round 139). The rule is typecheck-app.sh's, which also enforces that its globs cover every Swift file
 # in the four directories, so a file none of them sees cannot shrink the source set these numbers describe.
-swift_count=$(( $(ls "$root"/arkey/*.swift | wc -l) \
-              + $(ls "$root"/ARKeyboard/*.swift | wc -l) \
+# Match typecheck-app.sh: the app and extension sources also compile into the test set.
+swift_count=$(( $(ls "$root"/arkey/*.swift | wc -l) * 2 \
+              + $(ls "$root"/ARKeyboard/*.swift | wc -l) * 2 \
               + $(ls "$root"/arkeyTests/*.swift | wc -l) \
               + $(ls "$root"/arkeyUITests/*.swift | wc -l) \
               + $(ls "$root"/KeyboardUI/*.swift | wc -l) * 3 ))

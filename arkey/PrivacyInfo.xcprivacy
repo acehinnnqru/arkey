@@ -14,7 +14,9 @@
     * file size and timestamp metadata is read for files in the app container and the app group
       (storage accounting, snapshot discovery) and for files the user picks (the imported archive),
       which is why both file-timestamp reasons are declared;
-    * the free-space check before a deploy reads the volume's available capacity.
+    * the free-space check before a deploy reads the volume's available capacity;
+    * system uptime is included in local keyboard geometry diagnostics and in optional bug reports
+      that the user chooses to copy or share from Diagnostics.
 
   Reason codes are Apple's approved ones; see docs/s6-results.md for the source and the date they
   were checked.
@@ -29,6 +31,14 @@
     <array/>
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>3D61.1</string>
+            </array>
+        </dict>
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>

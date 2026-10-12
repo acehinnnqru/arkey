@@ -21,7 +21,7 @@ The two device passes that *have* happened were recorded where they happened, in
 
 ## Engine tests on macOS
 
-`swift test --disable-sandbox` from `Packages/RimeEngine` runs **226 tests across 32 suites**, which is the
+`swift test --disable-sandbox` from `Packages/RimeEngine` runs **388 tests across 46 suites**, which is the
 line `scripts/verify-all.sh` prints on every run. The count is quoted from that run **and checked against it**: `verify-all.sh` hands the number it just observed
 to the status check, which compares it with the S6-AC1 row and fails when they differ. It had already gone stale
 once — 249 in the table while the suite ran 251 — because the row is hand-written and nothing read it. This
@@ -46,9 +46,9 @@ it again on demand:
 
 | Step | Result |
 | --- | --- |
-| engine tests (macOS) | 232 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 90 cited names, ok |
-| type-check | app, extension and the iOS test target, no type errors — 52 Swift files in the tree (the extension is compiled into the test set as well, so 55 files are prepared), and the script compares its count with the tree so a file its globs miss cannot make "no type errors" a claim about a smaller source set |
+| engine tests (macOS) | 388 tests, 0 failures |
+| status evidence | 38 criteria, 38 rows, 91 cited names, ok |
+| type-check | 117 Swift file preparations across app, extension, unit tests and UI tests, including shared keyboard UI and the app/extension sources in the test set; no type errors, existing UIKit deprecation warnings reported |
 | release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
 
 The count is the one part of the chain that moves for good reasons, so the script prints the XCTest summary
@@ -105,7 +105,7 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 exactly as much as its pattern is complete.
 
 It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `90 cited names checked` and exits 0, and
+with the table as it stands it prints `38 rows, 38 criteria` and `91 cited names checked` and exits 0, and
 with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
 criterion. The row was removed again; the check is what stays.
 
@@ -921,15 +921,22 @@ comments, and derives the categories the code actually uses:
 | FileTimestamp | `attributesOfItem`, `contentModificationDate`, `creationDate`, `stat(` … |
 | DiskSpace | `volumeAvailableCapacity`, `systemFreeSize`, `statfs` … |
 | UserDefaults | `UserDefaults` |
-| SystemBootTime | `systemUptime`, `mach_absolute_time` — **not used** |
+| SystemBootTime | `systemUptime` in host and keyboard geometry diagnostics |
 | ActiveKeyboards | `activeInputModes` — **not used** |
 
-The scan found exactly the three the manifest declares, in both directions: under-declaring is a rejection,
+The scan now finds all four categories the app manifest declares, in both directions: under-declaring is a rejection,
 over-declaring is a false statement. Two details make it trustworthy. Comments are stripped — the probe
 *explains* in a comment why it does not use the system uptime, and a scan that counted that sentence would
 demand a declaration for an API nobody calls. And the failure is verified from both sides: with
 `ProcessInfo.processInfo.systemUptime` added to the engine on purpose, the test reported
 "the manifest and the code disagree: … SystemBootTime …", and that line was removed again.
+
+The geometry diagnostics now record system uptime in both the host and the keyboard extension. Both
+privacy manifests declare SystemBootTime with reason `3D61.1`: the timestamps are included in optional
+bug reports that the user chooses to copy or share from Diagnostics. The test checks this reason in
+both bundles, as well as matching the app manifest to the source scan. The reason was checked against
+[Apple’s required-reason API documentation](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype)
+on October 12, 2026.
 
 ## Test coverage
 

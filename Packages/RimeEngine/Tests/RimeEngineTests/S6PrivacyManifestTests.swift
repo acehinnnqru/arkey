@@ -85,9 +85,20 @@ final class S6PrivacyManifestTests: XCTestCase {
 
     XCTAssertEqual(categories, ["NSPrivacyAccessedAPICategoryFileTimestamp",
                                 "NSPrivacyAccessedAPICategoryDiskSpace",
-                                "NSPrivacyAccessedAPICategoryUserDefaults"])
-    XCTAssertFalse(categories.contains("NSPrivacyAccessedAPICategorySystemBootTime"),
-                   "the probe measures the process's age, not the system's boot time")
+                                "NSPrivacyAccessedAPICategoryUserDefaults",
+                                "NSPrivacyAccessedAPICategorySystemBootTime"])
+    // Geometry diagnostics retain system uptime in user-initiated bug reports. Both processes
+    // record it, so each bundle needs the same approved reason.
+    for path in ["arkey/PrivacyInfo.xcprivacy", "ARKeyboard/PrivacyInfo.xcprivacy"] {
+      let data = try Data(contentsOf: repositoryRoot.appendingPathComponent(path))
+      let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil)
+        as? [String: Any])
+      let entries = try XCTUnwrap(manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]])
+      let bootTime = try XCTUnwrap(entries.first {
+        $0["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategorySystemBootTime"
+      }, path)
+      XCTAssertEqual(bootTime["NSPrivacyAccessedAPITypeReasons"] as? [String], ["3D61.1"], path)
+    }
     XCTAssertFalse(categories.contains("NSPrivacyAccessedAPICategoryActiveKeyboards"),
                    "needsInputModeSwitchKey is the system telling us, not us asking for the list")
 
@@ -122,7 +133,8 @@ final class S6PrivacyManifestTests: XCTestCase {
                    "the manifest and the code disagree: used " + used.sorted().joined(separator: ", "))
     XCTAssertEqual(used, ["NSPrivacyAccessedAPICategoryFileTimestamp",
                           "NSPrivacyAccessedAPICategoryDiskSpace",
-                          "NSPrivacyAccessedAPICategoryUserDefaults"],
+                          "NSPrivacyAccessedAPICategoryUserDefaults",
+                          "NSPrivacyAccessedAPICategorySystemBootTime"],
                    "and this is a scan that found something, not a scan that found nothing")
   }
 

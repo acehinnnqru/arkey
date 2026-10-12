@@ -14,6 +14,8 @@
       workspace, the deployed build, the dictionary snapshots);
     * no disk-space check: the keyboard never deploys, so the free-space rule the app's manifest declares
       is not here;
+    * system uptime in local geometry diagnostics, included in optional bug reports only when the
+      user chooses to copy or share them from the host app's Diagnostics screen;
     * no network, no tracking, no collected data, and no third-party SDK.
 -->
 <plist version="1.0">
@@ -26,6 +28,14 @@
 	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>3D61.1</string>
+			</array>
+		</dict>
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
