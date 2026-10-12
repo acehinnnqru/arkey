@@ -37,7 +37,9 @@ activation, and when the User dictionaries screen refreshes. Native dictionaries
 cross-process lock. If the keyboard owns them, capture is deferred until the user closes the keyboard
 and refreshes. The archive is a last-successful-capture record, not a live mirror of every keystroke.
 
-Before native backup, Foundation prepares the running engine's absolute device sync directory.
+Before native backup, Foundation validates the installation record and prepares its absolute device
+sync directory. The native deployment modules and only the `installation_update` task are initialized
+to load that path and installation ID in a fresh process; no schema rebuild or full sync is scheduled.
 Unavailable folders produce a recoverable error before librime's throwing C++ filesystem API can
 terminate the app. Bootstrap refreshes the sync path from the current folder preference or its
 validated default while preserving the installation ID; iOS may relocate the container on updates.
@@ -80,6 +82,8 @@ markers and conservative additions. `PersonalDictionaryIntegrationTests` exercis
 with actual databases: repeat-safe migration, candidate availability, failed verification, retry,
 profile/native database removal, pause/resume and store corruption. Transaction tests cover interrupted
 publication recovery and cleanup under the dictionary ownership boundary.
+The cold-start regression uses a separate test process, since finalizing librime in the same process
+retains deployer state and would conceal a missing installation initialization.
 
 Device checks still need to exercise the localized section, refresh while the keyboard owns its lease,
 the Files/share flow, and switching between real curated configurations with learned phrases.

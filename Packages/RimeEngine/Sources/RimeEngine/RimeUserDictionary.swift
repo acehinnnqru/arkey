@@ -84,11 +84,29 @@ extension RimeEngine {
       }
       // The native backup creates this directory with throwing C++ filesystem APIs. An obsolete
       // iOS container path or revoked folder access can abort the process across the C boundary.
-      // Resolve the path from the running engine and let Foundation fail before entering native code.
-      guard let path = userDataSyncDirectory(), path.hasPrefix("/") else {
+      // Starting a fresh process does not load installation.yaml into the deployer. Load only its
+      // installation task, without rebuilding schemas or scheduling full synchronization.
+      let recordURL = URL(fileURLWithPath: directories.userDataDir).appendingPathComponent("installation.yaml")
+      let installation = try configFromYAML(String(contentsOf: recordURL, encoding: .utf8))
+      defer { installation.close() }
+      guard let sync = installation.string("sync_dir"), sync.hasPrefix("/"),
+            let id = installation.string("installation_id"), !id.isEmpty, id != ".", id != "..",
+            !id.contains("/"), !id.contains("\\"),
+            !id.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
         throw RimeSyncError.noSyncDirectory
       }
-      try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+      let expected = URL(fileURLWithPath: sync).appendingPathComponent(id)
+      // Prepare the validated directory before any native filesystem operation can throw.
+      try FileManager.default.createDirectory(at: expected, withIntermediateDirectories: true)
+      let task = CStringBox("installation_update")
+      guard let loadDeployer = api?.pointee.deployer_initialize,
+            let run = api?.pointee.run_task else { throw RimeUserDictionaryError.leversUnavailable }
+      // nil preserves the running engine's traits and only loads the deployment task modules.
+      loadDeployer(nil)
+      guard run(task.raw),
+            userDataSyncDirectory() == expected.path, userID() == id else {
+        throw RimeUserDictionaryError.operationFailed("initialize backup directory", name)
+      }
       let box = CStringBox(name)
       return backup(box.raw)
     }

@@ -78,6 +78,17 @@ final class PersonalDictionaryIntegrationTests: XCTestCase {
   private var profileID: String!
 
   override func setUpWithError() throws {
+    if let root = ProcessInfo.processInfo.environment["ARKEY_PERSONAL_COLD_START_ROOT"] {
+      scratch = URL(fileURLWithPath: root)
+      workspace = RimeWorkspace(root: scratch.appendingPathComponent("rime"))
+      profileID = try XCTUnwrap(workspace.loadActiveProfile()?.profileID)
+      let profile = workspace.profile(profileID)
+      engine = RimeEngine(configuration: RimeConfiguration(directories: RimeDirectories(
+        sharedDataDir: profile.source.path, prebuiltDataDir: profile.build.path,
+        userDataDir: workspace.userData.path, stagingDir: workspace.staging.path, logDir: workspace.log.path)))
+      _ = try engine.start()
+      return
+    }
     scratch = FileManager.default.temporaryDirectory.appendingPathComponent("arkey-personal-" + UUID().uuidString)
     workspace = try RimeWorkspace(root: scratch.appendingPathComponent("rime")).createDirectories()
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -108,6 +119,7 @@ final class PersonalDictionaryIntegrationTests: XCTestCase {
 
   override func tearDownWithError() throws {
     engine?.shutdown()
+    if ProcessInfo.processInfo.environment["ARKEY_PERSONAL_COLD_START_ROOT"] != nil { return }
     if let scratch { try? FileManager.default.removeItem(at: scratch) }
   }
 
@@ -166,6 +178,41 @@ final class PersonalDictionaryIntegrationTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
     try FileManager.default.removeItem(at: sync)
     XCTAssertTrue(try service().synchronize().failures.isEmpty)
+  }
+
+  func testANewEngineCapturesExistingLearnedWordsWithoutRedeploying() throws {
+    if ProcessInfo.processInfo.environment["ARKEY_PERSONAL_COLD_START_ROOT"] == nil {
+      engine.shutdown()
+      // Finalizing an engine does not clear all process-global deployer state. A separate process
+      // reproduces launching a previously deployed installation without running maintenance first.
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+      process.arguments = ["-XCTest", "RimeEngineTests.PersonalDictionaryIntegrationTests/testANewEngineCapturesExistingLearnedWordsWithoutRedeploying",
+                           Bundle(for: Self.self).bundleURL.path]
+      // XCTest dumps its environment on runner errors. Never pass unrelated credentials to a child.
+      let inherited = ProcessInfo.processInfo.environment
+      var environment = inherited.filter { ["HOME", "TMPDIR", "DYLD_FRAMEWORK_PATH", "DYLD_LIBRARY_PATH", "SWIFT_TESTING_ENABLED"].contains($0.key) }
+      environment["ARKEY_PERSONAL_COLD_START_ROOT"] = scratch.path
+      process.environment = environment
+      let output = Pipe()
+      process.standardOutput = output
+      process.standardError = output
+      try process.run()
+      let data = output.fileHandleForReading.readDataToEndOfFile()
+      process.waitUntilExit()
+      for line in String(decoding: data, as: UTF8.self).split(separator: "\n") where line.hasPrefix(#filePath + ":") {
+        print(line)
+      }
+      XCTAssertEqual(process.terminationStatus, 0)
+      return
+    }
+    let outcome = try service().synchronize()
+    XCTAssertTrue(outcome.failures.isEmpty, outcome.failures.joined(separator: "; "))
+    XCTAssertTrue(outcome.library.words.contains { $0.text == "输入法" })
+    let installation = try XCTUnwrap(workspace.loadInstallation())
+    XCTAssertEqual(engine.userID(), installation.installationID)
+    XCTAssertEqual(engine.userDataSyncDirectory(), scratch.appendingPathComponent("sync")
+      .appendingPathComponent(installation.installationID).path)
   }
 
   func testImportVerificationFailureRestoresTargetAndKeepsSourceExportable() throws {

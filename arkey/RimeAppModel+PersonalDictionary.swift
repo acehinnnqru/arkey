@@ -15,9 +15,22 @@ extension RimeAppModel {
       let snapshot = try await Task.detached(priority: .utility) {
         let outcome = try RimePersonalDictionaryService(workspace: workspace, engine: engine)
           .synchronize(applyWords: applyWords)
-        return (outcome, outcome.library.words.filter { !$0.isDeleted }.count, outcome.library.unconvertedCount)
+        let sources = outcome.library.latestSources.map { source in
+          let entries = RimeUserDictionarySnapshot.parse(text: source.snapshot)?.entries ?? []
+          let recognized = entries.filter { RimeMandarinCode.normalize($0.code) != nil }.count
+          return source.dictionary + ":compatible=" + String(source.isPlainMandarin)
+            + ",entries=" + String(entries.count) + ",recognizedCodes=" + String(recognized)
+        }.joined(separator: ";")
+        return (outcome, outcome.library.words.filter { !$0.isDeleted }.count, outcome.library.unconvertedCount, sources)
       }.value
       let outcome = snapshot.0
+      RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+        .append(RimeProbeRecord(phase: "app.personalDictionary", message: "sources=[" + snapshot.3
+          + "] words=" + String(snapshot.1) + " unconverted=" + String(snapshot.2)
+          + " imported=" + String(outcome.imported) + " unsupported=["
+          + outcome.unsupportedTargets.joined(separator: ",") + "] failures=["
+          + outcome.failures.joined(separator: ";") + "]"))
+      ProbeLogLocation.mirrorIntoAppContainer()
       personalDictionary = outcome.library
       personalDictionaryWordCount = snapshot.1
       personalDictionaryUnconvertedCount = snapshot.2
@@ -29,6 +42,9 @@ extension RimeAppModel {
         personalDictionaryMessage = RimeLocalization.message("Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept.")
       }
     } catch {
+      RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+        .append(RimeProbeRecord(phase: "app.personalDictionary.failed", message: String(describing: error)))
+      ProbeLogLocation.mirrorIntoAppContainer()
       // A busy keyboard must not prevent exporting the sources already saved by the app.
       let snapshot = await Task.detached(priority: .utility) {
         guard let library = try? RimePersonalDictionaryService(workspace: workspace, engine: engine).load() else {

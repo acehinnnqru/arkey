@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Draw the app icon from the keyboard's own measured palette.
+"""Draw the legacy placeholder icon from the keyboard's own measured palette.
 
-The icon is a placeholder with a reason: an app store build needs one, and this repository has no artwork.
+The original icon was a placeholder: an app store build needs one.
 Rather than invent a visual identity, it draws the mark every keyboard needs a word for — 中 — in the colours
 S3 §4 measured (the dark backing and the action blue), so it looks like the app it belongs to. Replace
 AppIcon-1024.png and friends with real artwork when there is any; nothing in the build depends on how they look,
 and the release check only insists that an icon is there.
 
-Usage: scripts/make-app-icon.py            (writes arkey/Assets.xcassets/AppIcon.appiconset/*.png)
+The asset catalog now contains glass artwork. This script is retained only as an explicit fallback;
+it must not overwrite that artwork during routine development.
+
+Usage: scripts/make-app-icon.py --replace-with-placeholder
 """
+import argparse
 import struct
 import zlib
 from pathlib import Path
@@ -65,6 +69,11 @@ def write_png(path, background, mark):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--replace-with-placeholder", action="store_true",
+                        help="Replace the current artwork with the legacy placeholder icons.")
+    if not parser.parse_args().replace_with_placeholder:
+        parser.exit(0, "Current app icon artwork preserved. Use --replace-with-placeholder to replace it.\n")
     catalog = Path(__file__).resolve().parent.parent / "arkey/Assets.xcassets/AppIcon.appiconset"
     # The three appearances the asset catalog asks for: the default, the dark one, and the tinted one, which
     # iOS wants as a grayscale image it can tint itself.
