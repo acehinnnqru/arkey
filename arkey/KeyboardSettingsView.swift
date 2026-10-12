@@ -14,7 +14,6 @@ struct KeyboardSettingsView: View {
   var body: some View {
     let _ = interfaceLocale
     List {
-      if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       inputModeSection
       spaceSideSection
       englishSpaceSideSection
@@ -30,7 +29,7 @@ struct KeyboardSettingsView: View {
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
-    .disabled(isLoading)
+    .modifier(SettingsLoadingPresentation(isLoading: isLoading))
     .navigationTitle(RimeLocalization.text("Keyboard"))
     .task {
       isLoading = true

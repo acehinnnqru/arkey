@@ -13,7 +13,6 @@ struct PunctuationView: View {
   var body: some View {
     let _ = interfaceLocale
     List {
-      if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       Section {
         ForEach(model.punctuationChoices, id: \.preset.id) { choice in
           Button {
@@ -43,7 +42,7 @@ struct PunctuationView: View {
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
-    .disabled(isLoading)
+    .modifier(SettingsLoadingPresentation(isLoading: isLoading))
     .navigationTitle(RimeLocalization.text("Punctuation"))
     .task {
       isLoading = true

@@ -11,7 +11,6 @@ struct SchemaSettingsView: View {
   var body: some View {
     let _ = interfaceLocale
     List {
-      if isLoading { ProgressView(RimeLocalization.text("Loading settings…")) }
       schemaSection
       if let descriptor = model.schemaDescriptor {
         switchSection(descriptor)
@@ -27,7 +26,7 @@ struct SchemaSettingsView: View {
       }
       if let error = model.errorMessage { errorSection(error) }
     }
-    .disabled(isLoading)
+    .modifier(SettingsLoadingPresentation(isLoading: isLoading))
     .navigationTitle(RimeLocalization.text("Scheme"))
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
