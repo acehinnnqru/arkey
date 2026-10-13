@@ -7,6 +7,39 @@ import CoreGraphics
 /// constraint conflict) cannot happen in a value type, and the arithmetic can be checked without a
 /// simulator.
 final class S3LayoutTests: XCTestCase {
+  func testInlineGlobeFitsAllLayersAndSupportedWidths() throws {
+    for width: CGFloat in [320, 390, 430, 744, 1024] {
+      for layer in RimeKeyboardLayer.allCases {
+        for chineseOnly in [false, true] {
+          var style = RimeKeyboardStyle.systemAligned
+          style.spaceKeyWidth = width - 2 * style.sideMargin - 3 * style.horizontalGap
+            - style.layerKeyWidth - style.emojiKeyWidth - style.returnKeyWidth
+          let layout = RimeKeyboardLayoutEngine.layout(width: width, layer: layer,
+            inlineGlobe: true, style: style,
+            leftSpaceKey: .init(mode: .character), rightSpaceKey: .init(mode: .auxiliary),
+            chineseInputOnly: chineseOnly)
+          let baseline = RimeKeyboardLayoutEngine.layout(width: width, layer: layer, style: style)
+          XCTAssertEqual(layout.height, baseline.height)
+          XCTAssertEqual(layout.rows.count, 4)
+          let bottom = layout.rows[3].keys
+          XCTAssertEqual(bottom[1].kind, .globe)
+          XCTAssertEqual(layout.keys.filter { $0.kind == .globe }.count, 1)
+          let globe = try XCTUnwrap(bottom.first { $0.kind == .globe })
+          XCTAssertEqual(globe.frame.height, style.keyHeight)
+          XCTAssertFalse(globe.isCore)
+          for key in bottom {
+            XCTAssertGreaterThan(key.frame.width, 0)
+            XCTAssertGreaterThanOrEqual(key.frame.minX, style.sideMargin)
+            XCTAssertLessThanOrEqual(key.frame.maxX, width - style.sideMargin + 0.01)
+          }
+          for (left, right) in zip(bottom, bottom.dropFirst()) {
+            XCTAssertEqual(right.frame.minX - left.frame.maxX, style.horizontalGap, accuracy: 0.01)
+          }
+        }
+      }
+    }
+  }
+
   func testSwitchingInputModeUsesSeparateSideKeysAndRecoversSpace() throws {
     var preferences = RimeKeyboardPreferences(leftSpaceKey: .init(mode: .character, character: ";"),
                                              rightSpaceKey: .init(mode: .auxiliary))

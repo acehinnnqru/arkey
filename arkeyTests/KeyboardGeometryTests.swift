@@ -7,6 +7,17 @@ import RimeEngine
 /// the model and wrong in the view is the failure this target exists to catch, and no test on the Mac
 /// can see it.
 final class KeyboardGeometryTests: XCTestCase {
+  func testInlineGlobeDevicePolicyOverridesFalseForDuoAndIPad() {
+    XCTAssertTrue(KeyboardGlobePolicy.showsInlineGlobe(needsInputModeSwitchKey: false,
+      idiom: .phone, modelIdentifier: "iPhone19,4"))
+    XCTAssertTrue(KeyboardGlobePolicy.showsInlineGlobe(needsInputModeSwitchKey: false,
+      idiom: .pad, modelIdentifier: "iPad"))
+    XCTAssertFalse(KeyboardGlobePolicy.showsInlineGlobe(needsInputModeSwitchKey: false,
+      idiom: .phone, modelIdentifier: "iPhone18,1"))
+    XCTAssertTrue(KeyboardGlobePolicy.showsInlineGlobe(needsInputModeSwitchKey: true,
+      idiom: .phone, modelIdentifier: "unknown"))
+  }
+
   private func grid(width: CGFloat = 430,
                     layer: KeyLayer = .letters,
                     globe: Bool = false) -> KeyboardKeyGrid {
@@ -122,16 +133,20 @@ final class KeyboardGeometryTests: XCTestCase {
                    "the laid-out rows and the engine's row model disagree")
   }
 
-  /// The globe row is added below the action row, and it does not push the other rows around.
-  func testTheGlobeRowOnlyAddsHeight() {
+  /// Devices needing a switch key keep it in the bottom row without increasing height.
+  func testTheGlobeSharesTheBottomRow() {
     let without = KeyboardKeyGrid.rowsHeight(width: 430, needsGlobeRow: false)
     let with = KeyboardKeyGrid.rowsHeight(width: 430, needsGlobeRow: true)
-    XCTAssertEqual(with - without, KeyboardMetrics.rowGap + KeyboardMetrics.globeRowHeight,
+    XCTAssertEqual(with, without,
                    accuracy: 0.5)
 
     let grid = grid(globe: true)
     let rows = Dictionary(grouping: keys(grid)) { round($0.frame.minY) }
-    XCTAssertEqual(rows.count, 5, "four rows plus the globe row")
+    XCTAssertEqual(rows.count, 4, "the globe shares the bottom control row")
+    let globe = keys(grid).first { $0.key == .globe }!
+    let space = keys(grid).first { $0.key == .space }!
+    XCTAssertEqual(globe.frame.minY, space.frame.minY)
+    XCTAssertEqual(globe.frame.height, KeyboardMetrics.keyHeight)
   }
 
   /// S3 §8: a third-party keyboard that VoiceOver cannot describe is unusable. Every key the grid lays

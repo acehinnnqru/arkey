@@ -8,7 +8,7 @@ import UIKit
 /// bitmap and written as a PNG, and then read back through RimeKeyboardCapture.load: the same decoder and the
 /// same comparison a device screenshot goes through. Two questions are asked of the picture. Do the rendered
 /// rectangles sit where the layout model says the keys are? And does every key's fill follow its **role** in
-/// the palette — the plain return and space bar the wide cap, the globe no cap at all?
+/// the palette — the plain return and space bar the wide cap, the inline globe a wide cap?
 ///
 /// The palette's own *values* are not this test's subject: they are measured numbers, and the engine's
 /// S3AppearanceTests compare them with the hexes the captures recorded. What no test on the Mac can see is
@@ -180,7 +180,7 @@ final class KeyboardRenderTests: XCTestCase {
     var style = KeyboardMetrics.style
     style.spaceKeyWidth = width - 2 * style.sideMargin - 3 * style.horizontalGap
       - style.layerKeyWidth - style.emojiKeyWidth - style.returnKeyWidth
-    let layout = RimeKeyboardLayoutEngine.layout(width: width, layer: .letters, needsGlobeRow: globe,
+    let layout = RimeKeyboardLayoutEngine.layout(width: width, layer: .letters, inlineGlobe: globe,
                                                  style: style, auxiliaryPrefix: ",")
     let size = layout.size
 
@@ -322,36 +322,16 @@ final class KeyboardRenderTests: XCTestCase {
     }
   }
 
-  /// The globe row is painted too — and it is the one place the pixel comparison cannot look, which is worth
-  /// pinning rather than skipping.
-  func testTheGlobeRowIsPainted() throws {
-    let render = try render(.light, globe: true)
-    let globe = try key(render, .globe)
-    // The globe is the one key with no cap at all — RimeKeyCapRole.plain is transparent — so the material
-    // shows through its frame. That is the measured rule, not a fill that went missing.
-    assertFill(render, of: globe, is: render.palette.backing)
-
-    // The same fact from the other side: the rectangle detector finds *caps*, so a capless key has no
-    // rectangle of its own — but it does have a glyph, and a glyph drawn straight on the material is a blob
-    // like any other. So every capped key is found around its own centre, and whatever else is found has to
-    // lie inside the globe key's frame: the model and the picture agreeing by a different route.
-    let capped = render.layout.keys.filter { $0.kind != .globe }
-    let detected = render.capture.keyRects()
-    let centres = capped.map { key -> CGPoint in
-      let frame = key.frame.applying(CGAffineTransform(scaleX: render.scale, y: render.scale))
-      return CGPoint(x: frame.midX, y: frame.midY)
-    }
-    for (key, centre) in zip(capped, centres) {
-      XCTAssertTrue(detected.contains { $0.contains(centre) },
-                    key.label + " has no rectangle around its centre")
-    }
-    let globeFrame = globe.frame.applying(CGAffineTransform(scaleX: render.scale, y: render.scale))
-      .insetBy(dx: -2, dy: -2)
-    let unmatched = detected.filter { rect in !centres.contains { rect.contains($0) } }
-    XCTAssertFalse(unmatched.isEmpty, "not even the globe's glyph was found, so nothing was measured")
-    for rect in unmatched {
-      XCTAssertTrue(globeFrame.contains(rect),
-                    "a rectangle that is neither a capped key nor the globe: " + rect.debugDescription)
+  /// The inline switch key has a native-style cap in both appearances.
+  func testTheInlineGlobeCapIsPainted() throws {
+    for appearance: UIKeyboardAppearance in [.light, .dark] {
+      let render = try render(appearance, globe: true)
+      let globe = try key(render, .globe)
+      assertFill(render, of: globe, is: render.palette.wideKeyCap)
+      let frame = globe.frame.applying(CGAffineTransform(scaleX: render.scale, y: render.scale))
+      let centre = CGPoint(x: frame.midX, y: frame.midY)
+      XCTAssertTrue(render.capture.keyRects().contains { $0.contains(centre) },
+                    "the globe must have a cap around its centre")
     }
   }
 }

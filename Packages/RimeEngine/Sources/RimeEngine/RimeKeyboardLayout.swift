@@ -255,6 +255,7 @@ public enum RimeKeyboardLayoutEngine {
                             returnKey: RimeReturnKey = RimeReturnKey(),
                             language: RimeLanguageKey? = nil,
                             needsGlobeRow: Bool = false,
+                            inlineGlobe: Bool = false,
                             style: RimeKeyboardStyle = .measured,
                             auxiliaryPrefix: String? = nil,
                             leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
@@ -276,7 +277,7 @@ public enum RimeKeyboardLayoutEngine {
                                                           style: style, returnKey: returnKey,
                                                           language: language, auxiliaryPrefix: auxiliaryPrefix,
                                                           leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
-                                                          chineseInputOnly: chineseInputOnly)))
+                                                          chineseInputOnly: chineseInputOnly, inlineGlobe: inlineGlobe)))
     case .numbers, .symbols:
       let first = layer == .numbers
         ? ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
@@ -302,11 +303,11 @@ public enum RimeKeyboardLayoutEngine {
                                                           style: style, returnKey: returnKey,
                                                           language: language, auxiliaryPrefix: auxiliaryPrefix,
                                                           leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
-                                                          chineseInputOnly: chineseInputOnly)))
+                                                          chineseInputOnly: chineseInputOnly, inlineGlobe: inlineGlobe)))
     }
 
     y += style.keyHeight
-    if needsGlobeRow {
+    if needsGlobeRow && !inlineGlobe {
       y += style.rowGap
       rows.append(row(y: y, style: style, keys: globeRow(width: width, style: style)))
       y += style.globeRowHeight
@@ -452,7 +453,7 @@ public enum RimeKeyboardLayoutEngine {
                                 auxiliaryPrefix: String?,
                                 leftSpaceKey: RimeSpaceSideKey,
                                 rightSpaceKey: RimeSpaceSideKey,
-                                chineseInputOnly: Bool) -> [RimeKeyboardKey] {
+                                chineseInputOnly: Bool, inlineGlobe: Bool) -> [RimeKeyboardKey] {
     var keys: [RimeKeyboardKey] = []
     var x = style.sideMargin
     keys.append(RimeKeyboardKey(kind: .layer(layer),
@@ -461,6 +462,13 @@ public enum RimeKeyboardLayoutEngine {
                                 label: layer.switchLabel,
                                 accessibilityLabel: layer.accessibilityLabel))
     x += style.layerKeyWidth + style.horizontalGap
+    if inlineGlobe {
+      keys.append(RimeKeyboardKey(kind: .globe,
+                                  frame: CGRect(x: x, y: 0, width: style.emojiKeyWidth,
+                                                height: style.keyHeight),
+                                  label: "🌐", accessibilityLabel: RimeLocalization.text("Next keyboard")))
+      x += style.emojiKeyWidth + style.horizontalGap
+    }
     if !chineseInputOnly {
       if let language {
         keys.append(RimeKeyboardKey(kind: .language(language),
@@ -481,7 +489,8 @@ public enum RimeKeyboardLayoutEngine {
     let extraKeyCount = CGFloat([leftInput, rightInput].compactMap { $0 }.count)
     let punctuationWidth = min(style.letterKeyWidth(for: width),
                                max(1, (style.spaceKeyWidth - 1) / max(1, extraKeyCount) - style.horizontalGap))
-    let availableSpaceWidth = style.spaceKeyWidth - extraKeyCount * (punctuationWidth + style.horizontalGap)
+    let globeWidth = inlineGlobe ? style.emojiKeyWidth + style.horizontalGap : 0
+    let availableSpaceWidth = style.spaceKeyWidth - globeWidth - extraKeyCount * (punctuationWidth + style.horizontalGap)
     // With no right-side key, restore the wider measured Return cap. On narrow
     // keyboards, limit the expansion so Space stays at least as wide as Return.
     let returnExpansion = rightInput == nil

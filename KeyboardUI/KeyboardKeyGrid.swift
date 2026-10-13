@@ -80,6 +80,8 @@ final class KeyboardKeyGrid: UIView {
   private var language: RimeLanguageKey?
   private var returnKeyLabel = RimeLocalization.text("Return")
   private var spaceKeyLabel = RimeLocalization.text("Space")
+  // The system requests a custom switch key on devices without its external globe.
+  // Keep that key inside the bottom row; the legacy argument name is shared with callers.
   private var showsGlobeRow = false
   private var feedback = RimeKeyFeedback.standard
   private var auxiliaryPrefix = ","
@@ -109,7 +111,7 @@ final class KeyboardKeyGrid: UIView {
 
   static func rowsHeight(width: CGFloat, needsGlobeRow: Bool) -> CGFloat {
     RimeKeyboardLayoutEngine.layout(width: max(width, 1), layer: .letters,
-                                    needsGlobeRow: needsGlobeRow, style: rowStyle(width: max(width, 1))).height
+                                    inlineGlobe: needsGlobeRow, style: rowStyle(width: max(width, 1))).height
   }
 
   func cancelActivePresses() {
@@ -234,7 +236,7 @@ final class KeyboardKeyGrid: UIView {
       shift: shift,
       returnKey: RimeReturnKey(label: returnKeyLabel),
       language: language,
-      needsGlobeRow: showsGlobeRow,
+      inlineGlobe: showsGlobeRow,
       style: Self.rowStyle(width: width),
       auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
       chineseInputOnly: chineseInputOnly, punctuationLabels: punctuationLabels)
@@ -351,7 +353,7 @@ final class KeyboardKeyGrid: UIView {
     case .space: return .wide
     case .shift: return shift != .off ? .pressedLetter : .wide
     case .returnKey: return usesReturnSymbol ? .wide : .actionEnabled
-    case .globe: return .plain
+    case .globe: return .wide
     default: return .wide
     }
   }
@@ -365,7 +367,7 @@ final class KeyboardKeyGrid: UIView {
     case .language:
       return .special
     case .globe:
-      return .plain
+      return .special
     default:
       return .special
     }
