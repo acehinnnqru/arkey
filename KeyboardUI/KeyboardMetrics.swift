@@ -2,6 +2,29 @@ import UIKit
 import RimeEngine
 import Darwin
 
+enum KeyboardFoldPolicy {
+  @available(iOS 27.1, *)
+  static func isPartiallyOpen(_ hinge: UIHinge?) -> Bool? {
+    switch hinge?.status {
+    case .partiallyOpen: return true
+    case .closed, .fullyOpen: return false
+    default: return nil
+    }
+  }
+
+  /// Only a vertical division crossing the key grid can require a split keyboard.
+  /// Width alone must not activate this layout on an ordinary landscape phone or iPad.
+  static func splitDivision(bounds: CGRect, isPartiallyOpen: Bool?, divisions: [CGRect]) -> CGRect? {
+    guard isPartiallyOpen != false, bounds.width > 0, bounds.height > 0 else { return nil }
+    return divisions.first(where: {
+      $0.minX.isFinite && $0.maxX.isFinite && $0.width >= 0
+        && $0.minX >= 180 && bounds.width - $0.maxX >= 180
+        && $0.height >= bounds.height / 2 && $0.maxY > bounds.minY && $0.minY < bounds.maxY
+        && $0.height > $0.width
+    })
+  }
+}
+
 enum KeyboardGlobePolicy {
   static let modelIdentifier: String = {
     #if targetEnvironment(simulator)

@@ -195,6 +195,10 @@ final class KeyboardViewController: UIInputViewController {
 
   // MARK: - Lifecycle
 
+  private var isHingePartiallyOpen: Bool?
+  private var hasReceivedHingeUpdate = false
+  private var lastFoldDiagnostic: String?
+
   override func loadView() {
     // The host supplies the outer material and corners. A bounded backing
     // protects transitions without painting over that surface permanently.
@@ -212,6 +216,14 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    if #available(iOS 27.1, *) {
+      view.addInteraction(UIHingeInteraction { [weak self] _, update in
+        guard let self else { return }
+        self.hasReceivedHingeUpdate = true
+        self.isHingePartiallyOpen = KeyboardFoldPolicy.isPartiallyOpen(update.hinge)
+        self.view.setNeedsLayout()
+      })
+    }
     candidateBar.setExpanded(isPanelExpanded)
     candidatePanel.refreshLocalizedLabels()
     preferences = preferencesStore?.value ?? .standard
@@ -344,6 +356,19 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    var divisions: [CGRect] = []
+    if #available(iOS 27.1, *) {
+      divisions = keyGrid.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
+    }
+    keyGrid.splitDivision = KeyboardFoldPolicy.splitDivision(bounds: keyGrid.bounds,
+      isPartiallyOpen: isHingePartiallyOpen, divisions: divisions)
+    let diagnostic = "fold hingeUpdate=\(hasReceivedHingeUpdate)"
+      + " partiallyOpen=\(isHingePartiallyOpen.map(String.init) ?? "unavailable")"
+      + " bounds=\(keyGrid.bounds) divisions=\(divisions) split=\(keyGrid.splitDivision != nil)"
+    if diagnostic != lastFoldDiagnostic {
+      lastFoldDiagnostic = diagnostic
+      KeyboardLog.geometry(RimeProbeRecord(phase: "keyboard.fold", message: diagnostic), probe: engineSetup?.probe)
+    }
     recordGeometry("didLayout.before")
     // The host can resolve its switch-key policy after viewWillAppear.
     // Keep the measured height and the rendered rows on the same policy.

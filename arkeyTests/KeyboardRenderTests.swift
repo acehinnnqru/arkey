@@ -22,6 +22,39 @@ import UIKit
 /// defect in the reader it drives: a glyph's antialiased edge can match the material's luminance and split
 /// its cap into three rectangles, which is fixed in RimeKeyboardCapture.keyRects (one key, one rectangle).
 final class KeyboardRenderTests: XCTestCase {
+  func testSplitKeyboardRendersAndDuplicateKeysSendTheSameInput() throws {
+    for width: CGFloat in [669, 951] {
+      let grid = KeyboardKeyGrid(frame: CGRect(x: 0, y: 0, width: width, height: 213))
+      grid.backgroundColor = KeyboardTheme.current(for: .light).background
+      grid.splitDivision = CGRect(x: width / 2 - 30, y: 0, width: 60, height: 213)
+      grid.configure(theme: .current(for: .light), layer: .letters, asciiMode: false,
+        returnKeyLabel: "Return", showsGlobeRow: true,
+        language: RimeLanguageKey(label: "中", isASCII: false),
+        leftSpaceKey: .init(mode: .character, character: ","),
+        rightSpaceKey: .init(mode: .auxiliary))
+      grid.layoutIfNeeded()
+      let buttons = grid.subviews.compactMap { $0 as? KeyButton }
+      for input in [KeyboardKey.character("g"), .character("v"), .space] {
+        let duplicates = buttons.filter { $0.key == input }
+        XCTAssertEqual(duplicates.count, 2)
+        for button in duplicates {
+          var received: KeyboardKey?
+          grid.onKey = { received = $0 }
+          button.sendActions(for: .primaryActionTriggered)
+          XCTAssertEqual(received, input)
+          XCTAssertFalse(try XCTUnwrap(button.accessibilityLabel).isEmpty)
+        }
+      }
+      let image = UIGraphicsImageRenderer(size: grid.bounds.size).image {
+        grid.layer.render(in: $0.cgContext)
+      }
+      let attachment = XCTAttachment(image: image)
+      attachment.name = "Split keyboard at \(Int(width)) points"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+    }
+  }
+
   func testFullwidthKeyInkIsCenteredAtNormalAndNarrowWidths() throws {
     let fullwidth = (0xFF01...0xFF5E).compactMap(UnicodeScalar.init).map(String.init)
     let labels = fullwidth + ["、", "。", "「", "」", "『", "』", "【", "】", "《", "》",

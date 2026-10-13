@@ -261,7 +261,8 @@ public enum RimeKeyboardLayoutEngine {
                             leftSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
                             rightSpaceKey: RimeSpaceSideKey = RimeSpaceSideKey(),
                             chineseInputOnly: Bool = false,
-                            punctuationLabels: [String: String] = [:]) -> RimeKeyboardLayout {
+                            punctuationLabels: [String: String] = [:],
+                            splitDivision: CGRect? = nil) -> RimeKeyboardLayout {
     var y = style.candidateSlotHeight
     var rows: [RimeKeyboardRow] = []
 
@@ -327,6 +328,12 @@ public enum RimeKeyboardLayoutEngine {
       })
     }
 
+    if let division = splitDivision,
+       division.minX.isFinite, division.maxX.isFinite,
+       division.width >= 0, division.minX >= 180, width - division.maxX >= 180 {
+      rows = splitRows(rows, width: width, division: division, layer: layer, style: style)
+    }
+
     return RimeKeyboardLayout(size: CGSize(width: width, height: height),
                               candidateSlot: CGRect(x: 0, y: 0, width: width,
                                                     height: style.candidateSlotHeight),
@@ -335,6 +342,69 @@ public enum RimeKeyboardLayoutEngine {
   }
 
   // MARK: Rows
+
+  /// Two staggered banks with overlapping G/V reach keys, matching the native split keyboard.
+  /// Keep the original key metadata: duplicated keys send the same input and announce the same label.
+  private static func splitRows(_ rows: [RimeKeyboardRow], width: CGFloat, division: CGRect,
+                                layer: RimeKeyboardLayer, style: RimeKeyboardStyle) -> [RimeKeyboardRow] {
+    let gap = style.horizontalGap
+    let margin = style.sideMargin
+    let bankWidth = min(division.minX - 2 * margin, width - division.maxX - 2 * margin,
+                        5.5 * style.keyHeight + 4.5 * gap)
+    let keyWidth = (bankWidth - 4.5 * gap) / 5.5
+    let pitch = keyWidth + gap
+    let leftEdge = (division.minX - bankWidth) / 2
+    let rightEdge = division.maxX + (width - division.maxX - bankWidth) / 2
+
+    func placed(_ key: RimeKeyboardKey, x: CGFloat, width: CGFloat) -> RimeKeyboardKey {
+      RimeKeyboardKey(kind: key.kind, frame: CGRect(x: x, y: key.frame.minY,
+        width: width, height: key.frame.height), label: key.label,
+        accessibilityLabel: key.accessibilityLabel, isAuxiliary: key.isAuxiliary, isCore: key.isCore)
+    }
+    func bank(_ keys: [RimeKeyboardKey], x: CGFloat) -> [RimeKeyboardKey] {
+      keys.enumerated().map { placed($0.element, x: x + CGFloat($0.offset) * pitch, width: keyWidth) }
+    }
+    func bottomBank(_ keys: [RimeKeyboardKey], x: CGFloat) -> [RimeKeyboardKey] {
+      func weight(_ key: RimeKeyboardKey) -> CGFloat {
+        key.kind == .space ? 0 : (key.kind == .returnKey ? 1.4 : 1)
+      }
+      let controlWeight = keys.reduce(CGFloat.zero) { $0 + weight($1) }
+      let available = bankWidth - CGFloat(keys.count - 1) * gap
+      let controlWidth = min(keyWidth, available / (controlWeight + 2))
+      let spaceWidth = available - controlWeight * controlWidth
+      var cursor = x
+      return keys.map { key in
+        let size = key.kind == .space ? spaceWidth : weight(key) * controlWidth
+        defer { cursor += size + gap }
+        return placed(key, x: cursor, width: size)
+      }
+    }
+    return rows.enumerated().map { index, row in
+      let keys = row.keys
+      let output: [RimeKeyboardKey]
+      if index == 3, let spaceIndex = keys.firstIndex(where: { $0.kind == .space }) {
+        output = bottomBank(Array(keys[...spaceIndex]), x: leftEdge)
+          + bottomBank(Array(keys[spaceIndex...]), x: rightEdge)
+      } else if layer == .letters && index == 1 {
+        output = bank(Array(keys.prefix(5)), x: leftEdge + pitch / 2)
+          + bank(Array(keys.suffix(5)), x: rightEdge)
+      } else if layer == .letters && index == 2 {
+        output = [placed(keys[0], x: leftEdge, width: 1.4 * keyWidth)]
+          + bank(Array(keys[1...4]), x: leftEdge + 1.5 * pitch)
+          + bank(Array(keys[4...7]), x: rightEdge)
+          + [placed(keys[8], x: rightEdge + bankWidth - 1.4 * keyWidth, width: 1.4 * keyWidth)]
+      } else if index < 3 {
+        let middle = (keys.count + 1) / 2
+        let right = Array(keys.dropFirst(middle))
+        output = bank(Array(keys.prefix(middle)), x: leftEdge)
+          + bank(right, x: rightEdge + bankWidth - CGFloat(right.count) * pitch + gap)
+      } else {
+        output = bank(keys, x: leftEdge)
+      }
+      return RimeKeyboardRow(frame: CGRect(x: 0, y: row.frame.minY, width: width,
+        height: row.frame.height), keys: output)
+    }
+  }
 
   /// Places a row at `y` and gives every key an **absolute** frame in the keyboard's own coordinate
   /// space. Row-local frames would make each key unusable on its own, and the callout is positioned
