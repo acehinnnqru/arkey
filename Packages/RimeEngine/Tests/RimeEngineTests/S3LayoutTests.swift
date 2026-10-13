@@ -7,6 +7,70 @@ import CoreGraphics
 /// constraint conflict) cannot happen in a value type, and the arithmetic can be checked without a
 /// simulator.
 final class S3LayoutTests: XCTestCase {
+  func testSplitLettersDuplicateReachKeysAndSpaceWithoutChangingHeight() {
+    let division = CGRect(x: 320, y: 0, width: 60, height: 350)
+    let regular = RimeKeyboardLayoutEngine.layout(width: 700, style: .systemAligned)
+    for shift in RimeShiftState.allCases {
+      let split = RimeKeyboardLayoutEngine.layout(width: 700, shift: shift,
+        inlineGlobe: true, style: .systemAligned, splitDivision: division)
+      XCTAssertEqual(split.height, regular.height)
+      let labels = split.rows.prefix(3).map { $0.keys.map(\.label).joined().lowercased() }
+      XCTAssertEqual(labels, ["qwertyuiop", "asdfgghjkl", "⇧zxcvvbnm⌫"].enumerated().map {
+        $0.offset == 2 && shift == .caps ? "⇪zxcvvbnm⌫" : $0.element
+      })
+      XCTAssertEqual(split.keys.filter { $0.kind == .space }.count, 2)
+      XCTAssertEqual(split.keys.filter { $0.kind == .globe }.count, 1)
+      for key in split.keys {
+        XCTAssertTrue(key.frame.maxX <= division.minX || key.frame.minX >= division.maxX)
+        XCTAssertGreaterThan(key.frame.width, 0)
+        XCTAssertFalse(key.accessibilityLabel.isEmpty)
+      }
+    }
+  }
+
+  func testSplitAllLayersPreserveSideKeysAndAvoidAnAsymmetricDivision() {
+    for width: CGFloat in [540, 669, 951] {
+      let division = CGRect(x: width * 0.45, y: 0, width: 40, height: 350)
+      for layer in RimeKeyboardLayer.allCases {
+        for chineseOnly in [false, true] {
+          let split = RimeKeyboardLayoutEngine.layout(width: width, layer: layer,
+            language: RimeLanguageKey(label: "中", isASCII: false), inlineGlobe: true,
+            style: .systemAligned, auxiliaryPrefix: ";",
+            leftSpaceKey: RimeSpaceSideKey(mode: .character, character: ","),
+            rightSpaceKey: RimeSpaceSideKey(mode: .auxiliary),
+            chineseInputOnly: chineseOnly, splitDivision: division)
+          let bottom = split.rows[3].keys
+          XCTAssertEqual(bottom.filter { $0.kind == .space }.count, 2)
+          XCTAssertEqual(bottom.filter { $0.kind == .character(";") && $0.isAuxiliary }.count, 1)
+          XCTAssertEqual(bottom.filter { $0.kind == .character(",") }.count, 1)
+          XCTAssertEqual(bottom.filter { if case .language = $0.kind { return true }; return false }.count,
+                         chineseOnly ? 0 : 1)
+          XCTAssertEqual(bottom.last?.kind, .returnKey)
+          for row in split.rows {
+            for key in row.keys {
+              XCTAssertGreaterThan(key.frame.width, 0)
+              XCTAssertGreaterThanOrEqual(key.frame.minX, 0)
+              XCTAssertLessThanOrEqual(key.frame.maxX, width)
+              XCTAssertTrue(key.frame.maxX <= division.minX || key.frame.minX >= division.maxX)
+            }
+            for (previous, next) in zip(row.keys, row.keys.dropFirst()) {
+              XCTAssertGreaterThanOrEqual(next.frame.minX, previous.frame.maxX)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  func testUnusableSplitDivisionRetainsTheStandardLayout() {
+    let original = RimeKeyboardLayoutEngine.layout(width: 430)
+    for division in [CGRect(x: 200, y: 0, width: 100, height: 300),
+                     CGRect(x: -10, y: 0, width: 10, height: 300)] {
+      let layout = RimeKeyboardLayoutEngine.layout(width: 430, splitDivision: division)
+      XCTAssertEqual(layout.keys, original.keys)
+    }
+  }
+
   func testInlineGlobeFitsAllLayersAndSupportedWidths() throws {
     for width: CGFloat in [320, 390, 430, 744, 1024] {
       for layer in RimeKeyboardLayer.allCases {
@@ -204,7 +268,7 @@ final class S3LayoutTests: XCTestCase {
       XCTAssertEqual(actionFrame.minX, originalReturn.minX, accuracy: 0.01)
       XCTAssertEqual(actionFrame.width, originalReturn.width, accuracy: 0.01)
       let spaceIndex = try XCTUnwrap(keys.firstIndex { if case .space = $0.kind { return true }; return false })
-      let auxiliaryIndex = try XCTUnwrap(keys.firstIndex { $0.accessibilityLabel == "辅码前导键 ;" })
+      let auxiliaryIndex = try XCTUnwrap(keys.firstIndex { $0.isAuxiliary })
       XCTAssertEqual(auxiliaryIndex, spaceIndex + (side == .right ? 1 : -1))
       XCTAssertTrue(keys[auxiliaryIndex].isAuxiliary)
       XCTAssertEqual(keys[auxiliaryIndex].frame.width, style.letterKeyWidth(for: referenceWidth), accuracy: 0.01)
@@ -364,9 +428,9 @@ final class S3LayoutTests: XCTestCase {
     // The third row's switch key goes to the other punctuation layer, not to the letters — the
     // numbers layer carries `#+=` and the symbols layer carries `123` (S3 §3.2).
     XCTAssertEqual(try XCTUnwrap(numbers.rows[2].keys.first).label, "#+=")
-    XCTAssertEqual(try XCTUnwrap(numbers.rows[2].keys.first).accessibilityLabel, "符号")
+    XCTAssertEqual(try XCTUnwrap(numbers.rows[2].keys.first).accessibilityLabel, RimeLocalization.text("Symbols"))
     XCTAssertEqual(try XCTUnwrap(symbols.rows[2].keys.first).label, "123")
-    XCTAssertEqual(try XCTUnwrap(symbols.rows[2].keys.first).accessibilityLabel, "数字")
+    XCTAssertEqual(try XCTUnwrap(symbols.rows[2].keys.first).accessibilityLabel, RimeLocalization.text("Numbers"))
   }
 
   func testShiftStatesChangeTheLabelsAndKeepTheGeometry() throws {
@@ -378,9 +442,9 @@ final class S3LayoutTests: XCTestCase {
     XCTAssertEqual(on.rows[0].keys[0].label, "Q")
     XCTAssertEqual(caps.rows[0].keys[0].label, "Q")
     XCTAssertEqual(try XCTUnwrap(off.rows[2].keys.first).label, "⇧")
-    XCTAssertEqual(try XCTUnwrap(off.rows[2].keys.first).accessibilityLabel, "大写")
+    XCTAssertEqual(try XCTUnwrap(off.rows[2].keys.first).accessibilityLabel, RimeLocalization.text("Shift"))
     XCTAssertEqual(try XCTUnwrap(caps.rows[2].keys.first).label, "⇪")
-    XCTAssertEqual(try XCTUnwrap(caps.rows[2].keys.first).accessibilityLabel, "大写锁定")
+    XCTAssertEqual(try XCTUnwrap(caps.rows[2].keys.first).accessibilityLabel, RimeLocalization.text("Caps Lock"))
 
     // One-shot versus caps is a state change, not a layout change.
     XCTAssertEqual(off.rows[0].keys[0].frame, on.rows[0].keys[0].frame)
@@ -399,15 +463,15 @@ final class S3LayoutTests: XCTestCase {
     let globe = try XCTUnwrap(with.rows.last)
     XCTAssertEqual(globe.keys.count, 1)
     XCTAssertEqual(globe.keys[0].frame.height, style.globeRowHeight, accuracy: 0.01)
-    XCTAssertEqual(globe.keys[0].accessibilityLabel, "下一个键盘")
+    XCTAssertEqual(globe.keys[0].accessibilityLabel, RimeLocalization.text("Next keyboard"))
   }
 
   func testTheActionKeyCarriesItsLabelAndState() throws {
     let search = layout(returnKey: RimeReturnKey(label: RimeReturnKey.Kind.search.label,
                                                  isEnabled: false))
     let key = try XCTUnwrap(search.rows[3].keys.last)
-    XCTAssertEqual(key.label, "搜索")
-    XCTAssertEqual(key.accessibilityLabel, "搜索")
+    XCTAssertEqual(key.label, RimeLocalization.text("Search"))
+    XCTAssertEqual(key.accessibilityLabel, RimeLocalization.text("Search"))
     XCTAssertFalse(search.returnKey.isEnabled, "the disabled state is data, not a colour in the view")
     XCTAssertEqual(RimeReturnKey.Kind.allCases.count, 10)
     XCTAssertTrue(RimeReturnKey.Kind.allCases.allSatisfy { !$0.label.isEmpty })
@@ -424,7 +488,7 @@ final class S3LayoutTests: XCTestCase {
     XCTAssertEqual(bottom.keys.map(\.frame.width), layout().rows[3].keys.map(\.frame.width),
                    "the language key preserves the bottom row geometry")
     XCTAssertEqual(bottom.keys[1].label, "中文")
-    XCTAssertEqual(bottom.keys[1].accessibilityLabel, "切换到英文")
+    XCTAssertEqual(bottom.keys[1].accessibilityLabel, RimeLocalization.text("Switch to English input"))
     let key = bottom.keys[1]
     if case .language(let value) = key.kind {
       XCTAssertFalse(value.isASCII)
@@ -437,7 +501,7 @@ final class S3LayoutTests: XCTestCase {
       width: referenceWidth, layer: .letters,
       language: RimeLanguageKey(label: "西文", isASCII: true), style: style)
     XCTAssertEqual(western.rows[3].keys[1].label, "西文")
-    XCTAssertEqual(western.rows[3].keys[1].accessibilityLabel, "切换到中文")
+    XCTAssertEqual(western.rows[3].keys[1].accessibilityLabel, RimeLocalization.text("Switch to Chinese input"))
 
     // Without a language key the slot keeps the emoji key, unchanged.
     XCTAssertEqual(layout().rows[3].keys[1].label, "☺")
@@ -463,8 +527,8 @@ final class S3LayoutTests: XCTestCase {
             XCTAssertEqual(key.accessibilityLabel.count, 1)
           }
           // The action keys are named in the keyboard's language, not by their glyph.
-          XCTAssertTrue(layout.keys.contains { $0.accessibilityLabel == "空格" })
-          XCTAssertTrue(layout.keys.contains { $0.accessibilityLabel == "删除" })
+          XCTAssertTrue(layout.keys.contains { $0.accessibilityLabel == RimeLocalization.text("Space") })
+          XCTAssertTrue(layout.keys.contains { $0.accessibilityLabel == RimeLocalization.text("Delete") })
         }
       }
     }

@@ -7,6 +7,38 @@ import RimeEngine
 /// the model and wrong in the view is the failure this target exists to catch, and no test on the Mac
 /// can see it.
 final class KeyboardGeometryTests: XCTestCase {
+  func testFoldPolicyRequiresAnActiveVerticalDivisionAndRejectsKnownClosedHinges() {
+    let bounds = CGRect(x: 0, y: 0, width: 669, height: 213)
+    let vertical = CGRect(x: 300, y: -100, width: 60, height: 600)
+    XCTAssertNil(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: nil, divisions: []))
+    XCTAssertNil(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: false, divisions: [vertical]))
+    XCTAssertEqual(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: nil, divisions: [vertical]), vertical)
+    XCTAssertNil(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: true, divisions: []))
+    XCTAssertEqual(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: true, divisions: [vertical]), vertical)
+    XCTAssertNil(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: nil,
+      divisions: [CGRect(x: 0, y: 100, width: 669, height: 20)]))
+    XCTAssertNil(KeyboardFoldPolicy.splitDivision(bounds: bounds, isPartiallyOpen: true,
+      divisions: [CGRect(x: 0, y: -60, width: 669, height: 20)]))
+    XCTAssertNil(KeyboardFoldPolicy.splitDivision(bounds: CGRect(x: 0, y: 0, width: 382, height: 213),
+      isPartiallyOpen: true, divisions: []))
+  }
+
+  func testGridTransitionsToSplitAndBackAtTheSameWidth() {
+    let grid = grid(width: 669, globe: true)
+    let initial = keys(grid).map(\.frame)
+    grid.splitDivision = CGRect(x: 304.5, y: 0, width: 60, height: 213)
+    grid.layoutIfNeeded()
+    XCTAssertEqual(keys(grid).filter { $0.key == .space }.count, 2)
+    XCTAssertEqual(keys(grid).filter { $0.key == .character("g") }.count, 2)
+    XCTAssertEqual(keys(grid).filter { $0.key == .character("v") }.count, 2)
+    for key in keys(grid) {
+      XCTAssertTrue(key.frame.maxX <= 304.5 || key.frame.minX >= 364.5)
+    }
+    grid.splitDivision = nil
+    grid.layoutIfNeeded()
+    XCTAssertEqual(keys(grid).map(\.frame), initial)
+  }
+
   func testInlineGlobeDevicePolicyOverridesFalseForDuoAndIPad() {
     XCTAssertTrue(KeyboardGlobePolicy.showsInlineGlobe(needsInputModeSwitchKey: false,
       idiom: .phone, modelIdentifier: "iPhone19,4"))

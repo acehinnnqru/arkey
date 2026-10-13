@@ -46,6 +46,12 @@ if ! swift build --disable-sandbox --package-path "$PACKAGE" --triple "$TARGET" 
   exit 1
 fi
 
+# Swift 6.3 defaults to Swift Build, which exports modules beside its products.
+# Older native-build toolchains retain the triple-specific Modules directory.
+if [[ ! -e "$MODULES/RimeEngine.swiftmodule" && -d "$PACKAGE/.build/out/Products/Debug-iphonesimulator/RimeEngine.swiftmodule" ]]; then
+  MODULES="$PACKAGE/.build/out/Products/Debug-iphonesimulator"
+fi
+
 echo "== stripping #Preview blocks into $OUT =="
 rm -rf "$OUT"
 mkdir -p "$OUT/app" "$OUT/extension" "$OUT/tests" "$OUT/cache"

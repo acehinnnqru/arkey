@@ -30,9 +30,17 @@ final class KeyboardPreviewView: UIView {
   func refreshLocalizedLabels() { candidateBar.setExpanded(false) }
   private let candidateBar = CandidateBar()
   private let keyGrid = KeyboardKeyGrid()
+  private var isHingePartiallyOpen: Bool?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    if #available(iOS 27.1, *) {
+      addInteraction(UIHingeInteraction { [weak self] _, update in
+        guard let self else { return }
+        self.isHingePartiallyOpen = KeyboardFoldPolicy.isPartiallyOpen(update.hinge)
+        self.setNeedsLayout()
+      })
+    }
     let theme = KeyboardTheme.current(for: .light)
     backgroundColor = theme.background
 
@@ -81,6 +89,16 @@ final class KeyboardPreviewView: UIView {
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is not used")
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    var divisions: [CGRect] = []
+    if #available(iOS 27.1, *) {
+      divisions = keyGrid.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
+    }
+    keyGrid.splitDivision = KeyboardFoldPolicy.splitDivision(bounds: keyGrid.bounds,
+      isPartiallyOpen: isHingePartiallyOpen, divisions: divisions)
   }
 }
 

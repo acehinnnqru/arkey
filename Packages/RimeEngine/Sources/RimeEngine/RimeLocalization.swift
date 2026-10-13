@@ -71,7 +71,9 @@ public enum RimeLocalization {
   }
 
   private static func localizedBundle(_ language: RimeAppLanguage) -> Bundle {
-    guard let path = Bundle.module.path(forResource: language.rawValue.lowercased(), ofType: "lproj"),
+    // Swift Build preserves zh-Hans; older SwiftPM native builds normalize it to zh-hans.
+    guard let path = Bundle.module.path(forResource: language.rawValue, ofType: "lproj")
+      ?? Bundle.module.path(forResource: language.rawValue.lowercased(), ofType: "lproj"),
           let bundle = Bundle(path: path) else { return Bundle.module }
     return bundle
   }

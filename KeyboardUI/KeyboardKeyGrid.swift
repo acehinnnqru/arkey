@@ -57,6 +57,15 @@ enum KeyboardKeyLabels {
 
 /// Key rows share the same style and geometry engine as the extension height.
 final class KeyboardKeyGrid: UIView {
+  var splitDivision: CGRect? {
+    didSet {
+      guard oldValue != splitDivision else { return }
+      cancelActivePresses()
+      onKeyTouchEnded?()
+      if !buttons.isEmpty { rebuild() }
+      setNeedsLayout()
+    }
+  }
   var punctuationLabels: [String: String] = [:] {
     didSet {
       guard oldValue != punctuationLabels, !buttons.isEmpty else { return }
@@ -239,7 +248,8 @@ final class KeyboardKeyGrid: UIView {
       inlineGlobe: showsGlobeRow,
       style: Self.rowStyle(width: width),
       auxiliaryPrefix: auxiliaryPrefix, leftSpaceKey: leftSpaceKey, rightSpaceKey: rightSpaceKey,
-      chineseInputOnly: chineseInputOnly, punctuationLabels: punctuationLabels)
+      chineseInputOnly: chineseInputOnly, punctuationLabels: punctuationLabels,
+      splitDivision: splitDivision)
   }
 
   private func rebuild() {
