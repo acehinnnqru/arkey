@@ -1,5 +1,29 @@
 import UIKit
 import RimeEngine
+import Darwin
+
+enum KeyboardGlobePolicy {
+  static let modelIdentifier: String = {
+    #if targetEnvironment(simulator)
+    return ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? ""
+    #else
+    var system = utsname()
+    guard uname(&system) == 0 else { return "" }
+    return withUnsafeBytes(of: &system.machine) { bytes in
+      String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+    }
+    #endif
+  }()
+
+  static func showsInlineGlobe(needsInputModeSwitchKey: Bool,
+                               idiom: UIUserInterfaceIdiom,
+                               modelIdentifier: String = modelIdentifier) -> Bool {
+    // TODO: Recheck this workaround when Apple fixes the Duo switch-key policy.
+    // iPhone Duo (iPhone19,4, confirmed in the simulator) reports false even though
+    // its native keyboard places the globe inside the bottom row.
+    needsInputModeSwitchKey || idiom == .pad || modelIdentifier == "iPhone19,4"
+  }
+}
 
 /// Shared geometry for the extension and in-app preview.
 enum KeyboardMetrics {
@@ -32,14 +56,14 @@ enum KeyboardMetrics {
   }
 
   static func totalHeight(needsGlobeRow: Bool) -> CGFloat {
-    RimeKeyboardLayoutEngine.layout(width: 430, layer: .letters, needsGlobeRow: needsGlobeRow,
+    RimeKeyboardLayoutEngine.layout(width: 430, layer: .letters, inlineGlobe: needsGlobeRow,
                                     style: extensionStyle).height
   }
 
   /// The same, for the width the keyboard actually has.
   static func totalHeight(width: CGFloat, needsGlobeRow: Bool) -> CGFloat {
     RimeKeyboardLayoutEngine.layout(width: max(width, 1), layer: .letters,
-                                    needsGlobeRow: needsGlobeRow, style: extensionStyle).height
+                                    inlineGlobe: needsGlobeRow, style: extensionStyle).height
   }
 }
 

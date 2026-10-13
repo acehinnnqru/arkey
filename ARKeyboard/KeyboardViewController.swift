@@ -236,7 +236,7 @@ final class KeyboardViewController: UIInputViewController {
     view.addSubview(keyGrid)
 
     let gridHeight = keyGrid.heightAnchor.constraint(equalToConstant:
-      KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+      KeyboardMetrics.totalHeight(needsGlobeRow: showsInlineGlobe)
         - KeyboardMetrics.candidateBarHeight - KeyboardMetrics.keyBottomPadding)
     gridHeight.identifier = "Arkey.gridHeight"
     gridHeightConstraint = gridHeight
@@ -881,6 +881,11 @@ final class KeyboardViewController: UIInputViewController {
     }
   }
 
+  private var showsInlineGlobe: Bool {
+    KeyboardGlobePolicy.showsInlineGlobe(needsInputModeSwitchKey: needsInputModeSwitchKey,
+                                         idiom: UIDevice.current.userInterfaceIdiom)
+  }
+
   private func refreshLayout() {
     // The keyboard's own preferences live in the app group, so a calibration change reaches the
     // keyboard the next time it appears — no deploy, and nothing for the extension to write.
@@ -892,7 +897,7 @@ final class KeyboardViewController: UIInputViewController {
                       asciiMode: asciiMode,
                       returnKeyLabel: returnKeyLabel,
                       spaceKeyLabel: KeyboardKeyLabels.space(language: KeyboardKeyLabels.systemLanguage),
-                      showsGlobeRow: needsInputModeSwitchKey,
+                      showsGlobeRow: showsInlineGlobe,
                       shift: shiftController.state,
                       language: languageKey ?? RimeLanguageKey(label: asciiMode ? "英" : "中", isASCII: asciiMode),
                       feedback: preferences.feedback,
@@ -945,7 +950,7 @@ final class KeyboardViewController: UIInputViewController {
 
   private func updateHeight() {
     // The panel replaces the keys inside this frame; opening it must not resize the host keyboard.
-    let height = KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+    let height = KeyboardMetrics.totalHeight(needsGlobeRow: showsInlineGlobe)
     let previousHeight = heightConstraint?.constant
     if previousHeight != height {
       recordGeometry("height.before", detail: "old=\(String(describing: previousHeight)) new=\(height)")
@@ -1069,7 +1074,7 @@ final class KeyboardViewController: UIInputViewController {
   @objc private func sampleGeometryFrame(_ link: CADisplayLink) {
     if geometrySamplingStart == nil { geometrySamplingStart = link.timestamp }
     let previousCover = backingState.needsCover
-    let requested = heightConstraint?.constant ?? KeyboardMetrics.totalHeight(needsGlobeRow: needsInputModeSwitchKey)
+    let requested = heightConstraint?.constant ?? KeyboardMetrics.totalHeight(needsGlobeRow: showsInlineGlobe)
     let presentationHeight = view.layer.presentation()?.bounds.height
     backingState.sample(modelHeight: view.bounds.height, presentationHeight: presentationHeight,
                         requestedHeight: requested, attached: view.window != nil)
