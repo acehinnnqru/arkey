@@ -353,15 +353,22 @@ final class S6ProjectSettingsTests: XCTestCase {
 
   /// D3 and S6 §6: v1 is specified as iPhone portrait, the name the home screen and the keyboard list show is the
   /// product's name, and an App Store upload asks the export-compliance question unless the plist answers it.
-  /// All three were wrong in the built plist: landscape was allowed on both idioms (a layout no capture covers),
-  /// the app had no display name at all so it defaulted to the target's lower-case "arkey", and the extension
-  /// said "ARKeyboard".
+  /// iPad supports all four orientations as required for multitasking and App Store validation.
   func testTheBuiltPlistSaysPortraitArkeyAndNoCustomEncryption() throws {
     let text = try project()
     XCTAssertTrue(text.contains("INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;"),
                   "the app allows more than portrait on iPhone, which D3 does not cover")
-    XCTAssertFalse(text.contains("UIInterfaceOrientationLandscape"),
-                   "a landscape orientation is declared somewhere in the project")
+    let iPadOrientations = text.components(separatedBy: "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = ")
+      .dropFirst().map { String($0.prefix { $0 != ";" }) }
+    XCTAssertEqual(iPadOrientations.count, 2, "both Debug and Release must declare iPad orientations")
+    let requiredOrientations: Set<String> = [
+      "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+      "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",
+    ]
+    for orientations in iPadOrientations {
+      XCTAssertEqual(Set(orientations.replacingOccurrences(of: quote, with: "").split(separator: " ").map(String.init)),
+                     requiredOrientations, "iPad multitasking requires all four orientations")
+    }
     XCTAssertEqual(text.components(separatedBy: "INFOPLIST_KEY_CFBundleDisplayName = Arkey;").count - 1, 4,
                    "the app and the extension, in both configurations, should each say Arkey")
     XCTAssertFalse(text.contains("INFOPLIST_KEY_CFBundleDisplayName = ARKeyboard;"),
