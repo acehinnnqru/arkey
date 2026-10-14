@@ -50,7 +50,10 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
   }
 
   func requestMoreCandidatesIfNeeded() {
-    guard !outerStack.isHidden, scrollView.bounds.width > 0,
+    // The engine already supplied the first page. Do not enumerate more while
+    // typing or tapping it: enumeration shares the engine queue with input.
+    // Horizontal bounce also supplies demand when that page fits in the strip.
+    guard !outerStack.isHidden, scrollView.bounds.width > 0, scrollView.contentOffset.x > 0,
           contentWidth - scrollView.bounds.maxX < scrollView.bounds.width * 2 else { return }
     onNeedsMoreCandidates?()
   }
