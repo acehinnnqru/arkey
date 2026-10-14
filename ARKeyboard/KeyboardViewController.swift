@@ -148,7 +148,7 @@ final class KeyboardViewController: UIInputViewController {
   private var candidateLoadCancellation: CandidateLoadCancellation?
   private var nextCandidateIndex = 0
   private var hasMoreCandidates = false
-  private static let candidateBatchSize = 16
+  private static let candidateBatchSize = 96
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
   private var gridHeightConstraint: NSLayoutConstraint?
@@ -283,20 +283,14 @@ final class KeyboardViewController: UIInputViewController {
     candidatePanel.isHidden = true
     candidatePanel.onSelect = { [weak self] index in self?.selectFromPanel(index) }
     candidatePanel.onCollapse = { [weak self] in self?.collapsePanel() }
-    candidatePanel.onNeedsMoreCandidates = { [weak self] in
-      guard let self, self.isPanelExpanded else { return }
-      self.loadMoreCandidates()
-    }
+    candidatePanel.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
 
     candidateBar.onSelect = { [weak self] index in
       guard let self else { return }
       self.selectCandidate(index, providesFeedback: true)
       if self.isPanelExpanded { self.collapsePanel() }
     }
-    candidateBar.onNeedsMoreCandidates = { [weak self] in
-      guard let self, !self.isPanelExpanded else { return }
-      self.loadMoreCandidates()
-    }
+    candidateBar.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
     candidateBar.onExpand = { [weak self] in
       guard let self else { return }
       if self.isPanelExpanded { self.collapsePanel() } else { self.expandPanel() }
@@ -469,7 +463,7 @@ final class KeyboardViewController: UIInputViewController {
 
   private func selectCandidate(_ index: Int, providesFeedback: Bool = false) {
     guard let engine else { return }
-    cancelCandidateLoading()
+    candidateLoadCancellation?.cancel()
     do {
       apply(try engine.selectCandidate(at: index))
       if providesFeedback { playFeedback() }
@@ -483,7 +477,7 @@ final class KeyboardViewController: UIInputViewController {
     guard let engine else { return }
     if isPanelExpanded { collapsePanel() }
     do {
-      cancelCandidateLoading()
+      candidateLoadCancellation?.cancel()
       let forgotten = try engine.deleteCandidate(at: index)
       apply(try engine.refresh())
       candidateBar.setMessage(forgotten ? RimeLocalization.text("Word forgotten") : RimeLocalization.text("This word is not in the user dictionary"))
@@ -554,7 +548,6 @@ final class KeyboardViewController: UIInputViewController {
   // MARK: - Input
 
   private func handle(_ key: KeyboardKey) {
-    cancelCandidateLoading()
     playFeedback()
     switch key {
     case .character(let value):
@@ -619,7 +612,7 @@ final class KeyboardViewController: UIInputViewController {
   }
 
   private func releaseEngine() {
-    cancelCandidateLoading()
+    candidateLoadCancellation?.cancel()
     engine?.shutdown()
     engine = nil
   }
@@ -816,15 +809,10 @@ final class KeyboardViewController: UIInputViewController {
     candidatePanel.requestMoreCandidatesIfNeeded()
   }
 
-  private func cancelCandidateLoading() {
+  private func resetCandidateList() {
     candidateLoadCancellation?.cancel()
     candidateLoadCancellation = nil
     candidateLoadGeneration += 1
-    candidatePanel.setLoading(false)
-  }
-
-  private func resetCandidateList() {
-    cancelCandidateLoading()
     loadedCandidates = currentPage?.pageNumber == 0 ? currentPage?.candidates ?? [] : []
     nextCandidateIndex = loadedCandidates.count
     // A later engine page can still be enumerated from global index zero.
@@ -832,11 +820,7 @@ final class KeyboardViewController: UIInputViewController {
     candidateBar.setPage(nil)
     candidateBar.applyContinuation(loadedCandidates, selectLabels: currentPage?.pageNumber == 0 ? currentPage?.selectLabels ?? [] : [])
     if isPanelExpanded { applyPanelModel(resetScroll: true) }
-    // Ordinary input uses the page already returned by Rime. Enumeration is
-    // demand-driven so a slow translator cannot preempt a tap on that page.
-    if isPanelExpanded || (loadedCandidates.isEmpty && hasMoreCandidates) {
-      loadMoreCandidates()
-    }
+    loadMoreCandidates()
   }
 
   private func loadMoreCandidates() {
@@ -872,10 +856,8 @@ final class KeyboardViewController: UIInputViewController {
         self.candidateLoadCancellation = nil
         // Defer the next request until the collection update has completed.
         DispatchQueue.main.async { [weak self] in
-          guard let self, self.candidateLoadGeneration == generation,
-                !cancellation.isCancelled else { return }
-          self.candidateBar.requestMoreCandidatesIfNeeded()
-          if self.isPanelExpanded { self.candidatePanel.requestMoreCandidatesIfNeeded() }
+          self?.candidateBar.requestMoreCandidatesIfNeeded()
+          if self?.isPanelExpanded == true { self?.candidatePanel.requestMoreCandidatesIfNeeded() }
         }
       }
     }
@@ -918,7 +900,7 @@ final class KeyboardViewController: UIInputViewController {
   private func selectFromPanel(_ index: Int) {
     defer { collapsePanel() }
     guard let engine else { return }
-    cancelCandidateLoading()
+    candidateLoadCancellation?.cancel()
     guard loadedCandidates.indices.contains(index) else { return }
     do {
       apply(try engine.selectCandidate(at: index))

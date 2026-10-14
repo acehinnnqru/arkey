@@ -189,6 +189,38 @@ final class KeyboardControllerTests: XCTestCase {
     }.count, 1)
   }
 
+  func testCandidateAndExpandHitTargetsCoverTheEntireRowAfterRefreshes() throws {
+    let controller = booted()
+    let root = try XCTUnwrap(controller.inputView)
+    let strip = try bar(controller)
+    for width: CGFloat in [320, 430, 900] {
+      root.frame.size.width = width
+      for _ in 0..<10 {
+        strip.setPage(nil)
+        strip.applyContinuation((0..<40).map { RimeCandidateItem(text: "Word \($0)") })
+        root.setNeedsLayout()
+        root.layoutIfNeeded()
+        strip.layoutIfNeeded()
+        let expand = try XCTUnwrap(descendants(UIButton.self, in: strip).first {
+          $0.accessibilityLabel == RimeLocalization.text("Expand candidates")
+        })
+        XCTAssertEqual(expand.bounds.width, 64, accuracy: 0.1)
+        XCTAssertEqual(expand.bounds.height, KeyboardMetrics.candidateBarHeight, accuracy: 0.1)
+        for x in stride(from: CGFloat(1), to: width, by: 3) {
+          for y in [CGFloat(1), strip.bounds.midY, strip.bounds.maxY - 1] {
+            let point = strip.convert(CGPoint(x: x, y: y), to: root)
+            let target = try XCTUnwrap(root.hitTest(point, with: nil) as? UIButton,
+                                      "The entire candidate row must hit a control at \(x),\(y)")
+            XCTAssertTrue(target.isDescendant(of: strip))
+            XCTAssertGreaterThanOrEqual(target.bounds.width, 44)
+            XCTAssertGreaterThanOrEqual(target.bounds.height, 44)
+            if x > width - 64 { XCTAssertTrue(target === expand) }
+          }
+        }
+      }
+    }
+  }
+
   func testExpandedCandidateContentDoesNotResizeKeyboard() throws {
     let controller = booted()
     let root = try XCTUnwrap(controller.inputView)

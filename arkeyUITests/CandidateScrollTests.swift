@@ -44,7 +44,7 @@ final class CandidateScrollTests: XCTestCase {
     }
     let bounds = scroll.frame.insetBy(dx: 4, dy: 0)
     let candidate = try XCTUnwrap(scroll.buttons.allElementsBoundByIndex.first {
-      $0.isHittable && bounds.contains($0.frame)
+      bounds.contains($0.frame) && $0.isHittable
     })
     let index = String(candidate.label.dropFirst("Candidate ".count))
     XCTAssertGreaterThan(try XCTUnwrap(Int(index)), 4,
@@ -111,7 +111,7 @@ final class CandidateScrollTests: XCTestCase {
     Thread.sleep(forTimeInterval: 1)
     let bounds = scroll.frame.insetBy(dx: 8, dy: 20)
     let candidate = try XCTUnwrap(scroll.buttons.allElementsBoundByIndex.first {
-      $0.label.hasPrefix("候选词") && $0.isHittable && bounds.contains($0.frame)
+      $0.label.hasPrefix("候选词") && bounds.contains($0.frame) && $0.isHittable
     }, "no fully visible candidate after the swipe")
     let expected = String(candidate.label.dropFirst("候选词".count))
     candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()

@@ -530,43 +530,24 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertEqual(selected, 99)
   }
 
-  func testFirstPageDoesNotPrefetchUntilTheStripIsScrolled() throws {
-    let view = CandidateBar(frame: CGRect(x: 0, y: 0, width: 430, height: 52))
-    var requests = 0
-    view.onNeedsMoreCandidates = { requests += 1 }
-    // A short first page must not start expensive enumeration just to fill space.
-    for text in ["你", "你好", "你好啊"] {
-      view.setPage(nil)
-      view.applyContinuation([RimeCandidateItem(text: text)])
+  func testFiveShortCandidatesRequestContinuationWithoutScrolling() throws {
+    for width: CGFloat in [320, 430, 900] {
+      let view = CandidateBar(frame: CGRect(x: 0, y: 0, width: width, height: KeyboardMetrics.candidateBarHeight))
+      var requests = 0
+      view.onNeedsMoreCandidates = { requests += 1 }
+      view.applyContinuation(Array(repeating: RimeCandidateItem(text: "你"), count: 5))
       view.layoutIfNeeded()
+      XCTAssertGreaterThan(requests, 0, "A short first page must load more before the user drags")
+      view.applyContinuation((0..<96).map { RimeCandidateItem(text: "Candidate \($0)") })
+      view.layoutIfNeeded()
+      let button = try XCTUnwrap(allButtons(in: view).first { $0.attributedTitle(for: .normal) != nil })
+      let scroll = try XCTUnwrap(button.superview?.superview as? UIScrollView)
+      XCTAssertGreaterThan(scroll.contentSize.width, scroll.bounds.width * 2,
+                           "The strip must have content ready for a drag")
+      requests = 0
       view.requestMoreCandidatesIfNeeded()
+      XCTAssertEqual(requests, 0, "A sufficient buffer must stop automatic loading")
     }
-    XCTAssertEqual(requests, 0)
-    let button = try XCTUnwrap(allButtons(in: view).first {
-      $0.attributedTitle(for: .normal) != nil && !$0.isHidden
-    })
-    let scroll = try XCTUnwrap(button.superview?.superview as? UIScrollView)
-    // Even a page narrower than the viewport can request more through bounce.
-    scroll.setContentOffset(CGPoint(x: 10, y: 0), animated: false)
-    view.requestMoreCandidatesIfNeeded()
-    XCTAssertGreaterThan(requests, 0)
-    scroll.setContentOffset(.zero, animated: false)
-    view.layoutIfNeeded()
-    var selected: Int?
-    var expanded = false
-    view.onSelect = { selected = $0 }
-    view.onExpand = { expanded = true }
-    let expand = try XCTUnwrap(allButtons(in: view).first {
-      $0.accessibilityLabel == RimeLocalization.text("Expand candidates")
-    })
-    for control in [button, expand] {
-      let point = control.convert(CGPoint(x: control.bounds.midX, y: control.bounds.midY), to: view)
-      let target = try XCTUnwrap(view.hitTest(point, with: nil) as? UIButton)
-      XCTAssertTrue(target === control)
-      target.sendActions(for: .touchUpInside)
-    }
-    XCTAssertEqual(selected, 0)
-    XCTAssertTrue(expanded)
   }
 
   func testMoreCandidatesAreRequestedOnlyNearTheEnd() throws {
