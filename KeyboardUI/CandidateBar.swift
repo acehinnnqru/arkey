@@ -74,6 +74,13 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     scrollView.delaysContentTouches = false
     scrollView.canCancelContentTouches = true
     scrollView.contentInsetAdjustmentBehavior = .never
+    if #available(iOS 26.0, *) {
+      // Edge effects can cover the entire short strip and blur candidate text.
+      scrollView.topEdgeEffect.isHidden = true
+      scrollView.bottomEdgeEffect.isHidden = true
+      scrollView.leftEdgeEffect.isHidden = true
+      scrollView.rightEdgeEffect.isHidden = true
+    }
     scrollView.accessibilityIdentifier = "candidate-bar-scroll"
     scrollView.addSubview(cellsStack)
 
