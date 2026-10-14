@@ -442,6 +442,40 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertLessThan(allButtons(in: scroll).count, 100)
   }
 
+  func testFirstCandidateLoadAndImmediateContinuationKeepLayoutConsistent() throws {
+    // Exercise loading before the panel receives its first nonzero size, and after layout.
+    for initialSize in [CGSize.zero, CGSize(width: 430, height: 270)] {
+      let view = CandidatePanelView(frame: CGRect(origin: .zero, size: initialSize))
+      let candidates = (0..<197).map { RimeCandidateItem(text: "Candidate \($0)") }
+      let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+      view.applyContinuation(Array(candidates.prefix(5)), startingAt: 0)
+      view.applyContinuation(Array(candidates.prefix(101)), startingAt: 0)
+      view.frame.size = CGSize(width: 430, height: 270)
+      view.layoutIfNeeded()
+      scroll.setContentOffset(CGPoint(x: 0, y: 90), animated: false)
+      view.applyContinuation(candidates, startingAt: 0)
+      view.layoutIfNeeded()
+      XCTAssertEqual(scroll.contentOffset.y, 90, accuracy: 0.5)
+      XCTAssertEqual(scroll.numberOfItems(inSection: 0), candidates.count)
+      let attributes = scroll.collectionViewLayout.layoutAttributesForElements(
+        in: CGRect(origin: .zero, size: scroll.contentSize)) ?? []
+      XCTAssertEqual(Set(attributes.map { $0.indexPath.item }), Set(candidates.indices))
+      scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
+                              animated: false)
+      view.layoutIfNeeded()
+      let last = try XCTUnwrap(allButtons(in: scroll).first { $0.tag == 196 })
+      var selected: Int?
+      view.onSelect = { selected = $0 }
+      last.sendActions(for: .touchUpInside)
+      XCTAssertEqual(selected, 196)
+      view.applyContinuation([], startingAt: 0, resetScroll: true)
+      view.applyContinuation(Array(candidates.prefix(5)), startingAt: 0)
+      view.layoutIfNeeded()
+      XCTAssertEqual(scroll.numberOfItems(inSection: 0), 5)
+      XCTAssertEqual(scroll.contentOffset.y, 0, accuracy: 0.5)
+    }
+  }
+
   func testExpandControlDoesNotParticipateInPagingGestures() throws {
     let view = bar(RimeCandidateBarModel(cells: [RimeCandidateCell(index: 0, text: "Candidate")]))
     let expand = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "展开候选面板" })

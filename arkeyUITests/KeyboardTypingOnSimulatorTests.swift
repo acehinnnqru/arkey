@@ -108,10 +108,23 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
     XCTAssertTrue(keyboardControl(app, "收起候选面板").waitForExistence(timeout: 5))
     let grid = keyboardControl(app, "candidate-scroll")
     XCTAssertTrue(grid.waitForExistence(timeout: 5))
-    for position in ["top", "after swipe"] {
-      if position == "after swipe" { grid.swipeUp() }
+    func visibleCandidates() -> Set<String> {
+      let bounds = grid.frame.insetBy(dx: 2, dy: 2)
+      return Set(grid.descendants(matching: .any).allElementsBoundByIndex.compactMap {
+        let label = $0.label
+        return !label.isEmpty && bounds.contains($0.frame) ? label : nil
+      })
+    }
+    for position in 0..<8 {
+      let before = visibleCandidates()
+      XCTAssertFalse(before.isEmpty, "the installed keyboard must expose visible candidates")
+      let start = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+      start.press(forDuration: 0.05,
+                  thenDragTo: grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+      XCTAssertNotEqual(visibleCandidates(), before,
+                        "the installed keyboard stopped scrolling on drag \(position)")
       let capture = XCTAttachment(screenshot: app.screenshot())
-      capture.name = "Expanded ni candidates at \(position)"
+      capture.name = "Expanded ni candidates after drag \(position)"
       capture.lifetime = .keepAlways
       add(capture)
     }

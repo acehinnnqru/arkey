@@ -183,7 +183,8 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     gridStack.translatesAutoresizingMaskIntoConstraints = false
     gridStack.accessibilityIdentifier = "candidate-scroll"
     gridStack.alwaysBounceVertical = true
-    gridStack.delaysContentTouches = false
+    // Let the pan recognizer distinguish a drag before a candidate button starts tracking.
+    gridStack.delaysContentTouches = true
     gridStack.canCancelContentTouches = true
     gridStack.delegate = self
     gridStack.dataSource = self
@@ -299,7 +300,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
 
   private func replaceEntries(_ updated: [Entry], resetScroll: Bool) {
     let oldCount = entries.count
-    let appending = !resetScroll && candidateLayout.rowPitch == rowPitch
+    let appending = oldCount > 0 && !resetScroll && candidateLayout.rowPitch == rowPitch
       && updated.count >= oldCount && updated.prefix(oldCount).elementsEqual(entries)
     guard resetScroll || updated != entries else { return }
     let newWidths = (appending ? Array(updated.dropFirst(oldCount)) : updated).map { entry in
@@ -308,17 +309,19 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     }
     // Complete the old layout before changing the data source for inserted items.
     gridStack.layoutIfNeeded()
-    entries = updated
-    candidateLayout.rowPitch = rowPitch
     if appending {
-      candidateLayout.widths.append(contentsOf: newWidths)
       UIView.performWithoutAnimation {
         gridStack.performBatchUpdates {
+          // UIKit must capture the old item count and layout before either changes.
+          entries = updated
+          candidateLayout.widths.append(contentsOf: newWidths)
           candidateLayout.invalidateLayout()
           gridStack.insertItems(at: (oldCount..<updated.count).map { IndexPath(item: $0, section: 0) })
         }
       }
     } else {
+      entries = updated
+      candidateLayout.rowPitch = rowPitch
       candidateLayout.widths = newWidths
       candidateLayout.invalidateLayout()
       gridStack.reloadData()

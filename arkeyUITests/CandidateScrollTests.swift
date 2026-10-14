@@ -1,6 +1,27 @@
 import XCTest
 
 final class CandidateScrollTests: XCTestCase {
+  func testFirstExpansionScrollsAndCollapsesWhileCandidatesLoad() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["--candidate-scroll-ui-test", "--candidate-reflow-ui-test"]
+    app.launch()
+    let expand = app.buttons["展开候选面板"]
+    XCTAssertTrue(expand.waitForExistence(timeout: 10))
+    expand.tap()
+    let grid = app.collectionViews["candidate-scroll"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    let start = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+    start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)))
+    XCTAssertGreaterThan(try XCTUnwrap(Int(app.staticTexts["candidate-offset"].label)), 10)
+    XCTAssertEqual(app.staticTexts["candidate-selection"].label, "none")
+    app.buttons["收起候选面板"].tap()
+    XCTAssertTrue(expand.waitForExistence(timeout: 5))
+    XCTAssertTrue(expand.isHittable)
+    XCTAssertFalse(grid.isHittable)
+    expand.tap()
+    XCTAssertTrue(grid.buttons["Candidate 0"].isHittable)
+  }
+
   func testExpansionReflowsFromFirstCandidateAndReservesTheAccessoryRail() throws {
     let app = XCUIApplication()
     app.launchArguments += ["--candidate-scroll-ui-test", "--candidate-reflow-ui-test"]
@@ -83,14 +104,23 @@ final class CandidateScrollTests: XCTestCase {
 
     for _ in 0..<5 {
       let before = try offset()
-      scroll.swipeUp()
+      let bounds = scroll.frame.insetBy(dx: 8, dy: 20)
+      let candidate = try XCTUnwrap(scroll.buttons.allElementsBoundByIndex.first {
+        bounds.contains($0.frame) && $0.isHittable && $0.frame.midY > scroll.frame.midY
+      }, "no candidate available to start a drag")
+      let start = candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)))
       XCTAssertGreaterThan(try offset(), before + 10, "an upward drag did not move the candidates")
+      XCTAssertEqual(app.staticTexts["candidate-selection"].label, "none",
+                     "dragging a candidate must not select it")
     }
     capture("scrolled")
     for _ in 0..<5 {
       let before = try offset()
-      scroll.swipeDown()
+      let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+      start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 120)))
       XCTAssertLessThan(try offset(), before - 10, "a downward drag did not move the candidates")
+      XCTAssertEqual(app.staticTexts["candidate-selection"].label, "none")
     }
   }
 
