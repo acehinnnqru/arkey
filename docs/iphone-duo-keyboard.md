@@ -43,6 +43,15 @@ decision. It contains no typed text or candidate data.
 
 ## Validation
 
+Fold API references are compiled only with Swift 6.4 or later and without
+`ARKEY_NO_FOLD_API`. Xcode 26 builds retain the standard layout. The project
+defines `ARKEY_NO_FOLD_API` for the iOS 27.0 device and simulator SDKs, which
+share Swift 6.4 but do not declare the iOS 27.1 APIs. The standalone type-check
+selects the same fallback for any SDK older than 27.1. Builds with the iOS 27.1
+SDK retain the runtime availability checks and system-driven fold support.
+Run `ARKEY_NO_FOLD_API=1 ./scripts/typecheck-app.sh` to check the fallback
+source path with a newer SDK as well.
+
 `S3LayoutTests` covers duplicated reach keys, two spaces, all shift states, all
 layers, asymmetric divisions, side-key metadata, positive non-overlapping frames,
 unchanged height, and unusable-division fallback. Existing layout assertions use

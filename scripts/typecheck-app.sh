@@ -15,6 +15,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+SDK_VERSION="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+# Runtime availability cannot hide declarations absent from the selected SDK.
+FOLD_FLAGS=()
+SDK_MAJOR="${SDK_VERSION%%.*}"
+SDK_MINOR="${SDK_VERSION#*.}"
+SDK_MINOR="${SDK_MINOR%%.*}"
+if [[ "${ARKEY_NO_FOLD_API:-0}" == 1 ]] || (( SDK_MAJOR < 27 || (SDK_MAJOR == 27 && SDK_MINOR < 1) )); then
+  FOLD_FLAGS=(-D ARKEY_NO_FOLD_API)
+fi
 TARGET="arm64-apple-ios18.0-simulator"
 PACKAGE="Packages/RimeEngine"
 OUT=".build/typecheck"
@@ -119,6 +128,7 @@ check() {
       -I "$MODULES" \
       -Xcc -fmodule-map-file="$RIME_INCLUDE/module.modulemap" -Xcc -I"$RIME_INCLUDE" \
       -module-cache-path "$(pwd)/$OUT/cache" \
+      "${FOLD_FLAGS[@]}" \
       "$@" 2>&1)"; then
     status=0
   else

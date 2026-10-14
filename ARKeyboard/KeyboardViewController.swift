@@ -216,6 +216,7 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    #if compiler(>=6.4) && !ARKEY_NO_FOLD_API
     if #available(iOS 27.1, *) {
       view.addInteraction(UIHingeInteraction { [weak self] _, update in
         guard let self else { return }
@@ -224,6 +225,7 @@ final class KeyboardViewController: UIInputViewController {
         self.view.setNeedsLayout()
       })
     }
+    #endif
     candidateBar.setExpanded(isPanelExpanded)
     candidatePanel.refreshLocalizedLabels()
     preferences = preferencesStore?.value ?? .standard
@@ -363,9 +365,11 @@ final class KeyboardViewController: UIInputViewController {
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     var divisions: [CGRect] = []
+    #if compiler(>=6.4) && !ARKEY_NO_FOLD_API
     if #available(iOS 27.1, *) {
       divisions = keyGrid.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
     }
+    #endif
     keyGrid.splitDivision = KeyboardFoldPolicy.splitDivision(bounds: keyGrid.bounds,
       isPartiallyOpen: isHingePartiallyOpen, divisions: divisions)
     let diagnostic = "fold hingeUpdate=\(hasReceivedHingeUpdate)"

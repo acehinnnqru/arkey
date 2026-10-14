@@ -3,6 +3,8 @@ import RimeEngine
 import Darwin
 
 enum KeyboardFoldPolicy {
+  // Xcode 26 lacks these declarations; Xcode 27.0 shares Swift 6.4 but lacks them too.
+  #if compiler(>=6.4) && !ARKEY_NO_FOLD_API
   @available(iOS 27.1, *)
   static func isPartiallyOpen(_ hinge: UIHinge?) -> Bool? {
     switch hinge?.status {
@@ -11,6 +13,7 @@ enum KeyboardFoldPolicy {
     default: return nil
     }
   }
+  #endif
 
   /// Only a vertical division crossing the key grid can require a split keyboard.
   /// Width alone must not activate this layout on an ordinary landscape phone or iPad.

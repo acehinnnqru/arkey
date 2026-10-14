@@ -34,6 +34,7 @@ final class KeyboardPreviewView: UIView {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    #if compiler(>=6.4) && !ARKEY_NO_FOLD_API
     if #available(iOS 27.1, *) {
       addInteraction(UIHingeInteraction { [weak self] _, update in
         guard let self else { return }
@@ -41,6 +42,7 @@ final class KeyboardPreviewView: UIView {
         self.setNeedsLayout()
       })
     }
+    #endif
     let theme = KeyboardTheme.current(for: .light)
     backgroundColor = theme.background
 
@@ -94,9 +96,11 @@ final class KeyboardPreviewView: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     var divisions: [CGRect] = []
+    #if compiler(>=6.4) && !ARKEY_NO_FOLD_API
     if #available(iOS 27.1, *) {
       divisions = keyGrid.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
     }
+    #endif
     keyGrid.splitDivision = KeyboardFoldPolicy.splitDivision(bounds: keyGrid.bounds,
       isPartiallyOpen: isHingePartiallyOpen, divisions: divisions)
   }
