@@ -16,7 +16,8 @@ final class S4SegmentTests: XCTestCase {
 
   private var tracerData: URL { repositoryRoot.appendingPathComponent("RimeData", isDirectory: true) }
 
-  private func engine(doublePinyin: Bool = false, expandedPreedit: Bool = false) throws -> RimeEngine {
+  private func engine(doublePinyin: Bool = false, expandedPreedit: Bool = false,
+                      denseCandidates: Bool = false) throws -> RimeEngine {
     let scratch = FileManager.default.temporaryDirectory
       .appendingPathComponent("arkey-s4-segment", isDirectory: true)
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -53,7 +54,10 @@ final class S4SegmentTests: XCTestCase {
         .replacingOccurrences(of: "schema: tracer", with: "schema: pinyin_flypy")
         .write(to: defaults, atomically: true, encoding: .utf8)
       let dictionary = source.appendingPathComponent("tracer.dict.yaml")
-      try (String(contentsOf: dictionary, encoding: .utf8) + "\n啊\ta\t100\n你好啊\tni hao a\t100\n")
+      let denseEntries = denseCandidates ? (0..<256).map {
+        "Test\($0)\tni\t\(1000 + $0)\nPhrase\($0)\tni hao a\t\(1000 + $0)"
+      }.joined(separator: "\n") : ""
+      try (String(contentsOf: dictionary, encoding: .utf8) + "\n啊\ta\t100\n你好啊\tni hao a\t100\n" + denseEntries + "\n")
         .write(to: dictionary, atomically: true, encoding: .utf8)
     }
     let engine = RimeEngine(configuration: RimeConfiguration(directories: RimeDirectories(
@@ -69,6 +73,38 @@ final class S4SegmentTests: XCTestCase {
                                          origin: RimeProfileSource(kind: .files))).profileID
     _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine).deploySync(profileID: id)
     return engine
+  }
+
+  func testFlypyCandidateEnumerationTimingWithADenseDictionary() throws {
+    let engine = try engine(doublePinyin: true, expandedPreedit: true, denseCandidates: true)
+    defer { engine.shutdown() }
+    try engine.openSession()
+    func elapsed(_ operation: () throws -> Void) rethrows -> Double {
+      let start = DispatchTime.now().uptimeNanoseconds
+      try operation()
+      return Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+    }
+    for input in ["ni", "nihcaa"] {
+      var inputTimes: [Double] = []
+      var listTimes: [Double] = []
+      var selectionTimes: [Double] = []
+      var pageCount = 0
+      var count = 0
+      for _ in 0..<30 {
+        try engine.clearComposition()
+        inputTimes.append(try elapsed { pageCount = try engine.processKeys(input).candidates.count })
+        listTimes.append(try elapsed {
+          count = try engine.candidateList(startingAt: pageCount, limit: 96).count
+        })
+        selectionTimes.append(try elapsed { _ = try engine.selectCandidate(at: 0) })
+      }
+      XCTAssertEqual(count, 96, "The benchmark must enumerate a full batch rather than exhaust a tiny fixture")
+      for (operation, times) in [("input", inputTimes), ("enumerate96", listTimes), ("select", selectionTimes)] {
+        let sorted = times.sorted()
+        print(String(format: "Candidate benchmark input=%@ operation=%@ samples=%d page=%d batch=%d p50Ms=%.3f p95Ms=%.3f maxMs=%.3f",
+                     input, operation, times.count, pageCount, count, sorted[15], sorted[28], sorted[29]))
+      }
+    }
   }
 
   func testAMultiSyllableInputComesBackDivided() throws {
