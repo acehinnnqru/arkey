@@ -179,7 +179,6 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
       panel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       panel.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
-    panel.applyContinuation((0..<500).map { RimeCandidateItem(text: RimeLocalization.text("Candidate \($0)")) }, startingAt: 0)
     if reflow {
       panel.isHidden = true
       panel.applyContinuation(Array(candidates.prefix(loadedCount)), startingAt: 0)
@@ -194,6 +193,8 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
         bar?.isHidden = false
       }
       panel.onNeedsMoreCandidates = bar.onNeedsMoreCandidates
+    } else {
+      panel.applyContinuation((0..<500).map { RimeCandidateItem(text: RimeLocalization.text("Candidate \($0)")) }, startingAt: 0)
     }
     return container
   }
