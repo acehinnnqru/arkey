@@ -94,6 +94,29 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
     XCTAssertTrue(text.contains("你好"), "the field says: [" + text + "]")
   }
 
+  func testExpandedCandidateScrollEdgesRemainReadable() throws {
+    enableThirdPartyKeyboard()
+    let (app, _) = launchAppWithArkeyKeyboard()
+    for letter in ["n", "i"] {
+      let key = app.keys[letter].firstMatch
+      XCTAssertTrue(key.waitForExistence(timeout: 5))
+      key.tap()
+    }
+    let expand = keyboardControl(app, "展开候选面板")
+    XCTAssertTrue(expand.waitForExistence(timeout: 5))
+    expand.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    XCTAssertTrue(keyboardControl(app, "收起候选面板").waitForExistence(timeout: 5))
+    let grid = keyboardControl(app, "candidate-scroll")
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    for position in ["top", "after swipe"] {
+      if position == "after swipe" { grid.swipeUp() }
+      let capture = XCTAttachment(screenshot: app.screenshot())
+      capture.name = "Expanded ni candidates at \(position)"
+      capture.lifetime = .keepAlways
+      add(capture)
+    }
+  }
+
   func testCandidateBarAndExpandRespondRepeatedlyInInstalledKeyboard() throws {
     enableThirdPartyKeyboard()
     let (app, field) = launchAppWithArkeyKeyboard()
