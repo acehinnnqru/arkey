@@ -189,6 +189,13 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     gridStack.dataSource = self
     gridStack.backgroundColor = .clear
     gridStack.contentInsetAdjustmentBehavior = .never
+    if #available(iOS 26.0, *) {
+      // Keep the system's scroll-edge blur from obscuring candidate rows.
+      gridStack.topEdgeEffect.isHidden = true
+      gridStack.bottomEdgeEffect.isHidden = true
+      gridStack.leftEdgeEffect.isHidden = true
+      gridStack.rightEdgeEffect.isHidden = true
+    }
     gridStack.register(CandidateCollectionCell.self, forCellWithReuseIdentifier: "candidate")
     addSubview(gridStack)
     loadingIndicator.translatesAutoresizingMaskIntoConstraints = false

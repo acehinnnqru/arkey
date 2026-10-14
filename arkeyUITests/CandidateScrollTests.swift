@@ -73,11 +73,20 @@ final class CandidateScrollTests: XCTestCase {
       try XCTUnwrap(Int(offsetLabel.label), "invalid scroll offset: \(offsetLabel.label)")
     }
 
+    func capture(_ position: String) {
+      let attachment = XCTAttachment(screenshot: app.screenshot())
+      attachment.name = "Long candidate list at \(position)"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+    }
+    capture("top")
+
     for _ in 0..<5 {
       let before = try offset()
       scroll.swipeUp()
       XCTAssertGreaterThan(try offset(), before + 10, "an upward drag did not move the candidates")
     }
+    capture("scrolled")
     for _ in 0..<5 {
       let before = try offset()
       scroll.swipeDown()

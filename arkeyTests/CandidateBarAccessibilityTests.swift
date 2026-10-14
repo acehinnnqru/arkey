@@ -332,6 +332,22 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     XCTAssertEqual(first.title(for: .normal), words[0])
   }
 
+  func testCandidateScrollEdgesDoNotObscureText() throws {
+    guard #available(iOS 26.0, *) else { return }
+    let collapsed = CandidateBar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+    let expanded = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    func scrollViews(in view: UIView) -> [UIScrollView] {
+      (view as? UIScrollView).map { [$0] } ?? view.subviews.flatMap { scrollViews(in: $0) }
+    }
+    for view in [collapsed, expanded] as [UIView] {
+      let scroll = try XCTUnwrap(scrollViews(in: view).first)
+      XCTAssertTrue(scroll.topEdgeEffect.isHidden)
+      XCTAssertTrue(scroll.bottomEdgeEffect.isHidden)
+      XCTAssertTrue(scroll.leftEdgeEffect.isHidden)
+      XCTAssertTrue(scroll.rightEdgeEffect.isHidden)
+    }
+  }
+
   func testExpandedCandidatesCanScrollWhenDragStartsOnAButton() throws {
     let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
     view.applyContinuation((0..<36).map { RimeCandidateItem(text: "候选词\($0)", comment: nil) },
