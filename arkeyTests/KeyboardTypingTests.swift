@@ -129,6 +129,70 @@ final class KeyboardTypingTests: XCTestCase {
                   "the bar shows: " + shown.joined(separator: " | "))
   }
 
+  func testOlderControllerDismissalDoesNotCloseTheCurrentSession() throws {
+    try deployBundledProfile()
+    let previous = booted()
+    let current = booted()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    try type(["n", "i"], in: current)
+    let input = try setup.engine.rawInput()
+
+    previous.viewWillDisappear(false)
+
+    XCTAssertTrue(setup.engine.isSessionOpen, "late dismissal must not close the current controller's session")
+    XCTAssertEqual(try setup.engine.rawInput(), input, "late dismissal must preserve the current composition")
+    try type(["x"], in: previous)
+    XCTAssertEqual(try setup.engine.rawInput(), input, "a retired controller must ignore late key events")
+    try type(["h", "a", "o"], in: current)
+    XCTAssertTrue(texts(in: try bar(current)).contains { $0.contains("你好") })
+  }
+
+  func testNextKeyReopensAnUnexpectedlyClosedSessionWithoutAnotherAppearance() throws {
+    try deployBundledProfile()
+    let controller = booted()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    setup.engine.closeSession()
+
+    try type(["n", "i", "h", "a", "o"], in: controller)
+
+    XCTAssertTrue(setup.engine.isSessionOpen, "typing must recover without switching pages")
+    XCTAssertTrue(texts(in: try bar(controller)).contains { $0.contains("你好") })
+  }
+
+  func testSessionRecoveryDoesNotReplayTheLostComposition() throws {
+    try deployBundledProfile()
+    let controller = booted()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    try type(["n", "i"], in: controller)
+    setup.engine.closeSession()
+
+    try type(["n", "i", "h", "a", "o"], in: controller)
+
+    XCTAssertEqual(try setup.engine.rawInput(), "nihao")
+    XCTAssertTrue(texts(in: try bar(controller)).contains { $0.contains("你好") })
+  }
+
+  func testSessionRecoveryPreservesEnglishMode() throws {
+    try deployBundledProfile()
+    let store = try XCTUnwrap(RimeKeyboardPreferencesStore.appGroup())
+    let original = store.value
+    defer { store.value = original }
+    var preferences = original
+    preferences.chineseInputOnly = false
+    store.value = preferences
+    let controller = booted()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    try setup.engine.setOption("ascii_mode", true)
+    try type(["n"], in: controller)
+    setup.engine.closeSession()
+
+    try type(["i"], in: controller)
+
+    XCTAssertTrue(setup.engine.isSessionOpen)
+    XCTAssertTrue(try setup.engine.getOption("ascii_mode"))
+    XCTAssertFalse(try setup.engine.refresh().isComposing)
+  }
+
   func testSwitchingBackFromEnglishProducesChineseCandidates() throws {
     try deployBundledProfile()
     let controller = booted()
