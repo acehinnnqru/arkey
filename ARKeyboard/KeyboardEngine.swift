@@ -18,6 +18,35 @@ enum KeyboardEngine {
     let bundledSharedData: URL
     let lease: RimeLeaseStore
     var resolved: RimeResolvedProfile
+    private let inputOwnerLock = NSLock()
+    private var inputOwner: UUID?
+
+    func claimInputSession(owner: UUID) {
+      inputOwnerLock.lock()
+      defer { inputOwnerLock.unlock() }
+      inputOwner = owner
+    }
+
+    func inputSessionBelongsToAnotherController(_ owner: UUID) -> Bool {
+      inputOwnerLock.lock()
+      defer { inputOwnerLock.unlock() }
+      return inputOwner != nil && inputOwner != owner
+    }
+
+    func ownsInputSession(_ owner: UUID) -> Bool {
+      inputOwnerLock.lock()
+      defer { inputOwnerLock.unlock() }
+      return inputOwner == owner
+    }
+
+    /// A retiring controller must not shut down the next controller's shared engine.
+    func releaseInputSession(owner: UUID) {
+      inputOwnerLock.lock()
+      defer { inputOwnerLock.unlock() }
+      guard inputOwner == owner else { return }
+      inputOwner = nil
+      engine.shutdown()
+    }
 
     init(engine: RimeEngine, probe: RimeProbeLog?, workspace: RimeWorkspace,
          bundledSharedData: URL, lease: RimeLeaseStore, resolved: RimeResolvedProfile) {

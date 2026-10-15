@@ -173,6 +173,8 @@ final class KeyboardViewController: UIInputViewController {
   private var geometrySamplingStart: CFTimeInterval?
   private var backingState = KeyboardBackingState()
   private var engine: RimeEngine?
+  private let engineOwnerID = UUID()
+  private var acceptsInput = false
   /// Kept so the appearance can adopt a profile the app activated (S1 §8).
   private var engineSetup: KeyboardEngine.Setup?
   private var theme = KeyboardTheme.current(for: .default)
@@ -200,7 +202,7 @@ final class KeyboardViewController: UIInputViewController {
   deinit {
     geometryDisplayLink?.invalidate()
     candidateLoadCancellation?.cancel()
-    engine?.shutdown()
+    engineSetup?.releaseInputSession(owner: engineOwnerID)
   }
 
   // MARK: - Lifecycle
@@ -329,6 +331,7 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    acceptsInput = true
     geometryAppearance += 1
     backingState.beginAppearance()
     geometryTrace = KeyboardGeometryTrace()
@@ -354,6 +357,7 @@ final class KeyboardViewController: UIInputViewController {
   }
 
   override func viewWillDisappear(_ animated: Bool) {
+    acceptsInput = false
     keyGrid.cancelActivePresses()
     releaseEngine()
     super.viewWillDisappear(animated)
@@ -434,6 +438,7 @@ final class KeyboardViewController: UIInputViewController {
       candidateBar.setMessage(RimeLocalization.text("Arkey startup failed: \(reason)"))
     case .success(let setup):
       engineSetup = setup
+      setup.claimInputSession(owner: engineOwnerID)
       for record in pendingGeometry {
         // These events already went to the system log before engine setup existed.
         KeyboardLog.geometry(record, probe: setup.probe, includeSystemLog: false)
@@ -463,7 +468,7 @@ final class KeyboardViewController: UIInputViewController {
         candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
       } catch {
         let detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
-        setup.engine.shutdown()
+        setup.releaseInputSession(owner: engineOwnerID)
         engine = nil
         let reason = String(describing: error)
         KeyboardLog.error("boot failed: " + reason)
@@ -484,7 +489,7 @@ final class KeyboardViewController: UIInputViewController {
   }
 
   private func selectCandidate(_ index: Int, providesFeedback: Bool = false) {
-    guard let engine else { return }
+    guard ensureInputSession(), let engine, currentPage?.candidates.isEmpty == false else { return }
     candidateLoadCancellation?.cancel()
     do {
       apply(try engine.selectCandidate(at: index))
@@ -496,7 +501,7 @@ final class KeyboardViewController: UIInputViewController {
 
   /// A long press forgets the candidate by its global index, even beyond the engine's current page.
   private func forgetCandidate(_ index: Int) {
-    guard let engine else { return }
+    guard ensureInputSession(), let engine, loadedCandidates.indices.contains(index) else { return }
     if isPanelExpanded { collapsePanel() }
     do {
       candidateLoadCancellation?.cancel()
@@ -510,8 +515,7 @@ final class KeyboardViewController: UIInputViewController {
 
   private func toggleAsciiMode() {
     guard !preferences.chineseInputOnly else { return }
-    if engine == nil { prepareEngine() }
-    guard let engine else { return }
+    guard ensureInputSession(), let engine else { return }
     do {
       try KeyboardEngine.ensureInputSchema(engine)
       try engine.setOption("ascii_mode", !asciiMode)
@@ -570,7 +574,16 @@ final class KeyboardViewController: UIInputViewController {
   // MARK: - Input
 
   private func handle(_ key: KeyboardKey) {
+    guard acceptsInput,
+          engineSetup?.inputSessionBelongsToAnotherController(engineOwnerID) != true,
+          engine == nil || engineSetup?.ownsInputSession(engineOwnerID) == true else { return }
     playFeedback()
+    switch key {
+    case .character, .auxiliary, .space, .backspace, .returnKey:
+      _ = ensureInputSession()
+    default:
+      break
+    }
     switch key {
     case .character(let value):
       typeLiteralKey(value)
@@ -629,14 +642,57 @@ final class KeyboardViewController: UIInputViewController {
   /// UIKit can suspend the extension. A disappearance callback may arrive too late
   /// after an explicit input-mode switch.
   func prepareForInputModeSwitch() {
+    acceptsInput = false
     keyGrid.cancelActivePresses()
     releaseEngine()
   }
 
   private func releaseEngine() {
     candidateLoadCancellation?.cancel()
-    engine?.shutdown()
+    engineSetup?.releaseInputSession(owner: engineOwnerID)
     engine = nil
+  }
+
+  /// Recover before processing the next event, without replaying a key or a candidate selection.
+  /// Explicit engine callers still have to open sessions themselves; this policy belongs to the keyboard.
+  @discardableResult
+  private func ensureInputSession() -> Bool {
+    guard acceptsInput,
+          engineSetup?.inputSessionBelongsToAnotherController(engineOwnerID) != true else { return false }
+    if engine == nil { prepareEngine() }
+    guard let engine, engineSetup?.ownsInputSession(engineOwnerID) == true else { return false }
+    guard !engine.isSessionOpen else { return true }
+
+    let schema = languageSchemaID
+    let wasASCII = asciiMode
+    candidateLoadCancellation?.cancel()
+    candidateLoadCancellation = nil
+    candidateLoadGeneration += 1
+    hasMoreCandidates = false
+    loadedCandidates.removeAll()
+    nextCandidateIndex = 0
+    currentPage = nil
+    candidatePreedit = nil
+    if isPanelExpanded { collapsePanel() }
+    do {
+      _ = try engine.start()
+      try engine.openSession()
+      if let schema { _ = try engine.selectSchema(schema) }
+      _ = try KeyboardEngine.ensureInputSchema(engine)
+      try engine.setOption("ascii_mode", preferences.chineseInputOnly ? false : wasASCII)
+      // Keep the host's last marked draft as literal text; its native composition no longer exists.
+      if markedText != nil { textDocumentProxy.unmarkText() }
+      markedText = nil
+      apply(try engine.refresh())
+      KeyboardLog.geometry(RimeProbeRecord(phase: "keyboard.session.recovered",
+        message: "Reopened a missing input session before the next event; no previous events were replayed"),
+        probe: engineSetup?.probe)
+      return true
+    } catch {
+      releaseEngine()
+      report("session.recovery.failed", error, userVisible: RimeLocalization.text("Key input failed: "))
+      return false
+    }
   }
 
   /// Emit feedback before key processing so engine work cannot delay a tap or hide the input view.
@@ -866,7 +922,7 @@ final class KeyboardViewController: UIInputViewController {
   private func expandPanel() {
     let start = ProcessInfo.processInfo.systemUptime
     recordCandidateInteraction("expand.requested")
-    guard engine != nil, let page = currentPage, !page.candidates.isEmpty else {
+    guard ensureInputSession(), engine != nil, let page = currentPage, !page.candidates.isEmpty else {
       recordCandidateInteraction("expand.ignored")
       return
     }
@@ -989,7 +1045,7 @@ final class KeyboardViewController: UIInputViewController {
   /// Both candidate presentations use librime's global candidate index.
   private func selectFromPanel(_ index: Int) {
     defer { collapsePanel() }
-    guard let engine else { return }
+    guard ensureInputSession(), let engine else { return }
     candidateLoadCancellation?.cancel()
     guard loadedCandidates.indices.contains(index) else { return }
     do {
