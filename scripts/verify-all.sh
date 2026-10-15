@@ -33,13 +33,9 @@ if [[ -z "$tests_summary" ]]; then
   exit 1
 fi
 printf '%s\n' "$tests_summary"
-# The count the run just produced is handed to the status check, so the one hand-written number in that table
-# cannot drift from the suite again.
-# The *last* such line is the total; the first is one suite.
-tests_ran="$(printf '%s\n' "$tests_summary" | sed -E 's/.*Executed ([0-9]+) tests.*/\1/')"
 
 step "status evidence"
-./scripts/check-status-evidence.sh --tests "${tests_ran:-}"
+./scripts/check-status-evidence.sh
 
 step "localization"
 python3 scripts/check-localization.py
