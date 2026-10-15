@@ -8,6 +8,7 @@ final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
   var enableInputClicksWhenVisible: Bool { true }
 
   var onGeometry: ((String, String) -> Void)?
+  var onHitTest: ((CGPoint, UIView?, UIEvent?) -> Void)?
   private let contentBacking = UIView()
   private(set) var backingMode = "transition"
 
@@ -91,6 +92,12 @@ final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
     onGeometry?("window", "attached=\(window != nil)")
   }
 
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    let target = super.hitTest(point, with: event)
+    if event == nil || event?.type == .touches { onHitTest?(point, target, event) }
+    return target
+  }
+
   override func layoutSubviews() {
     onGeometry?("inputLayout.before", "")
     super.layoutSubviews()
@@ -148,6 +155,9 @@ final class KeyboardViewController: UIInputViewController {
   private var candidateLoadCancellation: CandidateLoadCancellation?
   private var nextCandidateIndex = 0
   private var hasMoreCandidates = false
+  private var candidateInteractionSequence = 0
+  private var lastCandidateHitTimestamp: TimeInterval?
+  private var lastCandidateHitQuery: TimeInterval = 0
   private static let candidateBatchSize = 96
   private let keyGrid = KeyboardKeyGrid()
   private var heightConstraint: NSLayoutConstraint?
@@ -211,6 +221,9 @@ final class KeyboardViewController: UIInputViewController {
     inputView = contentView
     contentView.onGeometry = { [weak self] event, detail in
       self?.recordGeometry(event, detail: detail)
+    }
+    contentView.onHitTest = { [weak self] point, target, event in
+      self?.recordCandidateHit(point: point, target: target, event: event)
     }
   }
 
@@ -283,7 +296,13 @@ final class KeyboardViewController: UIInputViewController {
     candidatePanel.isHidden = true
     candidatePanel.onSelect = { [weak self] index in self?.selectFromPanel(index) }
     candidatePanel.onCollapse = { [weak self] in self?.collapsePanel() }
+    candidatePanel.onCollapseInteraction = { [weak self] event, timestamp in
+      self?.recordCandidateInteraction("collapse.\(event)", touchTimestamp: timestamp)
+    }
     candidatePanel.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
+    candidatePanel.onScrollInteraction = { [weak self] event, milliseconds, detail in
+      self?.recordCandidateInteraction("scroll.\(event)", milliseconds: milliseconds, detail: detail)
+    }
 
     candidateBar.onSelect = { [weak self] index in
       guard let self else { return }
@@ -291,6 +310,9 @@ final class KeyboardViewController: UIInputViewController {
       if self.isPanelExpanded { self.collapsePanel() }
     }
     candidateBar.onNeedsMoreCandidates = { [weak self] in self?.loadMoreCandidates() }
+    candidateBar.onExpandInteraction = { [weak self] event, timestamp in
+      self?.recordCandidateInteraction("expand.\(event)", touchTimestamp: timestamp)
+    }
     candidateBar.onExpand = { [weak self] in
       guard let self else { return }
       if self.isPanelExpanded { self.collapsePanel() } else { self.expandPanel() }
@@ -794,8 +816,60 @@ final class KeyboardViewController: UIInputViewController {
 
   // MARK: - Candidate panel
 
+  /// Include the accessory boundary and remote hit-test queries, which can precede touch delivery.
+  /// Never log keys, composition, or candidate contents.
+  private func recordCandidateHit(point: CGPoint, target: UIView?, event: UIEvent?) {
+    let strip = candidateBar.frame
+    guard strip.height > 0,
+          CGRect(x: strip.maxX - CandidateBar.accessoryWidth, y: strip.minY,
+                 width: CandidateBar.accessoryWidth, height: strip.height)
+            .insetBy(dx: -16, dy: -16).contains(point) else { return }
+    if let event {
+      guard event.timestamp != lastCandidateHitTimestamp else { return }
+      lastCandidateHitTimestamp = event.timestamp
+    } else {
+      let now = ProcessInfo.processInfo.systemUptime
+      guard now - lastCandidateHitQuery >= 0.1 else { return }
+      lastCandidateHitQuery = now
+    }
+    var ancestor = target
+    var role = "other"
+    while let current = ancestor {
+      if current.accessibilityIdentifier == "candidate-expand" { role = "expand"; break }
+      if current.accessibilityIdentifier == "candidate-collapse" { role = "collapse"; break }
+      ancestor = current.superview
+    }
+    if target == nil { role = "none" }
+    recordCandidateInteraction(event == nil ? "hit.query" : "hit", touchTimestamp: event?.timestamp,
+      detail: "target=\(role) x=\(String(format: "%.1f", point.x)) y=\(String(format: "%.1f", point.y))"
+        + " rootWidth=\(view.bounds.width) rootHeight=\(view.bounds.height) stripY=\(strip.minY) stripHeight=\(strip.height)")
+  }
+
+  private func recordCandidateInteraction(_ event: String, touchTimestamp: TimeInterval? = nil,
+                                          milliseconds: Double? = nil, detail: String = "") {
+    candidateInteractionSequence += 1
+    let uptime = ProcessInfo.processInfo.systemUptime
+    var message = "candidate event=\(event) trace=tap-3 id=\(geometryID) seq=\(candidateInteractionSequence)"
+      + " uptime=\(String(format: "%.3f", uptime)) expanded=\(isPanelExpanded)"
+      + " barHidden=\(candidateBar.isHidden) panelHidden=\(candidatePanel.isHidden)"
+      + " engineReady=\(engine != nil) pageHasCandidates=\(currentPage?.candidates.isEmpty == false)"
+      + " loaded=\(loadedCandidates.count) loading=\(candidateLoadCancellation != nil) generation=\(candidateLoadGeneration)"
+    if let timestamp = touchTimestamp, timestamp > 0 {
+      message += " deliveryMs=\(String(format: "%.2f", max(0, uptime - timestamp) * 1000))"
+    }
+    if let milliseconds { message += " elapsedMs=\(String(format: "%.2f", milliseconds))" }
+    if !detail.isEmpty { message += " " + detail }
+    KeyboardLog.geometry(RimeProbeRecord(phase: "keyboard.candidate.\(event)",
+      milliseconds: milliseconds, message: message), probe: engineSetup?.probe)
+  }
+
   private func expandPanel() {
-    guard engine != nil, let page = currentPage, !page.candidates.isEmpty else { return }
+    let start = ProcessInfo.processInfo.systemUptime
+    recordCandidateInteraction("expand.requested")
+    guard engine != nil, let page = currentPage, !page.candidates.isEmpty else {
+      recordCandidateInteraction("expand.ignored")
+      return
+    }
     candidateBar.layoutIfNeeded()
     // Both presentations share the same candidate list and in-flight request.
     isPanelExpanded = true
@@ -807,6 +881,7 @@ final class KeyboardViewController: UIInputViewController {
     candidatePanel.setLoading(loadedCandidates.isEmpty)
     animatePanelAppearance(candidatePanel)
     candidatePanel.requestMoreCandidatesIfNeeded()
+    recordCandidateInteraction("expand.updated", milliseconds: (ProcessInfo.processInfo.systemUptime - start) * 1000)
   }
 
   private func resetCandidateList() {
@@ -830,10 +905,12 @@ final class KeyboardViewController: UIInputViewController {
     candidateLoadCancellation = cancellation
     let generation = candidateLoadGeneration
     let start = nextCandidateIndex
+    let requestedAt = ProcessInfo.processInfo.systemUptime
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       let candidates = try? engine.candidateList(startingAt: start, limit: Self.candidateBatchSize) {
         !cancellation.isCancelled
       }
+      let enumeratedAt = ProcessInfo.processInfo.systemUptime
       DispatchQueue.main.async { [weak self] in
         guard let self, self.candidateLoadGeneration == generation,
               !cancellation.isCancelled else { return }
@@ -841,8 +918,10 @@ final class KeyboardViewController: UIInputViewController {
           self.candidateLoadCancellation = nil
           self.hasMoreCandidates = false
           self.candidatePanel.setLoading(false)
+          self.recordCandidateInteraction("load.failed")
           return
         }
+        let renderStart = ProcessInfo.processInfo.systemUptime
         self.loadedCandidates = Array(self.loadedCandidates.prefix(start)) + candidates
         self.nextCandidateIndex = start + candidates.count
         self.hasMoreCandidates = candidates.count == Self.candidateBatchSize
@@ -854,6 +933,11 @@ final class KeyboardViewController: UIInputViewController {
           self.candidatePanel.layoutIfNeeded()
         }
         self.candidateLoadCancellation = nil
+        let now = ProcessInfo.processInfo.systemUptime
+        self.recordCandidateInteraction("load.applied", milliseconds: (now - requestedAt) * 1000,
+          detail: "engineMs=\(String(format: "%.2f", (enumeratedAt - requestedAt) * 1000))"
+            + " mainWaitMs=\(String(format: "%.2f", (renderStart - enumeratedAt) * 1000))"
+            + " renderMs=\(String(format: "%.2f", (now - renderStart) * 1000))")
         // Defer the next request until the collection update has completed.
         DispatchQueue.main.async { [weak self] in
           self?.candidateBar.requestMoreCandidatesIfNeeded()
@@ -864,7 +948,12 @@ final class KeyboardViewController: UIInputViewController {
   }
 
   private func collapsePanel() {
-    guard isPanelExpanded else { return }
+    let start = ProcessInfo.processInfo.systemUptime
+    recordCandidateInteraction("collapse.requested")
+    guard isPanelExpanded else {
+      recordCandidateInteraction("collapse.ignored")
+      return
+    }
     isPanelExpanded = false
     candidateBar.setExpanded(false)
     candidateBar.isHidden = false
@@ -872,6 +961,7 @@ final class KeyboardViewController: UIInputViewController {
     keyGrid.isHidden = false
     candidateBar.requestMoreCandidatesIfNeeded()
     animatePanelAppearance(keyGrid)
+    recordCandidateInteraction("collapse.updated", milliseconds: (ProcessInfo.processInfo.systemUptime - start) * 1000)
   }
 
   private func animatePanelAppearance(_ appearing: UIView) {

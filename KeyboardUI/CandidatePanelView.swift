@@ -114,9 +114,14 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
   /// A cell was tapped: the argument is librime's own candidate index, not the cell's position.
   var onSelect: ((Int) -> Void)?
   var onCollapse: (() -> Void)?
+  var onCollapseInteraction: ((String, TimeInterval?) -> Void)? {
+    didSet { collapseButton.onInteraction = onCollapseInteraction }
+  }
   /// Page the grid. Never commits (S3 §5).
   var onPage: ((Bool) -> Void)?
   var onNeedsMoreCandidates: (() -> Void)?
+  /// Touch/scroll metadata only; candidate contents never enter the diagnostic payload.
+  var onScrollInteraction: ((String, Double?, String) -> Void)?
   #if DEBUG
   var onScroll: ((CGFloat) -> Void)?
   #endif
@@ -126,7 +131,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
   private let headerSpacer = UIView()
   private let leadingButton = UIButton(type: .system)
   private let trailingButton = UIButton(type: .system)
-  private let collapseButton = UIButton(type: .system)
+  private let collapseButton = CandidateAccessoryButton(type: .system)
   private let candidateLayout = CandidateCollectionLayout()
   private lazy var gridStack = CandidateScrollView(frame: .zero, collectionViewLayout: candidateLayout)
   private let loadingIndicator = UIActivityIndicatorView(style: .medium)
@@ -147,6 +152,12 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
   private var syllableHeight: CGFloat = RimeCandidatePanelModel.syllableRowHeight
   private var showsSyllables = false
   private var headerHeightConstraint: NSLayoutConstraint!
+  private var lastScrollHitTimestamp: TimeInterval?
+  private var dragStartedAt: TimeInterval?
+  private var lastDragSampleAt: TimeInterval = 0
+  private var dragStartOffset: CGFloat = 0
+  private var dragSamples = 0
+  private var maximumDragGap: TimeInterval = 0
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -173,6 +184,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     leadingButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
     trailingButton.setImage(UIImage(systemName: "chevron.right"), for: .normal)
     collapseButton.setImage(UIImage(systemName: "chevron.up"), for: .normal)
+    collapseButton.accessibilityIdentifier = "candidate-collapse"
     collapseButton.imageEdgeInsets = UIEdgeInsets(top: 2 * KeyboardMetrics.candidateTextOffset,
                                                 left: 0, bottom: 0, right: 0)
     refreshLocalizedLabels()
@@ -298,6 +310,28 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
     gridStack.layoutIfNeeded()
   }
 
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    let target = super.hitTest(point, with: event)
+    if !isHidden, let event, event.type == .touches,
+       event.timestamp != lastScrollHitTimestamp, gridStack.frame.contains(point) {
+      lastScrollHitTimestamp = event.timestamp
+      let role = target === gridStack ? "scroll" : (target?.isDescendant(of: gridStack) == true ? "cell" : "other")
+      let delay = max(0, ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
+      onScrollInteraction?("hit", nil,
+        "target=\(role) deliveryMs=\(String(format: "%.2f", delay)) " + scrollDiagnosticState)
+    }
+    return target
+  }
+
+  private var scrollDiagnosticState: String {
+    "enabled=\(gridStack.isScrollEnabled) interactive=\(gridStack.isUserInteractionEnabled)"
+      + " tracking=\(gridStack.isTracking) dragging=\(gridStack.isDragging) decelerating=\(gridStack.isDecelerating)"
+      + " panState=\(gridStack.panGestureRecognizer.state.rawValue) uncommittedUpdates=\(gridStack.hasUncommittedUpdates)"
+      + " offsetY=\(String(format: "%.1f", gridStack.contentOffset.y))"
+      + " contentHeight=\(String(format: "%.1f", gridStack.contentSize.height))"
+      + " viewportHeight=\(String(format: "%.1f", gridStack.bounds.height))"
+  }
+
   private func replaceEntries(_ updated: [Entry], resetScroll: Bool) {
     let oldCount = entries.count
     let appending = oldCount > 0 && !resetScroll && candidateLayout.rowPitch == rowPitch
@@ -358,10 +392,43 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    if dragStartedAt != nil {
+      let now = ProcessInfo.processInfo.systemUptime
+      maximumDragGap = max(maximumDragGap, now - lastDragSampleAt)
+      lastDragSampleAt = now
+      dragSamples += 1
+    }
     #if DEBUG
     onScroll?(scrollView.contentOffset.y)
     #endif
     requestMoreCandidatesIfNeeded()
+  }
+
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    let now = ProcessInfo.processInfo.systemUptime
+    dragStartedAt = now
+    lastDragSampleAt = now
+    dragStartOffset = scrollView.contentOffset.y
+    dragSamples = 0
+    maximumDragGap = 0
+    onScrollInteraction?("drag.began", nil, scrollDiagnosticState)
+  }
+
+  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    guard let start = dragStartedAt else { return }
+    let now = ProcessInfo.processInfo.systemUptime
+    maximumDragGap = max(maximumDragGap, now - lastDragSampleAt)
+    let translation = scrollView.panGestureRecognizer.translation(in: scrollView).y
+    onScrollInteraction?("drag.ended", (now - start) * 1000,
+      "samples=\(dragSamples) maxScrollGapMs=\(String(format: "%.2f", maximumDragGap * 1000))"
+        + " translationY=\(String(format: "%.1f", translation))"
+        + " offsetDelta=\(String(format: "%.1f", scrollView.contentOffset.y - dragStartOffset))"
+        + " willDecelerate=\(decelerate) " + scrollDiagnosticState)
+    dragStartedAt = nil
+  }
+
+  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    onScrollInteraction?("deceleration.ended", nil, scrollDiagnosticState)
   }
 
   @objc private func handleCell(_ sender: UIButton) {

@@ -6,6 +6,28 @@ private final class CandidateBarScrollView: UIScrollView {
   override func touchesShouldCancel(in view: UIView) -> Bool { true }
 }
 
+/// Observe the normal control lifecycle without adding a competing gesture recognizer.
+final class CandidateAccessoryButton: UIButton {
+  var onInteraction: ((String, TimeInterval?) -> Void)?
+
+  override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    let accepted = super.beginTracking(touch, with: event)
+    onInteraction?(accepted ? "down" : "rejected", touch.timestamp)
+    return accepted
+  }
+
+  override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
+    // Report before super: the action can hide this control and show the other presentation.
+    onInteraction?(isTouchInside ? "upInside" : "upOutside", touch?.timestamp)
+    super.endTracking(touch, with: event)
+  }
+
+  override func cancelTracking(with event: UIEvent?) {
+    if isTracking { onInteraction?("cancelled", event?.timestamp) }
+    super.cancelTracking(with: event)
+  }
+}
+
 /// The suggestion strip above the keys — S4 §6's collapsed bar, rendered from `RimeCandidateBarModel`.
 ///
 /// Three rules earned the hard way, kept from the tracer's version:
@@ -21,11 +43,14 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
   var onNeedsMoreCandidates: (() -> Void)?
   /// The expand control: S4 §6's panel replaces the keyboard area, so the bar has to offer it.
   var onExpand: (() -> Void)?
+  var onExpandInteraction: ((String, TimeInterval?) -> Void)? {
+    didSet { expandButton.onInteraction = onExpandInteraction }
+  }
   #if DEBUG
   var onScroll: ((CGFloat) -> Void)?
   #endif
 
-  private let expandButton = UIButton(type: .system)
+  private let expandButton = CandidateAccessoryButton(type: .system)
   private let cellsStack = UIView()
   private let scrollView = CandidateBarScrollView()
   private var preferredWidths: [CGFloat] = []
@@ -96,6 +121,7 @@ final class CandidateBar: UIView, UIScrollViewDelegate {
     expandButton.tintColor = .secondaryLabel
     expandButton.setImage(UIImage(systemName: "chevron.down"), for: .normal)
     expandButton.accessibilityLabel = RimeLocalization.text("Expand candidates")
+    expandButton.accessibilityIdentifier = "candidate-expand"
     expandButton.addTarget(self, action: #selector(handleExpand), for: .touchUpInside)
 
     messageLabel.font = .systemFont(ofSize: 13)

@@ -153,4 +153,25 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
       XCTAssertEqual((field.value as? String) ?? "", initial + String(repeating: "你好", count: iteration))
     }
   }
+
+  /// Reuse a screen coordinate so a second tap does not wait for an accessibility lookup.
+  /// This also exercises the replacement control that appears under the same finger.
+  func testRapidCandidateTogglesRespondToEveryPhysicalTap() throws {
+    let (app, _) = launchAppWithArkeyKeyboard()
+    for letter in ["n", "i", "h", "a", "o"] {
+      app.keys[letter].firstMatch.tap()
+    }
+    let expand = keyboardControl(app, "candidate-expand")
+    XCTAssertTrue(expand.waitForExistence(timeout: 5))
+    let frame = expand.frame
+    let origin = app.frame.origin
+    let point = app.coordinate(withNormalizedOffset: .zero).withOffset(
+      CGVector(dx: frame.midX - origin.x, dy: frame.midY - origin.y))
+    let collapse = keyboardControl(app, "candidate-collapse")
+    for iteration in 0..<12 {
+      point.doubleTap()
+      XCTAssertTrue(expand.isHittable, "Both taps must toggle the panel in pair \(iteration)")
+      XCTAssertFalse(collapse.isHittable, "The second tap must collapse the panel in pair \(iteration)")
+    }
+  }
 }
