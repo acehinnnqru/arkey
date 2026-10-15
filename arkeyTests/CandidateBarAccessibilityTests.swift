@@ -364,6 +364,26 @@ final class CandidateBarAccessibilityTests: XCTestCase {
                   "a drag starting on a candidate should scroll instead of tracking the button")
   }
 
+  func testScrollDiagnosticsReportMovementWithoutCandidateContents() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+    view.applyContinuation((0..<200).map { RimeCandidateItem(text: "Private candidate \($0)") }, startingAt: 0)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    var records: [(event: String, milliseconds: Double?, detail: String)] = []
+    view.onScrollInteraction = { records.append(($0, $1, $2)) }
+    view.scrollViewWillBeginDragging(scroll)
+    scroll.contentOffset.y = 120
+    view.scrollViewDidEndDragging(scroll, willDecelerate: true)
+    view.scrollViewDidEndDecelerating(scroll)
+    XCTAssertEqual(records.map(\.event), ["drag.began", "drag.ended", "deceleration.ended"])
+    let summary = try XCTUnwrap(records.first { $0.event == "drag.ended" })
+    XCTAssertNotNil(summary.milliseconds)
+    XCTAssertTrue(summary.detail.contains("offsetDelta=120.0"))
+    XCTAssertTrue(summary.detail.contains("maxScrollGapMs="))
+    XCTAssertTrue(summary.detail.contains("viewportHeight=300.0"))
+    XCTAssertFalse(records.contains { $0.detail.contains("Private candidate") })
+  }
+
   func testLongCandidateListReusesButtonsAndKeepsLastSelectionCorrect() throws {
     let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
     view.applyContinuation((0..<500).map { RimeCandidateItem(text: "候选词\($0)") },
