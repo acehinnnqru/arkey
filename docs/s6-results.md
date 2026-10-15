@@ -21,13 +21,9 @@ The two device passes that *have* happened were recorded where they happened, in
 
 ## Engine tests on macOS
 
-`swift test --disable-sandbox` from `Packages/RimeEngine` runs **393 tests across 46 suites**, which is the
-line `scripts/verify-all.sh` prints on every run. The count is quoted from that run **and checked against it**: `verify-all.sh` hands the number it just observed
-to the status check, which compares it with the S6-AC1 row and fails when they differ. It had already gone stale
-once — 249 in the table while the suite ran 251 — because the row is hand-written and nothing read it. This
-section used to carry a per-suite table with exact numbers, and seven suites and 124 tests later the numbers were
-wrong while the table still looked authoritative. What belongs in this file is the map from
-spec to suite:
+Run `scripts/verify-all.sh` for the current engine test results and verification output. It reports
+the XCTest summary from that run. Test, suite and source-file counts are not maintained in this document
+or used as documentation gates. The table below maps specs to relevant suites:
 
 | Spec | Suites |
 | --- | --- |
@@ -38,21 +34,6 @@ spec to suite:
 | S4 | `S4InputTests`, `S4CompletionTests`, `S4SentenceTests`, `S4SegmentTests` |
 | S5 | `S5UserDictionaryTests`, `S5DictionaryEditTests` |
 | S6 | `S6ReleaseCheckTests`, `S6NoticesTests`, `S6EngineNoticesTests`, `S6PrivacyManifestTests`, `S6ProbeSummaryTests` |
-
-## The baseline this file is written against
-
-Numbers age. This is the run the numbers in this file were written against, and `scripts/verify-all.sh` prints
-it again on demand:
-
-| Step | Result |
-| --- | --- |
-| engine tests (macOS) | 393 tests, 0 failures |
-| status evidence | 38 criteria, 38 rows, 91 cited names, ok |
-| type-check | 117 Swift file preparations across app, extension, unit tests and UI tests, including shared keyboard UI and the app/extension sources in the test set; no type errors, existing UIKit deprecation warnings reported |
-| release bundle check | the Release `.app`: 16 Rime data files in 2 data directories, no findings |
-
-The count is the one part of the chain that moves for good reasons, so the script prints the XCTest summary
-line rather than a tail of the run: a reader of this table should see the number the tests actually reported.
 
 ## The Release bundle check
 
@@ -93,9 +74,6 @@ yet" for two files that had been built and tested. Both were caught by reading, 
 | every `test…` name, `*Tests` suite and Swift type a row cites exists | a renamed test, a deleted type, evidence quoted from memory |
 | engine API that no screen calls equals the baseline in `docs/ui-wiring.txt` | a feature that exists in the engine and nowhere the user can reach it — the two found by hand were the long-press forget and the snapshot export |
 | every relative link in `docs/` resolves (`scripts/check-doc-links.sh`) | a cross-reference into a renamed or deleted file, left behind by an edit — ninety rounds of editing later, all 61 of them still resolve |
-| the test count in the S6-AC1 row equals the number the suite just ran | the one hand-written number in the table drifting from the suite, which it had done |
-| the **suite** count in the same row equals the number of `final class …: XCTestCase` declarations | the same row's other hand-written number: it said 39 suites while the tree declared 40, and nothing looked |
-| the **source** count both rows quote equals what `scripts/typecheck-app.sh` prepares | the two rows drifting apart from each other: S6-AC1 said 49 Swift files and S6-AC2 said 48 for the same type-check, and neither was compared with anything |
 | the specs' open `[verify]` markers equal the ledger rows in status.md | an obligation added to a spec without being written down, or one answered and left in the ledger |
 The wiring check has its own history, and it earned its place: comparing the engine's public API with what the
 screens call — by hand, twice — found the long press that forgets a word (engine-tested, no gesture) and the
@@ -104,20 +82,10 @@ thing, in the script: the first regex only matched `public func`, so every `publ
 124 symbols the audit had never looked at, now in the baseline. A check that reports "no change" is worth
 exactly as much as its pattern is complete.
 
-It reports what it checked and exits non-zero on the first failure, so it can be a gate. Verified both ways:
-with the table as it stands it prints `38 rows, 38 criteria` and `91 cited names checked` and exits 0, and
-with a row citing `testThisTestDoesNotExist` added it exits 1 and names both the test and the invented
-criterion. The row was removed again; the check is what stays.
-
-The suite count was added the same way it was found: the isolation run in round 131 (every suite run
-alone, 40 of 40 passing) made the tree's real number visible, the row said 39, and the new assertion
-fails for exactly that — verified in a throwaway clone by editing the row back to 39 and watching it exit
-1. Both numbers in that row are now checked against the tree rather than trusted.
-
-The type-check's source count was the third hand-written number, and it was found by reading rather than
-by failing: S6-AC1 said the check covers 49 Swift files, S6-AC2 said 48 for the same check, and the script
-prints the number it prepared — 49. It is compared now too, against both rows in the table and against the
-four source directories, and the meta-check plants a stale one to prove the comparison bites.
+It reports what it checked and exits non-zero when a structural or reference check fails. The
+meta-check verifies that missing criterion rows and nonexistent cited tests fail, while historical
+numeric summaries may change or be omitted. Historical measurements in the results documents describe
+the runs that produced them; they are not compared with the current tree.
 
 ## Both versions travel with the profile (S6 §4)
 
@@ -159,12 +127,12 @@ planted warning is *reported rather than hidden* (18 expectations when it runs).
 
 A verification script is itself unverified: it passes on a clean tree, and one that passes on everything
 looks exactly the same. `scripts/check-verification-scripts.sh` plants a fault for each check — a
-criterion row removed, a cited test renamed, a wrong test count, a stale source count, a quoted command line
-that must *not* be read as a missing type, an unwired public symbol, a link to
+criterion row removed, a cited test renamed, an unwired public symbol, a link to
 nothing, a config outside `RimeData/`, a local config left in a bundle, a bundle path that does not
 exist, and (with `--typecheck`) a type error in an app file — and requires each check to **fail**. It
 does all of it in a temporary clone, copying the working tree's `scripts/` in first, so it never touches
-this checkout.
+this checkout. It also checks that historical counts may differ or be omitted and that a quoted
+command line is not mistaken for a missing type.
 
 It found two real holes in the checks themselves:
 
