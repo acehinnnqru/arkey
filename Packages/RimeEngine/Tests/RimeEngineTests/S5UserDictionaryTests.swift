@@ -352,6 +352,32 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertNil(store.current())
   }
 
+  func testDeniedStartupRefusesRuntimeReadsAndCanRecoverAfterOwnershipIsReleased() throws {
+    let store = try bindEngineToDictionaryLock()
+    engine.shutdown()
+    var competitor: RimeDictionaryLock? = try store.acquireLock()
+    XCTAssertThrowsError(try engine.start())
+    XCTAssertFalse(engine.isRunning)
+    let reads: [() throws -> Void] = [
+      { _ = try self.engine.schemas() },
+      { _ = try self.engine.withConfig("default") { $0.value("schema_list") } },
+      { _ = try self.engine.withSchemaConfig("tracer") { $0.value("engine/processors") } },
+    ]
+    for read in reads {
+      XCTAssertThrowsError(try read()) { error in
+        guard case RimeEngineError.notStarted = error else { return XCTFail("Unexpected error: \(error)") }
+      }
+    }
+    let config = try engine.configFromYAML("value: retained")
+    XCTAssertEqual(config.string("value"), "retained", "Detached YAML parsing does not need dictionary ownership")
+    config.close()
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+
+    try engine.start()
+    XCTAssertFalse(try engine.schemas().isEmpty, "Reads must work after a successful startup")
+  }
+
   func testAClaimFailureDoesNotOpenASessionOrLeakOwnership() throws {
     let store = try bindEngineToDictionaryLock()
     try FileManager.default.createDirectory(at: store.url, withIntermediateDirectories: false)

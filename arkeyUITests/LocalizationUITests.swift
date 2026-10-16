@@ -96,7 +96,7 @@ final class LocalizationUITests: XCTestCase {
                   "changing language dismissed or failed to update the settings sheet")
     tapSettingsRow("Keyboard", in: app)
     XCTAssertTrue(app.navigationBars["Keyboard"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["Appearance"].exists)
+    assertKeyboardSection("Appearance", in: app)
 
     app.terminate()
     app.launch()
@@ -111,24 +111,36 @@ final class LocalizationUITests: XCTestCase {
     app.buttons["简体中文"].tap()
     XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 5))
     tapSettingsRow("键盘", in: app)
-    XCTAssertTrue(app.staticTexts["外观"].waitForExistence(timeout: 5))
+    assertKeyboardSection("外观", in: app)
+  }
+
+  private func assertKeyboardSection(_ title: String, in app: XCUIApplication) {
+    let section = app.staticTexts[title]
+    let list = app.collectionViews.firstMatch
+    for _ in 0..<6 {
+      if section.exists { break }
+      list.swipeUp()
+    }
+    XCTAssertTrue(section.waitForExistence(timeout: 5))
   }
 
   private func openLanguagePicker(_ app: XCUIApplication) {
-    let picker = app.buttons["interface-language"]
+    let list = app.collectionViews["settings-list"]
+    let picker = list.buttons["interface-language"]
     for _ in 0..<4 {
       if picker.isHittable { break }
-      app.swipeUp()
+      list.swipeUp()
     }
     XCTAssertTrue(picker.isHittable)
     picker.tap()
   }
 
   private func tapSettingsRow(_ title: String, in app: XCUIApplication) {
-    let row = app.buttons[title]
+    let list = app.collectionViews["settings-list"]
+    let row = list.buttons[title]
     for _ in 0..<4 {
       if row.isHittable { break }
-      app.swipeDown()
+      list.swipeDown()
     }
     XCTAssertTrue(row.isHittable)
     row.tap()

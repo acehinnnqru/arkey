@@ -31,6 +31,8 @@
 "Arkey ready · {0} · Full Access {1} · {2}" = "Arkey 就绪 · {0} · 完全访问{1} · {2}";
 "Arkey startup failed: {0}" = "Arkey 启动失败：{0}";
 "Arkey — Third-party profiles and licenses" = "Arkey — 第三方配置与许可证";
+"Waiting for dictionaries. Retrying automatically…" = "正在等待词库释放，将自动重试…";
+"Waiting for dictionaries. Pending input: {0}" = "正在等待词库释放，已暂存输入：{0}";
 "Automatic word creation" = "自动造词";
 "Auxiliary configuration failed" = "辅码配置失败";
 "Auxiliary input failed: " = "辅码输入出错：";

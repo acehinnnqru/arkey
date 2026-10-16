@@ -257,7 +257,8 @@ extension RimeEngine {
   /// `config_set_item` can copy into a patch.
   public func configFromYAML(_ yaml: String) throws -> RimeConfigRef {
     try perform {
-      let api = try requireAPI()
+      // Detached YAML parsing does not use the initialized engine's schema/config registry.
+      guard let api = RimeAPI.pointer else { throw RimeEngineError.apiUnavailable }
       guard let initialize = api.pointee.config_init,
             let load = api.pointee.config_load_string else {
         throw RimeEngineError.apiUnavailable

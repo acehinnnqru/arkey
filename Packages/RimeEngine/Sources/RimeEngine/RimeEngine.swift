@@ -405,9 +405,10 @@ public final class RimeEngine: @unchecked Sendable {
   // MARK: - Internals (queue)
 
   func requireAPI() throws -> UnsafeMutablePointer<rime_api_t> {
-    if let api { return api }
-    guard let pointer = RimeAPI.pointer else { throw RimeEngineError.apiUnavailable }
-    return pointer
+    // Linked symbols do not imply an initialized runtime. A denied dictionary claim may
+    // prevent startup entirely; calling its schema/config registry in that state can crash.
+    guard isStarted, let api else { throw RimeEngineError.notStarted }
+    return api
   }
 
   func requireSession(api: UnsafeMutablePointer<rime_api_t>) throws -> RimeSessionId {

@@ -135,6 +135,24 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
                             "the editor must stay above the entire keyboard after navigation")
   }
 
+  func testKeyboardRecoversDictionarySessionAfterHostBackgrounding() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    let ready = app.staticTexts.containing(NSPredicate(
+      format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "Arkey 就绪", "Arkey ready")).firstMatch
+    XCTAssertTrue(ready.waitForExistence(timeout: 10))
+
+    XCUIDevice.shared.press(.home)
+    app.activate()
+    XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+    XCTAssertTrue(ready.waitForExistence(timeout: 10), "Host activation must reopen the dictionary session")
+    for letter in ["n", "i", "h", "a", "o"] { app.keys[letter].tap() }
+    let candidate = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "你好")).firstMatch
+    XCTAssertTrue(candidate.waitForExistence(timeout: 10), "Resumed input must produce Chinese candidates")
+    candidate.tap()
+    XCTAssertTrue(((field.value as? String) ?? "").contains("你好"))
+  }
+
   /// This checks settled extension geometry. It does not verify the host's
   /// outer height or exclude a visible spike during the switching animation.
   func testInputModeSwitchDoesNotIncreaseKeyboardHeight() throws {
