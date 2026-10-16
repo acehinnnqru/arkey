@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Regression tests for the Swift source scan used by the UI wiring gate."""
 import importlib.util
+import os
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -12,6 +14,21 @@ spec.loader.exec_module(wiring)
 
 
 class SwiftUsageTests(unittest.TestCase):
+    def test_gate_uses_the_same_order_under_different_locales(self):
+        available = set(subprocess.check_output(["locale", "-a"], text=True).splitlines())
+        for language in ("C", "en_US.UTF-8", "zh_CN.UTF-8"):
+            if language not in available:
+                continue
+            with self.subTest(locale=language):
+                result = subprocess.run(
+                    ["bash", str(wiring.ROOT / "scripts/check-ui-wiring.sh")],
+                    env={**os.environ, "LC_ALL": language},
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("ui wiring ok", result.stdout)
+
     def test_localized_pending_input_is_not_a_use(self):
         source = r'RimeLocalization.text("Waiting for dictionaries. Pending input: \(engine.pendingUse)")'
         self.assertNotIn("input", wiring.used_names(source))
