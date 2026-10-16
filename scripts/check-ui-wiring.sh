@@ -22,7 +22,7 @@
 #   deliberate       selectCandidateOnCurrentPage — the explicit form of the selection call the extension makes
 #                    through selectCandidate(at:); kept because it is the safer of the two if the older call's
 #                    index semantics are ever questioned (see docs/s4-results.md on the panel's numbering).
-#   diagnostics      directorySummary, probeRecords, isRunning, isInMaintenanceMode, logText, setNotificationHandler
+#   diagnostics      directorySummary, probeRecords, isInMaintenanceMode, logText, setNotificationHandler
 #                    — readable state for a diagnostics screen; the app reads the probe log file instead.
 #   unused accessors abbreviatedStateLabel, setCaretPosition, listPaths, listSize, doubleValue, textValue — no
 #                    caller anywhere, engine or test. Candidates for deletion rather than wiring; left in place
@@ -34,17 +34,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 baseline="docs/ui-wiring.txt"
 
-unused="$(
-  grep -rhoE "public (static )?(func|var|let) [a-zA-Z_][a-zA-Z0-9_]*" Packages/RimeEngine/Sources/RimeEngine \
-    | awk '{print $NF}' | sort -u \
-    | while IFS= read -r name; do
-        # A *use*, not a mention: a member access, a call, or an argument label. Matching the bare word made
-        # the check fire on English prose — `matches`, `paths` and `components` are engine symbols and also
-        # ordinary words, so a comment saying "paths are folded" read as a screen calling `paths` (round 166).
-        if ! grep -rqE "(\.$name\b|\b$name[[:space:]]*\(|\b$name[[:space:]]*:)" \
-             arkey ARKeyboard KeyboardUI 2>/dev/null; then echo "$name"; fi
-      done | sort
-)"
+# Scan Swift code once, ignoring comments and string text while preserving interpolation expressions.
+unused="$(python3 scripts/check-ui-wiring.py)"
 total="$(grep -rhoE "public (static )?(func|var|let) [a-zA-Z_][a-zA-Z0-9_]*" Packages/RimeEngine/Sources/RimeEngine | sort -u | wc -l | tr -d " ")"
 
 # The interesting subset: a name that appears nowhere but its own declaration is either dead code or a feature

@@ -35,12 +35,14 @@ caretPosition
 cellsPerPage
 changePage
 changed
+check
 checksum
 claim
 clearNotifications
 client
 collect
 commitComposition
+commits
 compactDescription
 components
 composition
@@ -49,9 +51,11 @@ compressionRatioFloorBytes
 compressionRatioLimit
 configFromYAML
 contents
+control
 createdAt
 currentSchemaVersion
 cursorPosition
+data
 dataDirectories
 dataSize
 databaseType
@@ -78,8 +82,10 @@ double
 doubleTapInterval
 doubleTapped
 doubleValue
+down
 draft
 edit
+effect
 effectiveValue
 encode
 end
@@ -92,6 +98,7 @@ exists
 expected
 exportUserDictionary
 extract
+file
 fileCount
 findings
 firstTimestamp
@@ -108,6 +115,7 @@ heartbeat
 hex
 highlightCandidate
 home
+host
 htmlURL
 importUserDictionary
 input
@@ -125,9 +133,7 @@ isInMaintenanceMode
 isLeversAvailable
 isLogSinkAvailable
 isPending
-isRunning
 isSecure
-isSessionOpen
 isSimplified
 isTraditional
 isUTF8
@@ -157,6 +163,7 @@ makeDecoder
 makeEncoder
 mapKeys
 mapValue
+matches
 matchesSchemaOnly
 materialize
 maxEntries
@@ -165,6 +172,7 @@ maxFileCount
 maxSourceBytes
 maxTotalUncompressedBytes
 maximum
+measured
 megabytes
 method
 missingTables
@@ -258,6 +266,7 @@ sourceURL
 stagingBytes
 stagingDir
 staleAfter
+states
 storeURL
 superKey
 supportedBaseDictionaries
@@ -266,6 +275,7 @@ syllables
 syncChoiceFile
 syncUserData
 tab
+tapped
 textPaths
 textValue
 tick
@@ -273,6 +283,7 @@ topOverhang
 translatorNames
 uncompressedBytes
 unverifiedLicenses
+up
 userDataSyncDirectory
 userDictionaryNames
 userDirectory
@@ -280,6 +291,7 @@ userID
 userKeys
 userSyncDirectory
 validationBudgets
+version
 wideKeyCap
 withConfig
 withSchemaConfig
@@ -287,3 +299,4 @@ withUserConfig
 writeActiveProfile
 writeMetadata
 written
+yaml

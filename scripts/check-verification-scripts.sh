@@ -50,6 +50,8 @@ trap 'rm -rf "$work"' EXIT
 git clone -q "$root" "$work/repo" || { echo "could not clone $root" >&2; exit 2; }
 rm -rf "$work/repo/scripts"
 cp -R "$root/scripts" "$work/repo/scripts"
+# The scanner and its reviewed baseline must come from the same working tree.
+cp "$root/docs/ui-wiring.txt" "$work/repo/docs/ui-wiring.txt"
 cd "$work/repo" || exit 2
 
 passed=0
@@ -81,6 +83,7 @@ expect_fail() {
 restore() { git checkout -- "$1"; }
 
 echo "== each check passes on an untouched clone"
+expect_ok "screen wiring scanner regressions" python3 -B scripts/test-ui-wiring.py
 expect_ok "status check" ./scripts/check-status-evidence.sh
 expect_ok "screen wiring" ./scripts/check-ui-wiring.sh
 expect_ok "section coverage" ./scripts/check-section-coverage.sh
