@@ -11,6 +11,19 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
     continueAfterFailure = false
   }
 
+  private func candidateLabels(in grid: XCUIElement) -> Set<String> {
+    // Capture one hierarchy. Resolving an old list of element indexes one by one races
+    // collection-view reuse during deceleration and takes tens of seconds on a device.
+    let snapshot = grid.debugDescription
+    return Set(snapshot.split(separator: "\n").compactMap { line in
+      guard line.contains("Button,") || line.contains("StaticText,"),
+            let start = line.range(of: "label: '")?.upperBound,
+            let end = line[start...].firstIndex(of: "'") else { return nil }
+      let label = String(line[start..<end])
+      return label.isEmpty ? nil : label
+    })
+  }
+
   func testReturnCommitsListWithoutANewlineUntilPressedAgain() throws {
     enableThirdPartyKeyboard()
     let (app, field) = launchAppWithArkeyKeyboard()
@@ -127,6 +140,87 @@ final class KeyboardTypingOnSimulatorTests: XCTestCase {
       capture.name = "Expanded ni candidates after drag \(position)"
       capture.lifetime = .keepAlways
       add(capture)
+    }
+  }
+
+  func testImmediateExpansionInInstalledKeyboard() throws {
+    let (app, _) = launchAppWithArkeyKeyboard()
+    let surface = keyboardControl(app, "Arkey.keyboardSurface").frame
+    let origin = app.coordinate(withNormalizedOffset: .zero)
+    let accessory = origin.withOffset(CGVector(dx: surface.maxX - 32, dy: surface.minY + 26))
+    app.keys["n"].firstMatch.tap()
+    app.keys["i"].firstMatch.tap()
+    // Do not look up candidates or wait for them to settle before tapping the accessory.
+    accessory.tap()
+    let collapse = keyboardControl(app, "candidate-collapse")
+    XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+    accessory.tap()
+    XCTAssertTrue(keyboardControl(app, "candidate-expand").isHittable)
+  }
+
+  /// Uses an already enabled keyboard so this can also run on a connected development phone.
+  /// Physical coordinates include transparent padding, which accessibility activation skips.
+  func testCandidateWhitespaceInAlreadyEnabledInstalledKeyboard() throws {
+    let (app, field) = launchAppWithArkeyKeyboard()
+    app.keys["n"].firstMatch.tap()
+    app.keys["i"].firstMatch.tap()
+    let expand = keyboardControl(app, "candidate-expand")
+    XCTAssertTrue(expand.waitForExistence(timeout: 5))
+    let origin = app.coordinate(withNormalizedOffset: .zero)
+    let frame = expand.frame
+    // The chevron is centered; this point deliberately lands on its clear upper padding.
+    origin.withOffset(CGVector(dx: frame.midX, dy: frame.minY + 4)).tap()
+    let collapse = keyboardControl(app, "candidate-collapse")
+    XCTAssertTrue(collapse.waitForExistence(timeout: 3), "Accessory padding must expand the real keyboard")
+    let grid = keyboardControl(app, "candidate-scroll")
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    let composition = field.value as? String
+    let before = candidateLabels(in: grid)
+    XCTAssertFalse(before.isEmpty)
+    // The entire rail below collapse is blank, even when every candidate column is full.
+    let start = origin.withOffset(CGVector(dx: collapse.frame.midX, dy: grid.frame.maxY - 30))
+    start.press(forDuration: 0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -160)),
+                withVelocity: .fast, thenHoldForDuration: 0)
+    XCTAssertNotEqual(candidateLabels(in: grid), before, "A swipe starting on blank pixels must scroll")
+    XCTAssertEqual(field.value as? String, composition, "A whitespace swipe must not select a word")
+
+    let accessory = origin.withOffset(CGVector(dx: frame.midX, dy: frame.minY + 4))
+    accessory.tap()
+    XCTAssertTrue(expand.waitForExistence(timeout: 3))
+    accessory.tap()
+    XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+    let betweenWords = origin.withOffset(CGVector(dx: grid.frame.minX + grid.frame.width * 0.15,
+                                                 dy: grid.frame.maxY - 30))
+    let beforeWordGap = candidateLabels(in: grid)
+    betweenWords.press(forDuration: 0,
+      thenDragTo: betweenWords.withOffset(CGVector(dx: 0, dy: -160)),
+      withVelocity: .fast, thenHoldForDuration: 0)
+    XCTAssertNotEqual(candidateLabels(in: grid), beforeWordGap, "Inter-word padding must also start a pan")
+    XCTAssertEqual(field.value as? String, composition)
+  }
+
+  func testFastSwipesWithoutHoldingInInstalledKeyboard() throws {
+    enableThirdPartyKeyboard()
+    let (app, field) = launchAppWithArkeyKeyboard()
+    app.keys["n"].firstMatch.tap()
+    app.keys["i"].firstMatch.tap()
+    let expand = keyboardControl(app, "candidate-expand")
+    XCTAssertTrue(expand.waitForExistence(timeout: 5))
+    expand.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    let grid = keyboardControl(app, "candidate-scroll")
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    XCTAssertTrue(grid.isHittable)
+    let composition = field.value as? String
+    for iteration in 0..<3 {
+      let before = candidateLabels(in: grid)
+      XCTAssertFalse(before.isEmpty)
+      // Reverse direction so a short engine list cannot make the test swipe past its end.
+      let upward = iteration % 2 == 0
+      let start = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: upward ? 0.85 : 0.15))
+      let end = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: upward ? 0.15 : 0.85))
+      start.press(forDuration: 0, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
+      XCTAssertNotEqual(candidateLabels(in: grid), before, "A fast swipe must scroll without a hold: \(iteration)")
+      XCTAssertEqual(field.value as? String, composition, "A swipe must not commit a candidate")
     }
   }
 

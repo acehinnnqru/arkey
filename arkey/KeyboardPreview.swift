@@ -194,8 +194,23 @@ private struct CandidateScrollTestFixture: UIViewRepresentable {
       }
       panel.onNeedsMoreCandidates = bar.onNeedsMoreCandidates
     } else {
-      panel.applyContinuation((0..<500).map { RimeCandidateItem(text: RimeLocalization.text("Candidate \($0)")) }, startingAt: 0)
+      let whitespaceFixture = ProcessInfo.processInfo.arguments.contains("--candidate-whitespace-ui-test")
+      panel.applyContinuation((0..<500).map { index in
+        let word = whitespaceFixture
+          ? (index % 2 == 0 ? "A" : "A candidate that occupies an entire row")
+          : RimeLocalization.text("Candidate \(index)")
+        return RimeCandidateItem(text: word)
+      }, startingAt: 0)
     }
+    // Exercise the same passive observer as the extension while testing physical candidate gestures.
+    let touches = CandidateTouchObserver()
+    touches.roleAtPoint = { [weak bar, weak panel] point in
+      if let panel, !panel.isHidden, panel.frame.contains(point) { return "scroll" }
+      if let bar, !bar.isHidden, bar.frame.contains(point),
+         point.x >= bar.frame.maxX - CandidateBar.accessoryWidth { return "expand" }
+      return nil
+    }
+    container.addGestureRecognizer(touches)
     return container
   }
 

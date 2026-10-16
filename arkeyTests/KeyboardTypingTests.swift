@@ -1,6 +1,6 @@
 import XCTest
 import UIKit
-import RimeEngine
+@testable import RimeEngine
 
 /// The candidate bar and the expanded panel, driven the way a user drives them: a deployed profile, real
 /// keystrokes through the grid, a tap on a candidate, and the expand button.
@@ -127,6 +127,35 @@ final class KeyboardTypingTests: XCTestCase {
     let shown = texts(in: try bar(controller))
     XCTAssertTrue(shown.contains { $0.contains("你好") },
                   "the bar shows: " + shown.joined(separator: " | "))
+  }
+
+  func testExpansionDoesNotWaitForTheCandidateEnumerationQueue() throws {
+    let controller = booted()
+    try type(["n", "i"], in: controller)
+    let strip = try bar(controller)
+    let panel = try panel(controller)
+    XCTAssertFalse(visibleTitles(in: strip).isEmpty, "The bundled schema must produce candidates")
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    let entered = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    let finished = expectation(description: "The engine queue is released")
+    DispatchQueue.global().async {
+      setup.engine.perform {
+        entered.signal()
+        release.wait()
+      }
+      finished.fulfill()
+    }
+    defer { release.signal() }
+    XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
+    // Bound the old blocking path so this regression fails instead of hanging the test host.
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { release.signal() }
+    let started = ProcessInfo.processInfo.systemUptime
+    strip.onExpand?()
+    let elapsed = ProcessInfo.processInfo.systemUptime - started
+    XCTAssertFalse(panel.isHidden, "Already displayed candidates must expand immediately")
+    XCTAssertLessThan(elapsed, 0.25, "Expanding cached candidates must not wait for engine work")
+    wait(for: [finished], timeout: 3)
   }
 
   func testOlderControllerDismissalDoesNotCloseTheCurrentSession() throws {

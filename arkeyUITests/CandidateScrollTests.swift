@@ -1,6 +1,75 @@
 import XCTest
 
 final class CandidateScrollTests: XCTestCase {
+  func testFastSwipeFromAnUnusedColumnTrack() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["--candidate-scroll-ui-test", "--candidate-whitespace-ui-test"]
+    app.launch()
+    let grid = app.collectionViews["candidate-scroll"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    let collapse = app.buttons["candidate-collapse"]
+    let candidates = grid.buttons.allElementsBoundByIndex.map(\.frame)
+    let area = CGRect(x: grid.frame.minX + 8, y: grid.frame.midY,
+                      width: collapse.frame.minX - grid.frame.minX - 16,
+                      height: grid.frame.height / 2 - 20)
+    var blank: CGPoint?
+    for y in stride(from: area.maxY, through: area.minY, by: -10) {
+      for x in stride(from: area.minX, through: area.maxX, by: 10) {
+        let point = CGPoint(x: x, y: y)
+        if !candidates.contains(where: { $0.insetBy(dx: -2, dy: -2).contains(point) }) {
+          blank = point
+          break
+        }
+      }
+      if blank != nil { break }
+    }
+    let point = try XCTUnwrap(blank, "The fixture must expose a blank track between candidate buttons")
+    let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y))
+    let before = try XCTUnwrap(Int(app.staticTexts["candidate-offset"].label))
+    start.press(forDuration: 0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)),
+                withVelocity: .fast, thenHoldForDuration: 0)
+    XCTAssertGreaterThan(try XCTUnwrap(Int(app.staticTexts["candidate-offset"].label)), before + 10)
+    XCTAssertEqual(app.staticTexts["candidate-selection"].label, "none")
+  }
+
+  func testFastSwipeFromBlankSpaceBelowTheCollapseButton() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["--candidate-scroll-ui-test", "--candidate-reflow-ui-test"]
+    app.launch()
+    let expand = app.buttons["candidate-expand"]
+    XCTAssertTrue(expand.waitForExistence(timeout: 10))
+    expand.tap()
+    let grid = app.collectionViews["candidate-scroll"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    let collapse = app.buttons["candidate-collapse"]
+    let point = app.coordinate(withNormalizedOffset: .zero).withOffset(
+      CGVector(dx: collapse.frame.midX, dy: grid.frame.maxY - 40))
+    let before = try XCTUnwrap(Int(app.staticTexts["candidate-offset"].label))
+    point.press(forDuration: 0, thenDragTo: point.withOffset(CGVector(dx: 0, dy: -120)),
+                withVelocity: .fast, thenHoldForDuration: 0)
+    XCTAssertGreaterThan(try XCTUnwrap(Int(app.staticTexts["candidate-offset"].label)), before + 10,
+                         "Blank space below the accessory must scroll without holding a candidate")
+    XCTAssertEqual(app.staticTexts["candidate-selection"].label, "none")
+  }
+
+  func testFastSwipesStartWithoutHoldingACandidate() throws {
+    let app = XCUIApplication()
+    app.launchArguments.append("--candidate-scroll-ui-test")
+    app.launch()
+    let grid = app.collectionViews["candidate-scroll"]
+    let offset = app.staticTexts["candidate-offset"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    for iteration in 0..<3 {
+      let before = try XCTUnwrap(Int(offset.label))
+      let start = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+      let end = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+      start.press(forDuration: 0, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
+      XCTAssertGreaterThan(try XCTUnwrap(Int(offset.label)), before + 10,
+                           "A fast swipe must scroll without a hold: \(iteration)")
+      XCTAssertEqual(app.staticTexts["candidate-selection"].label, "none")
+    }
+  }
+
   func testFirstExpansionScrollsAndCollapsesWhileCandidatesLoad() throws {
     let app = XCUIApplication()
     app.launchArguments += ["--candidate-scroll-ui-test", "--candidate-reflow-ui-test"]
@@ -37,10 +106,10 @@ final class CandidateScrollTests: XCTestCase {
     let first = grid.buttons["Candidate 0"]
     XCTAssertTrue(first.isHittable)
     let collapse = app.buttons["收起候选面板"]
-    XCTAssertLessThanOrEqual(grid.frame.maxX, collapse.frame.minX + 1)
+    XCTAssertLessThanOrEqual(first.frame.maxX, collapse.frame.minX + 1)
     XCTAssertLessThanOrEqual(abs(grid.frame.minY - collapse.frame.minY), 1)
     grid.swipeUp()
-    XCTAssertLessThanOrEqual(grid.frame.maxX, collapse.frame.minX + 1)
+    XCTAssertTrue(grid.buttons.allElementsBoundByIndex.allSatisfy { $0.frame.maxX <= collapse.frame.minX + 1 })
     collapse.tap()
     XCTAssertTrue(bar.isHittable)
     XCTAssertEqual(try XCTUnwrap(Int(app.staticTexts["candidate-bar-offset"].label)), before)

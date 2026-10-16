@@ -53,6 +53,16 @@ extension XCTestCase {
     field.tap()
     Thread.sleep(forTimeInterval: 1.5)
     switchToArkey(app)
+    if !arkeyKeyboardIsUp(app) {
+      let capture = XCTAttachment(screenshot: app.screenshot())
+      capture.name = "Keyboard detection failure"
+      capture.lifetime = .keepAlways
+      add(capture)
+      let hierarchy = XCTAttachment(string: app.debugDescription)
+      hierarchy.name = "Keyboard detection hierarchy"
+      hierarchy.lifetime = .keepAlways
+      add(hierarchy)
+    }
     XCTAssertTrue(arkeyKeyboardIsUp(app),
                   "the Arkey keyboard did not come up: keys "
                     + app.keys.allElementsBoundByIndex.prefix(10).map { $0.label }.joined(separator: " ")
@@ -72,11 +82,11 @@ extension XCTestCase {
   /// keys and candidates are not enough — the system Pinyin keyboard has the same letters and offers the same
   /// 你好 for nihao, so a test can be green while typing on the system keyboard.
   ///
-  /// What is enough is a *hittable* line of text no other keyboard shows: this bar's status line, which names
-  /// the container and the full-access state.
+  /// Use the extension's stable surface identifier and require it to be hittable. Unlike the idle
+  /// status label, this identifier remains available during composition and in either interface language.
   func arkeyKeyboardIsUp(_ app: XCUIApplication) -> Bool {
-    let status = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Arkey 就绪'")).firstMatch
-    return status.exists && status.isHittable
+    let surface = keyboardControl(app, "Arkey.keyboardSurface")
+    return surface.exists && surface.isHittable
   }
 
   /// A control inside the keyboard, whatever element type the system decides it is: the bar's chevrons come

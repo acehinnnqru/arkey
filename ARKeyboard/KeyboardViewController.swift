@@ -37,13 +37,13 @@ final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
   }
 
   func applyBacking(color: UIColor, fixed: Bool, needsTransitionCover: Bool) {
-    // The host already provides the keyboard material, including the globe
-    // strip and outer corners. Do not add a second material inside it.
+    // The host provides the material. Keep a minimal rendered surface over our content:
+    // remote keyboard hosting can discard touches on clear pixels before UIKit receives them.
     backgroundColor = .clear
     isOpaque = false
     backingMode = fixed ? "fixed" : (needsTransitionCover ? "transition" : "host")
-    contentBacking.backgroundColor = color
-    contentBacking.isHidden = backingMode == "host"
+    contentBacking.backgroundColor = backingMode == "host" ? color.withAlphaComponent(0.01) : color
+    contentBacking.isOpaque = backingMode != "host"
     setNeedsLayout()
   }
   var keyboardHeight = KeyboardMetrics.totalHeight(needsGlobeRow: false) {
@@ -326,6 +326,25 @@ final class KeyboardViewController: UIInputViewController {
     }
     keyGrid.onKeyTouchMove = { [weak self] key, point in self?.moveCallout(for: key, at: point) }
     keyGrid.onKeyTouchEnded = { [weak self] in self?.hideCallout() }
+    #if DEBUG
+    let candidateTouches = CandidateTouchObserver()
+    candidateTouches.roleAtPoint = { [weak self] point in
+      guard let self else { return nil }
+      if self.isPanelExpanded, self.candidatePanel.frame.contains(point) {
+        let accessory = CGRect(x: self.candidatePanel.frame.maxX - CandidateBar.accessoryWidth,
+                               y: self.candidatePanel.frame.minY,
+                               width: CandidateBar.accessoryWidth, height: KeyboardMetrics.candidateBarHeight)
+        return accessory.contains(point) ? "collapse" : "scroll"
+      }
+      let strip = self.candidateBar.frame
+      return !self.candidateBar.isHidden && strip.contains(point)
+        && point.x >= strip.maxX - CandidateBar.accessoryWidth ? "expand" : nil
+    }
+    candidateTouches.onSample = { [weak self] phase, timestamp, detail in
+      self?.recordCandidateInteraction("touch.\(phase)", touchTimestamp: timestamp, detail: detail)
+    }
+    view.addGestureRecognizer(candidateTouches)
+    #endif
     recordGeometry("loaded", force: true)
   }
 
@@ -905,7 +924,7 @@ final class KeyboardViewController: UIInputViewController {
                                           milliseconds: Double? = nil, detail: String = "") {
     candidateInteractionSequence += 1
     let uptime = ProcessInfo.processInfo.systemUptime
-    var message = "candidate event=\(event) trace=tap-3 id=\(geometryID) seq=\(candidateInteractionSequence)"
+    var message = "candidate event=\(event) trace=tap-4 surface=rendered-1pct-v1 id=\(geometryID) seq=\(candidateInteractionSequence)"
       + " uptime=\(String(format: "%.3f", uptime)) expanded=\(isPanelExpanded)"
       + " barHidden=\(candidateBar.isHidden) panelHidden=\(candidatePanel.isHidden)"
       + " engineReady=\(engine != nil) pageHasCandidates=\(currentPage?.candidates.isEmpty == false)"
@@ -922,7 +941,9 @@ final class KeyboardViewController: UIInputViewController {
   private func expandPanel() {
     let start = ProcessInfo.processInfo.systemUptime
     recordCandidateInteraction("expand.requested")
-    guard ensureInputSession(), engine != nil, let page = currentPage, !page.candidates.isEmpty else {
+    // Expanding is a presentation change over the candidates already on screen. A synchronous
+    // session check would wait behind background enumeration on the engine's serial queue.
+    guard acceptsInput, !loadedCandidates.isEmpty else {
       recordCandidateInteraction("expand.ignored")
       return
     }
@@ -1215,6 +1236,7 @@ final class KeyboardViewController: UIInputViewController {
     let elapsed = Double(DispatchTime.now().uptimeNanoseconds - geometryTimeOrigin) / 1_000_000
     let message = "geometry event=\(event) id=\(geometryID) pid=\(ProcessInfo.processInfo.processIdentifier)"
       + " appearance=\(geometryAppearance) seq=\(geometrySequence) build=\(version) trace=height-8"
+      + " candidateSurface=rendered-1pct-v1"
       + " tMs=\(String(format: "%.3f", elapsed))"
       + " uptime=\(String(format: "%.3f", ProcessInfo.processInfo.systemUptime)) " + snapshot
     geometryTrace.record(height: max(root.bounds.height, root.layer.presentation()?.bounds.height ?? 0),

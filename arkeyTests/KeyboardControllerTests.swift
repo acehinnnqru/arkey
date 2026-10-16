@@ -125,7 +125,8 @@ final class KeyboardControllerTests: XCTestCase {
     XCTAssertEqual(backing.frame.height, root.keyboardHeight, accuracy: 0.5)
     XCTAssertEqual(backing.frame.minY, 932 - root.keyboardHeight, accuracy: 0.5)
     root.applyBacking(color: .darkGray, fixed: false, needsTransitionCover: false)
-    XCTAssertTrue(backing.isHidden)
+    XCTAssertFalse(backing.isHidden)
+    XCTAssertEqual(try XCTUnwrap(backing.backgroundColor).cgColor.alpha, 0.01, accuracy: 0.001)
     XCTAssertEqual(root.backingMode, "host")
     root.applyBacking(color: .darkGray, fixed: true, needsTransitionCover: false)
     XCTAssertFalse(backing.isHidden)
@@ -134,6 +135,36 @@ final class KeyboardControllerTests: XCTestCase {
     let panel = try XCTUnwrap(descendants(CandidatePanelView.self, in: root).first)
     XCTAssertEqual(panel.backgroundColor, .clear)
     XCTAssertFalse(panel.isOpaque)
+  }
+
+  func testHostMaterialKeepsRenderedPixelsUnderCandidateWhitespace() throws {
+    let root = KeyboardInputView(frame: CGRect(x: 0, y: 0, width: 430, height: 932),
+                                 inputViewStyle: .default)
+    root.keyboardHeight = 270
+    root.applyBacking(color: .darkGray, fixed: false, needsTransitionCover: false)
+    root.layoutIfNeeded()
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = false
+    let image = UIGraphicsImageRenderer(size: root.bounds.size, format: format).image {
+      root.layer.render(in: $0.cgContext)
+    }
+    let cgImage = try XCTUnwrap(image.cgImage)
+    let width = cgImage.width
+    var pixels = [UInt8](repeating: 0, count: width * cgImage.height * 4)
+    let context = try XCTUnwrap(CGContext(data: &pixels, width: width, height: cgImage.height,
+      bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    context.draw(cgImage, in: root.bounds)
+    // A normal UIKit hit test cannot detect the extension host dropping clear pixels.
+    // Exercise the rendered alpha at accessory padding, the side rail and inter-word space.
+    for point in [CGPoint(x: 398, y: 688), CGPoint(x: 1, y: 842), CGPoint(x: 120, y: 772)] {
+      let alpha = pixels[(Int(point.y) * width + Int(point.x)) * 4 + 3]
+      XCTAssertGreaterThan(alpha, 0, "The extension must draw under candidate whitespace at \(point)")
+      XCTAssertLessThanOrEqual(alpha, 3, "The host material must remain visible")
+    }
+    XCTAssertEqual(pixels[(100 * width + 215) * 4 + 3], 0,
+                   "The temporary full-screen root must stay clear above the keyboard")
   }
 
   func testBackingPreferenceIsAdoptedOnTheNextAppearance() throws {
