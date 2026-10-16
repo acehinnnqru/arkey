@@ -6,6 +6,43 @@ import RimeEngine
 /// and index". The engine's macOS tests pin the model's labels; this pins what the **buttons** carry
 /// after the view has applied that model, which is what VoiceOver actually reads.
 final class CandidateBarAccessibilityTests: XCTestCase {
+  func testUnusedColumnTracksBelongToTheCandidateScrollView() throws {
+    let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 320, height: 270))
+    let words = (0..<100).map { RimeCandidateItem(text: "A longer candidate \($0)") }
+    view.applyContinuation(words, startingAt: 0)
+    view.layoutIfNeeded()
+    let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+    let attributes = scroll.collectionViewLayout.layoutAttributesForElements(in: scroll.bounds) ?? []
+    var blanks = 0
+    for y in stride(from: CGFloat(65), to: scroll.bounds.height - 1, by: 15) {
+      for x in stride(from: CGFloat(1), to: scroll.bounds.width - 1, by: 10) {
+        let point = CGPoint(x: x, y: y)
+        guard !attributes.contains(where: { $0.frame.contains(point) }) else { continue }
+        blanks += 1
+        let target = try XCTUnwrap(view.hitTest(scroll.convert(point, to: view), with: nil))
+        XCTAssertTrue(target === scroll || target.isDescendant(of: scroll),
+                      "An unused column track must still reach the scroll view at \(point)")
+      }
+    }
+    XCTAssertGreaterThan(blanks, 0, "The fixture must contain blank tracks between candidates")
+  }
+
+  func testPanelWhitespaceBelowTheAccessoryCanStartScrolling() throws {
+    for width: CGFloat in [320, 430] {
+      let view = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: width, height: 270))
+      view.applyContinuation((0..<100).map { RimeCandidateItem(text: "Candidate \($0)") }, startingAt: 0)
+      view.layoutIfNeeded()
+      let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
+      let collapse = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityIdentifier == "candidate-collapse" })
+      for point in [CGPoint(x: 1, y: 180), CGPoint(x: collapse.frame.midX, y: 180)] {
+        let target = try XCTUnwrap(view.hitTest(point, with: nil))
+        XCTAssertTrue(target === scroll || target.isDescendant(of: scroll),
+                      "Blank panel space must reach the pan recognizer at \(point)")
+      }
+      XCTAssertTrue(view.hitTest(CGPoint(x: collapse.frame.midX, y: collapse.frame.midY), with: nil) === collapse)
+    }
+  }
+
   func testCandidateHitTargetsIncludePaddingInBothPresentations() throws {
     let collapsed = bar(.init(cells: [RimeCandidateCell(index: 0, text: "A")]))
     let expanded = CandidatePanelView(frame: CGRect(x: 0, y: 0, width: 430, height: 254))
@@ -79,6 +116,10 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     let context = try XCTUnwrap(CGContext(data: nil, width: cgImage.width, height: cgImage.height,
       bitsPerComponent: 8, bytesPerRow: cgImage.width * 4, space: CGColorSpaceCreateDeviceRGB(),
       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    // Fractional view widths can leave a transparent pixel at the rounded image edge.
+    // Measure visible ink against white rather than counting premultiplied transparent RGB as black.
+    context.setFillColor(UIColor.white.cgColor)
+    context.fill(CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
     context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
     let bytes = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
     var bounds = CGRect.null
@@ -220,7 +261,7 @@ final class CandidateBarAccessibilityTests: XCTestCase {
         XCTAssertEqual(frame.width, CandidateBar.accessoryWidth, accuracy: 0.5)
         let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UIScrollView }.first)
         XCTAssertEqual(scroll.frame.minY, RimeCandidatePanelModel.syllableRowHeight, accuracy: 0.5)
-        XCTAssertEqual(scroll.frame.maxX, frame.minX, accuracy: 0.5)
+        XCTAssertEqual(scroll.frame.maxX, view.bounds.maxX, accuracy: 0.5)
         XCTAssertEqual(scroll.frame.maxY, view.bounds.height, accuracy: 0.5)
         XCTAssertEqual(scroll.frame.height, 270, accuracy: 0.5)
       }
@@ -263,11 +304,11 @@ final class CandidateBarAccessibilityTests: XCTestCase {
       view.layoutIfNeeded()
       let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
       let columns = width == 320 ? 5 : 6
-      let trackWidth = scroll.bounds.width / CGFloat(columns)
+      let trackWidth = (width - KeyboardMetrics.sideMargin - CandidateBar.accessoryWidth) / CGFloat(columns)
       for index in words.indices {
         let path = IndexPath(item: index, section: 0)
         let frame = try XCTUnwrap(scroll.collectionViewLayout.layoutAttributesForItem(at: path)).frame
-        XCTAssertEqual(frame.midX, (CGFloat(index % columns) + 0.5) * trackWidth, accuracy: 0.01)
+        XCTAssertEqual(frame.midX, KeyboardMetrics.sideMargin + (CGFloat(index % columns) + 0.5) * trackWidth, accuracy: 0.01)
         XCTAssertEqual(frame.minY, CGFloat(index / columns) * RimeCandidatePanelModel.rowPitch, accuracy: 0.01)
         let button = try XCTUnwrap(scroll.cellForItem(at: path).flatMap { allButtons(in: $0).first })
         button.layoutIfNeeded()
@@ -294,15 +335,17 @@ final class CandidateBarAccessibilityTests: XCTestCase {
     let scroll = try XCTUnwrap(view.subviews.compactMap { $0 as? UICollectionView }.first)
     let collapse = try XCTUnwrap(allButtons(in: view).first { $0.accessibilityLabel == "收起候选面板" })
     XCTAssertEqual(scroll.frame.minY, 0)
-    XCTAssertEqual(scroll.frame.maxX, collapse.frame.minX, accuracy: 0.01)
+    XCTAssertEqual(scroll.frame.maxX, view.bounds.maxX, accuracy: 0.01)
+    let candidateWidth = view.bounds.width - KeyboardMetrics.sideMargin - CandidateBar.accessoryWidth
     for index in 0..<40 {
       let frame = try XCTUnwrap(scroll.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))).frame
       let column = index % 6
-      XCTAssertEqual(frame.minX, CGFloat(column) * scroll.bounds.width / 6, accuracy: 0.01)
-      XCTAssertLessThanOrEqual(frame.maxX, scroll.bounds.width + 0.01)
+      XCTAssertEqual(frame.minX, KeyboardMetrics.sideMargin + CGFloat(column) * candidateWidth / 6, accuracy: 0.01)
+      XCTAssertLessThanOrEqual(frame.maxX, collapse.frame.minX + 0.01)
     }
     let safePoint = CGPoint(x: collapse.frame.midX, y: view.bounds.height - 10)
     XCTAssertFalse(view.hitTest(safePoint, with: nil) is UIButton)
+    XCTAssertTrue(view.hitTest(safePoint, with: nil) === scroll)
     scroll.contentOffset.y = 90
     view.layoutIfNeeded()
     XCTAssertFalse(view.hitTest(safePoint, with: nil) is UIButton)

@@ -50,11 +50,13 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
   override func prepare() {
     super.prepare()
     guard let collectionView, collectionView.bounds.width > 0 else { return }
-    let available = collectionView.bounds.width
-    guard needsMeasurement || measuredWidth != available else { return }
-    measuredWidth = available
+    let viewportWidth = collectionView.bounds.width
+    guard needsMeasurement || measuredWidth != viewportWidth else { return }
+    measuredWidth = viewportWidth
     needsMeasurement = false
     attributes.removeAll(keepingCapacity: true)
+    // Reserve text space for the accessory without removing the surrounding pan surface.
+    let available = max(1, viewportWidth - KeyboardMetrics.sideMargin - CandidateBar.accessoryWidth)
     // Narrow keyboards use fewer tracks so each candidate retains a 44-point touch target.
     let columns = min(RimeCandidatePanelModel.columns, max(1, Int(available / 44)))
     let columnWidth = available / CGFloat(columns)
@@ -68,12 +70,12 @@ private final class CandidateCollectionLayout: UICollectionViewLayout {
         column = 0
       }
       let item = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: index, section: 0))
-      item.frame = CGRect(x: CGFloat(column) * columnWidth, y: CGFloat(row) * rowPitch,
+      item.frame = CGRect(x: KeyboardMetrics.sideMargin + CGFloat(column) * columnWidth, y: CGFloat(row) * rowPitch,
                           width: CGFloat(span) * columnWidth, height: rowPitch)
       attributes.append(item)
       column += span
     }
-    contentSize = CGSize(width: available, height: widths.isEmpty ? 0 : CGFloat(row + 1) * rowPitch)
+    contentSize = CGSize(width: viewportWidth, height: widths.isEmpty ? 0 : CGFloat(row + 1) * rowPitch)
   }
 
   override var collectionViewContentSize: CGSize { contentSize }
@@ -210,7 +212,7 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
       gridStack.rightEdgeEffect.isHidden = true
     }
     gridStack.register(CandidateCollectionCell.self, forCellWithReuseIdentifier: "candidate")
-    addSubview(gridStack)
+    insertSubview(gridStack, belowSubview: collapseButton)
     loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
     loadingIndicator.hidesWhenStopped = true
     addSubview(loadingIndicator)
@@ -227,9 +229,8 @@ final class CandidatePanelView: UIView, UICollectionViewDataSource, UICollection
       collapseButton.topAnchor.constraint(equalTo: topAnchor),
       collapseButton.widthAnchor.constraint(equalToConstant: CandidateBar.accessoryWidth),
       collapseButton.heightAnchor.constraint(equalToConstant: KeyboardMetrics.candidateBarHeight),
-      gridStack.leadingAnchor.constraint(equalTo: leadingAnchor,
-                                         constant: KeyboardMetrics.sideMargin),
-      gridStack.trailingAnchor.constraint(equalTo: collapseButton.leadingAnchor),
+      gridStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+      gridStack.trailingAnchor.constraint(equalTo: trailingAnchor),
       gridStack.topAnchor.constraint(equalTo: syllableRow.bottomAnchor),
       gridStack.bottomAnchor.constraint(equalTo: bottomAnchor),
       loadingIndicator.centerXAnchor.constraint(equalTo: centerXAnchor),
