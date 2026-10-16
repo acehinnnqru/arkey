@@ -2,6 +2,38 @@ import XCTest
 import UIKit
 @testable import RimeEngine
 
+/// Use UIKit's actual marked-range replacement semantics without a remote keyboard host.
+private final class KeyboardTestDocument: NSObject, UITextDocumentProxy {
+  private var field = UITextView()
+  private(set) var documentIdentifier = UUID()
+  private(set) var previousFieldText = ""
+  var text: String { field.text }
+  var hasText: Bool { field.hasText }
+  var documentContextBeforeInput: String? { field.text }
+  var documentContextAfterInput: String? { nil }
+  var selectedText: String? { nil }
+  var documentInputMode: UITextInputMode? { nil }
+  var keyboardAppearance: UIKeyboardAppearance = .default
+
+  func insertText(_ text: String) { field.insertText(text) }
+  func deleteBackward() { field.deleteBackward() }
+  func setMarkedText(_ markedText: String, selectedRange: NSRange) {
+    field.setMarkedText(markedText, selectedRange: selectedRange)
+  }
+  func unmarkText() { field.unmarkText() }
+  func adjustTextPosition(byCharacterOffset offset: Int) {
+    let start = field.selectedRange.location
+    field.selectedRange = NSRange(location: max(0, min((field.text as NSString).length, start + offset)), length: 0)
+  }
+
+  func moveToNextField() {
+    field.unmarkText()
+    previousFieldText = field.text
+    field = UITextView()
+    documentIdentifier = UUID()
+  }
+}
+
 /// The candidate bar and the expanded panel, driven the way a user drives them: a deployed profile, real
 /// keystrokes through the grid, a tap on a candidate, and the expand button.
 ///
@@ -14,6 +46,7 @@ import UIKit
 /// yet") true, and before the deploy test, which uses a workspace of its own.
 final class KeyboardTypingTests: XCTestCase {
   private var installed: String?
+  private var activeRecordBeforeInstall: Data?
   private var controllers: [KeyboardViewController] = []
 
   override func tearDownWithError() throws {
@@ -22,13 +55,17 @@ final class KeyboardTypingTests: XCTestCase {
     guard let installed, case .success(let setup) = KeyboardEngine.setup else { return }
     try? RimeDeploymentCoordinator(workspace: setup.workspace, engine: setup.engine)
       .delete(profileID: installed)
-    try? FileManager.default.removeItem(at: setup.workspace.activeRecord)
+    if let activeRecordBeforeInstall {
+      try activeRecordBeforeInstall.write(to: setup.workspace.activeRecord, options: .atomic)
+    } else {
+      try? FileManager.default.removeItem(at: setup.workspace.activeRecord)
+    }
     setup.engine.shutdown()
     self.installed = nil
   }
 
-  private func booted() -> KeyboardViewController {
-    let controller = KeyboardViewController()
+  private func booted(documentProxy: UITextDocumentProxy? = nil) -> KeyboardViewController {
+    let controller = KeyboardViewController(documentProxy: documentProxy)
     controllers.append(controller)
     controller.loadViewIfNeeded()
     controller.view.frame = CGRect(x: 0, y: 0, width: 430, height: 420)
@@ -98,8 +135,10 @@ final class KeyboardTypingTests: XCTestCase {
     guard case .success(let setup) = KeyboardEngine.setup else {
       throw XCTSkip("the keyboard's engine did not come up in this environment")
     }
+    activeRecordBeforeInstall = try? Data(contentsOf: setup.workspace.activeRecord)
     let id = try XCTUnwrap(RimeLocalDataInstaller.installIfPresent(at: bundled, workspace: setup.workspace,
-                                                                  engine: setup.engine),
+                                                                  engine: setup.engine,
+                                                                  displayName: "Keyboard tests " + UUID().uuidString),
                            "the bundled profile was already the active one")
     installed = id
     return id
@@ -117,6 +156,138 @@ final class KeyboardTypingTests: XCTestCase {
     // Candidate buttons are materialized during layout to keep offscreen cells cheap.
     controller.view.layoutIfNeeded()
     try bar(controller).layoutIfNeeded()
+  }
+
+  private func press(_ key: KeyboardKey, in controller: KeyboardViewController) throws {
+    let grid = try XCTUnwrap(descendants(KeyboardKeyGrid.self, in: controller.view).first)
+    grid.layoutIfNeeded()
+    let button = try XCTUnwrap(grid.subviews.compactMap { $0 as? KeyButton }.first { $0.key == key })
+    button.sendActions(for: .primaryActionTriggered)
+  }
+
+  private func waitForSession(_ engine: RimeEngine) {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+      engine.isSessionOpen
+    }, object: nil)
+    XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed,
+                   "Dictionary contention must recover without another key or appearance")
+  }
+
+  func testBusyDictionariesKeepNewInputAndRetryAutomatically() throws {
+    try deployBundledProfile()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    setup.engine.shutdown()
+    var competitor: RimeDictionaryLock? = try setup.lease.acquireLock()
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
+    XCTAssertFalse(setup.engine.isSessionOpen)
+    XCTAssertTrue(texts(in: try bar(controller)).contains(
+      RimeLocalization.text("Waiting for dictionaries. Retrying automatically…")))
+
+    try type(["n", "i", "x"], in: controller)
+    try press(.backspace, in: controller)
+    try type(["h", "a", "o"], in: controller)
+    XCTAssertFalse(setup.engine.isSessionOpen, "The keyboard must respect the competing lock")
+    XCTAssertTrue(texts(in: try bar(controller)).contains(
+      RimeLocalization.text("Waiting for dictionaries. Pending input: \("nihao")")))
+    XCTAssertEqual(document.text, "nihao", "Pending text must remain visible in the original document")
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+
+    waitForSession(setup.engine)
+    XCTAssertEqual(try setup.engine.rawInput(), "nihao", "Deferred keys must be processed exactly once")
+    try bar(controller).layoutIfNeeded()
+    XCTAssertTrue(texts(in: try bar(controller)).contains { $0.contains("你好") })
+    try press(.space, in: controller)
+    XCTAssertEqual(document.text, "你好", "Recovery must replace the draft and commit exactly once")
+  }
+
+  func testBusyDictionaryRecoveryProcessesSpaceBeforeTheNextComposition() throws {
+    try deployBundledProfile()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    setup.engine.shutdown()
+    var competitor: RimeDictionaryLock? = try setup.lease.acquireLock()
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
+    try type(["n", "i", "h", "a", "o"], in: controller)
+    try press(.space, in: controller)
+    try type(["n", "i"], in: controller)
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+
+    waitForSession(setup.engine)
+    XCTAssertEqual(try setup.engine.rawInput(), "ni", "Space must commit the first deferred composition")
+    XCTAssertEqual(document.text, "你好ni")
+  }
+
+  func testBusyDictionaryRecoveryPreservesEnglishMode() throws {
+    try deployBundledProfile()
+    let store = try XCTUnwrap(RimeKeyboardPreferencesStore.appGroup())
+    let original = store.value
+    defer { store.value = original }
+    var preferences = original
+    preferences.chineseInputOnly = false
+    store.value = preferences
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    try setup.engine.setOption("ascii_mode", true)
+    try type(["n"], in: controller)
+    setup.engine.closeSession()
+    var competitor: RimeDictionaryLock? = try setup.lease.acquireLock()
+    try type(["i"], in: controller)
+    XCTAssertFalse(setup.engine.isSessionOpen)
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+
+    waitForSession(setup.engine)
+    XCTAssertTrue(try setup.engine.getOption("ascii_mode"))
+    XCTAssertFalse(try setup.engine.refresh().isComposing)
+  }
+
+  func testDismissalCancelsDictionaryRetryAndDoesNotCarryInputIntoTheNextAppearance() throws {
+    try deployBundledProfile()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    setup.engine.shutdown()
+    var competitor: RimeDictionaryLock? = try setup.lease.acquireLock()
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
+    try type(["n", "i"], in: controller)
+    controller.viewWillDisappear(false)
+    XCTAssertEqual(document.text, "ni", "Dismissal must keep the old field's literal draft")
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+    let remainedClosed = expectation(description: "A hidden keyboard must not retry dictionary ownership")
+    remainedClosed.isInverted = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+      if setup.engine.isSessionOpen { remainedClosed.fulfill() }
+    }
+    wait(for: [remainedClosed], timeout: 0.5)
+    XCTAssertFalse(setup.engine.isSessionOpen)
+
+    controller.viewWillAppear(false)
+    try type(["h", "a", "o"], in: controller)
+    XCTAssertEqual(try setup.engine.rawInput(), "hao", "The previous field's input must never be replayed")
+  }
+
+  func testChangingFieldsDuringDictionaryContentionDoesNotMoveThePendingDraft() throws {
+    try deployBundledProfile()
+    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
+    setup.engine.shutdown()
+    var competitor: RimeDictionaryLock? = try setup.lease.acquireLock()
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
+    try type(["n", "i"], in: controller)
+    XCTAssertEqual(document.text, "ni")
+    document.moveToNextField()
+    controller.textDidChange(nil)
+    withExtendedLifetime(competitor) {}
+    competitor = nil
+
+    waitForSession(setup.engine)
+    XCTAssertEqual(document.previousFieldText, "ni")
+    XCTAssertEqual(document.text, "", "The next field must not receive deferred input from the old one")
+    XCTAssertFalse(try setup.engine.refresh().isComposing)
   }
 
   func testTypingThroughTheKeyboardPutsTheEnginesCandidatesOnTheBar() throws {

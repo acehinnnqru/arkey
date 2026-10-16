@@ -13,6 +13,7 @@ struct RimeSettingsSnapshot: Sendable {
   let error: String?
 
   nonisolated static func load(engine: RimeEngine, source: URL?, punctuationSource: URL?) -> Self {
+    if !engine.isRunning { _ = try? engine.start() }
     let schemas = (try? engine.schemaIDs()) ?? []
     let installed = source.map { RimeTreeClassifier.classify(root: $0).schemaIDs } ?? []
     let editor = RimeSchemaListEditor(engine: engine, installed: installed)
@@ -50,6 +51,7 @@ struct RimeKeyboardSettingsSnapshot: Sendable {
   let spelling: RimeAuxiliarySpelling
 
   nonisolated static func load(engine: RimeEngine) -> Self {
+    if !engine.isRunning { _ = try? engine.start() }
     let current = try? engine.currentSchema()
     let schemaID = current.flatMap { $0.isEmpty ? nil : $0 } ?? (try? engine.schemaIDs().first)
     let prefix = schemaID.flatMap {

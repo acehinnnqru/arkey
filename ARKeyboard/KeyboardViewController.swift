@@ -175,6 +175,15 @@ final class KeyboardViewController: UIInputViewController {
   private var engine: RimeEngine?
   private let engineOwnerID = UUID()
   private var acceptsInput = false
+  private var isPresented = false
+  private var resumeAfterHostActivation = false
+  private var isWaitingForDictionaries = false
+  private var dictionaryRetry: DispatchWorkItem?
+  private var dictionaryRetryDelay: TimeInterval = 0.1
+  /// Deferred events have not reached librime. Their literal draft stays marked in the document.
+  private var pendingInput: [KeyboardKey] = []
+  private var pendingInputDocument: UUID?
+  private var recoveringInputState: (schema: String?, isASCII: Bool)?
   /// Kept so the appearance can adopt a profile the app activated (S1 §8).
   private var engineSetup: KeyboardEngine.Setup?
   private var theme = KeyboardTheme.current(for: .default)
@@ -198,8 +207,28 @@ final class KeyboardViewController: UIInputViewController {
   /// samples are kept here and one record is written per window — carrying the window's p95, which is the
   /// number S4-AC6 is about.
   private var keyLatency = RimeKeyLatencyWindow()
+  private var documentProxyOverride: UITextDocumentProxy?
+
+  override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
+    super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
+  }
+
+  convenience init(documentProxy: UITextDocumentProxy? = nil) {
+    self.init(nibName: nil, bundle: nil)
+    documentProxyOverride = documentProxy
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+  }
+
+  override var textDocumentProxy: UITextDocumentProxy {
+    documentProxyOverride ?? super.textDocumentProxy
+  }
 
   deinit {
+    NotificationCenter.default.removeObserver(self)
+    dictionaryRetry?.cancel()
     geometryDisplayLink?.invalidate()
     candidateLoadCancellation?.cancel()
     engineSetup?.releaseInputSession(owner: engineOwnerID)
@@ -231,6 +260,10 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    NotificationCenter.default.addObserver(self, selector: #selector(hostDidEnterBackground),
+      name: .NSExtensionHostDidEnterBackground, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(hostDidBecomeActive),
+      name: .NSExtensionHostDidBecomeActive, object: nil)
     #if compiler(>=6.4) && !ARKEY_NO_FOLD_API
     if #available(iOS 27.1, *) {
       view.addInteraction(UIHingeInteraction { [weak self] _, update in
@@ -350,6 +383,8 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    isPresented = true
+    resumeAfterHostActivation = false
     acceptsInput = true
     geometryAppearance += 1
     backingState.beginAppearance()
@@ -376,9 +411,13 @@ final class KeyboardViewController: UIInputViewController {
   }
 
   override func viewWillDisappear(_ animated: Bool) {
+    isPresented = false
+    resumeAfterHostActivation = false
     acceptsInput = false
     keyGrid.cancelActivePresses()
+    finishPendingInputAsLiteralText()
     releaseEngine()
+    recoveringInputState = nil
     super.viewWillDisappear(animated)
     recordGeometry("willDisappear", force: true)
     finishGeometryTrace(reason: "disappear")
@@ -398,6 +437,7 @@ final class KeyboardViewController: UIInputViewController {
 
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
+    discardPendingInputFromAnotherDocument()
     updateThemeIfNeeded()
   }
 
@@ -450,6 +490,9 @@ final class KeyboardViewController: UIInputViewController {
   // MARK: - Engine
 
   private func prepareEngine() {
+    dictionaryRetry?.cancel()
+    dictionaryRetry = nil
+    discardPendingInputFromAnotherDocument()
     switch KeyboardEngine.setup {
     case .failure(let error):
       let reason = String(describing: error)
@@ -466,11 +509,17 @@ final class KeyboardViewController: UIInputViewController {
       do {
         let start = try setup.engine.start()
         try setup.engine.openSession()
-        markedText = nil
+        if pendingInput.isEmpty { markedText = nil }
         try setup.engine.clearComposition()
         KeyboardEngine.adoptProfileIfNeeded(setup, isComposing: false)
         try KeyboardEngine.ensureInputSchema(setup.engine)
-        if preferences.chineseInputOnly { try setup.engine.setOption("ascii_mode", false) }
+        if let state = recoveringInputState {
+          if let schema = state.schema { _ = try setup.engine.selectSchema(schema) }
+          try KeyboardEngine.ensureInputSchema(setup.engine)
+          try setup.engine.setOption("ascii_mode", preferences.chineseInputOnly ? false : state.isASCII)
+        } else if preferences.chineseInputOnly {
+          try setup.engine.setOption("ascii_mode", false)
+        }
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.configuration",
                                             message: try setup.engine.inputConfigurationSummary()))
         engine = setup.engine
@@ -485,16 +534,115 @@ final class KeyboardViewController: UIInputViewController {
                                             milliseconds: start.milliseconds,
                                             message: detail))
         candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
+        recoveringInputState = nil
+        isWaitingForDictionaries = false
+        dictionaryRetryDelay = 0.1
+        processPendingInput()
       } catch {
         let detail = KeyboardEngine.detail(setup, hasFullAccess: hasFullAccess)
         setup.releaseInputSession(owner: engineOwnerID)
         engine = nil
+        if waitForDictionaries(after: error) { return }
+        isWaitingForDictionaries = false
+        finishPendingInputAsLiteralText()
         let reason = String(describing: error)
         KeyboardLog.error("boot failed: " + reason)
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot.failed", message: reason + " " + detail))
         candidateBar.setMessage(RimeLocalization.text("Arkey startup failed: \(reason)"))
       }
     }
+  }
+
+  /// A failed nonblocking lock acquisition is temporary. Retry while this controller is active;
+  /// never steal ownership, spin on the main thread, or send deferred input to a later document.
+  private func waitForDictionaries(after error: Error) -> Bool {
+    guard case RimeDictionaryAccessError.dictionaryBusy = error else { return false }
+    if !isWaitingForDictionaries {
+      KeyboardLog.geometry(RimeProbeRecord(phase: "keyboard.dictionary.wait",
+        message: "Dictionary ownership is busy; deferring new input until it becomes available"),
+        probe: engineSetup?.probe)
+    }
+    isWaitingForDictionaries = true
+    showPendingInput()
+    guard acceptsInput, dictionaryRetry == nil else { return true }
+    let retry = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      self.dictionaryRetry = nil
+      guard self.acceptsInput,
+            self.engineSetup?.inputSessionBelongsToAnotherController(self.engineOwnerID) != true else { return }
+      _ = self.ensureInputSession()
+    }
+    dictionaryRetry = retry
+    DispatchQueue.main.asyncAfter(deadline: .now() + dictionaryRetryDelay, execute: retry)
+    dictionaryRetryDelay = min(dictionaryRetryDelay * 2, 1)
+    return true
+  }
+
+  private func showPendingInput() {
+    let text = pendingInputText.replacingOccurrences(of: "\n", with: "↵")
+    candidateBar.setMessage(text.isEmpty
+      ? RimeLocalization.text("Waiting for dictionaries. Retrying automatically…")
+      : RimeLocalization.text("Waiting for dictionaries. Pending input: \(text)"))
+  }
+
+  private var pendingInputText: String {
+    pendingInput.map { key -> String in
+      switch key {
+      case .character(let value), .auxiliary(let value): return value
+      case .space: return " "
+      case .returnKey: return "\n"
+      default: return ""
+      }
+    }.joined()
+  }
+
+  private func deferInput(_ key: KeyboardKey) {
+    discardPendingInputFromAnotherDocument()
+    if key == .backspace, pendingInput.isEmpty {
+      textDocumentProxy.deleteBackward()
+      return
+    }
+    pendingInputDocument = textDocumentProxy.documentIdentifier
+    if key == .backspace {
+      pendingInput.removeLast()
+    } else {
+      pendingInput.append(key)
+    }
+    let text = pendingInputText
+    textDocumentProxy.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+    markedText = text.isEmpty ? nil : text
+    if text.isEmpty {
+      textDocumentProxy.unmarkText()
+      pendingInputDocument = nil
+    }
+    showPendingInput()
+  }
+
+  private func processPendingInput() {
+    discardPendingInputFromAnotherDocument()
+    let input = pendingInput
+    pendingInput.removeAll()
+    pendingInputDocument = nil
+    for key in input { processInputKey(key) }
+  }
+
+  /// Preserve deferred text on dismissal instead of replaying it into the next text field.
+  private func finishPendingInputAsLiteralText() {
+    guard !pendingInput.isEmpty else { return }
+    if engineSetup?.inputSessionBelongsToAnotherController(engineOwnerID) != true,
+       pendingInputDocument == textDocumentProxy.documentIdentifier { textDocumentProxy.unmarkText() }
+    pendingInput.removeAll()
+    pendingInputDocument = nil
+    markedText = nil
+  }
+
+  private func discardPendingInputFromAnotherDocument() {
+    guard let document = pendingInputDocument, document != textDocumentProxy.documentIdentifier else { return }
+    // UIKit keeps the old field's literal draft. Never rewrite it in the newly focused field.
+    pendingInput.removeAll()
+    pendingInputDocument = nil
+    markedText = nil
+    if isWaitingForDictionaries { showPendingInput() }
   }
 
   /// One place for the "log everything, show something short" rule.
@@ -599,18 +747,24 @@ final class KeyboardViewController: UIInputViewController {
     playFeedback()
     switch key {
     case .character, .auxiliary, .space, .backspace, .returnKey:
-      _ = ensureInputSession()
-    default:
-      break
-    }
-    switch key {
-    case .character(let value):
-      typeLiteralKey(value)
-      // A single Shift tap applies to one character only. Keep caps lock active.
-      if shiftController.state == .on {
+      if !ensureInputSession(), isWaitingForDictionaries {
+        deferInput(key)
+      } else {
+        processInputKey(key)
+      }
+      if case .character = key, shiftController.state == .on {
         shiftController.consumeAfterCharacter()
         refreshLayout()
       }
+    default:
+      handleControlKey(key)
+    }
+  }
+
+  private func processInputKey(_ key: KeyboardKey) {
+    switch key {
+    case .character(let value):
+      typeLiteralKey(value)
     case .auxiliary(let value):
       typeAuxiliaryKey(value)
     case .space:
@@ -628,6 +782,13 @@ final class KeyboardViewController: UIInputViewController {
       } else {
         textDocumentProxy.insertText("\n")
       }
+    default:
+      break
+    }
+  }
+
+  private func handleControlKey(_ key: KeyboardKey) {
+    switch key {
     case .shift:
       // S3 §5: one-shot after a tap, caps lock after a double tap. The case control is ours; the
       // 中/英 state is the engine's ascii_mode and is not this key.
@@ -654,6 +815,8 @@ final class KeyboardViewController: UIInputViewController {
       recordGeometry("advanceInputMode.emoji", force: true)
       prepareForInputModeSwitch()
       advanceToNextInputMode()
+    default:
+      break
     }
   }
 
@@ -663,10 +826,37 @@ final class KeyboardViewController: UIInputViewController {
   func prepareForInputModeSwitch() {
     acceptsInput = false
     keyGrid.cancelActivePresses()
+    finishPendingInputAsLiteralText()
     releaseEngine()
+    recoveringInputState = nil
+  }
+
+  /// The host can suspend the extension before a view disappearance is delivered.
+  @objc private func hostDidEnterBackground() {
+    guard isPresented,
+          engineSetup?.inputSessionBelongsToAnotherController(engineOwnerID) != true,
+          engineSetup?.ownsInputSession(engineOwnerID) == true || isWaitingForDictionaries else { return }
+    let state = (schema: languageSchemaID, isASCII: asciiMode)
+    resumeAfterHostActivation = true
+    if markedText != nil { textDocumentProxy.unmarkText() }
+    markedText = nil
+    prepareForInputModeSwitch()
+    recoveringInputState = state
+  }
+
+  @objc private func hostDidBecomeActive() {
+    guard isPresented, resumeAfterHostActivation else { return }
+    resumeAfterHostActivation = false
+    guard engineSetup?.inputSessionBelongsToAnotherController(engineOwnerID) != true else { return }
+    acceptsInput = true
+    prepareEngine()
   }
 
   private func releaseEngine() {
+    dictionaryRetry?.cancel()
+    dictionaryRetry = nil
+    isWaitingForDictionaries = false
+    dictionaryRetryDelay = 0.1
     candidateLoadCancellation?.cancel()
     engineSetup?.releaseInputSession(owner: engineOwnerID)
     engine = nil
@@ -682,8 +872,7 @@ final class KeyboardViewController: UIInputViewController {
     guard let engine, engineSetup?.ownsInputSession(engineOwnerID) == true else { return false }
     guard !engine.isSessionOpen else { return true }
 
-    let schema = languageSchemaID
-    let wasASCII = asciiMode
+    recoveringInputState = (schema: languageSchemaID, isASCII: asciiMode)
     candidateLoadCancellation?.cancel()
     candidateLoadCancellation = nil
     candidateLoadGeneration += 1
@@ -693,22 +882,24 @@ final class KeyboardViewController: UIInputViewController {
     currentPage = nil
     candidatePreedit = nil
     if isPanelExpanded { collapsePanel() }
+    // Keep the host's last marked draft as literal text; its native composition no longer exists.
+    if markedText != nil { textDocumentProxy.unmarkText() }
+    markedText = nil
     do {
       _ = try engine.start()
       try engine.openSession()
-      if let schema { _ = try engine.selectSchema(schema) }
+      if let schema = recoveringInputState?.schema { _ = try engine.selectSchema(schema) }
       _ = try KeyboardEngine.ensureInputSchema(engine)
-      try engine.setOption("ascii_mode", preferences.chineseInputOnly ? false : wasASCII)
-      // Keep the host's last marked draft as literal text; its native composition no longer exists.
-      if markedText != nil { textDocumentProxy.unmarkText() }
-      markedText = nil
+      try engine.setOption("ascii_mode", preferences.chineseInputOnly ? false : recoveringInputState?.isASCII ?? false)
       apply(try engine.refresh())
+      recoveringInputState = nil
       KeyboardLog.geometry(RimeProbeRecord(phase: "keyboard.session.recovered",
         message: "Reopened a missing input session before the next event; no previous events were replayed"),
         probe: engineSetup?.probe)
       return true
     } catch {
       releaseEngine()
+      if waitForDictionaries(after: error) { return false }
       report("session.recovery.failed", error, userVisible: RimeLocalization.text("Key input failed: "))
       return false
     }

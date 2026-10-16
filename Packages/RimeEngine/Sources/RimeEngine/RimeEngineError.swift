@@ -5,6 +5,7 @@ public enum RimeEngineError: Error, CustomStringConvertible, Sendable {
   case apiUnavailable
   /// librime did not accept the traits we handed it.
   case initializationFailed
+  case notStarted
   case sessionCreationFailed
   case sessionNotOpen
   case deploymentFailed
@@ -20,6 +21,8 @@ public enum RimeEngineError: Error, CustomStringConvertible, Sendable {
       return "rime_get_api() returned NULL (librime is not linked)"
     case .initializationFailed:
       return "RimeInitialize failed"
+    case .notStarted:
+      return "the Rime engine has not started"
     case .sessionCreationFailed:
       return "RimeCreateSession returned no session"
     case .sessionNotOpen:

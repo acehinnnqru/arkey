@@ -31,6 +31,8 @@
 "Arkey ready · {0} · Full Access {1} · {2}" = "Arkey ready · {0} · Full Access {1} · {2}";
 "Arkey startup failed: {0}" = "Arkey startup failed: {0}";
 "Arkey — Third-party profiles and licenses" = "Arkey — Third-party profiles and licenses";
+"Waiting for dictionaries. Retrying automatically…" = "Waiting for dictionaries. Retrying automatically…";
+"Waiting for dictionaries. Pending input: {0}" = "Waiting for dictionaries. Pending input: {0}";
 "Automatic word creation" = "Automatic word creation";
 "Auxiliary configuration failed" = "Auxiliary configuration failed";
 "Auxiliary input failed: " = "Auxiliary input failed: ";
