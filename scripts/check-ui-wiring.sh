@@ -31,6 +31,8 @@
 # A name in this list that is a *feature* rather than a convenience is the case this check exists for: the long
 # press, the snapshot export and the dictionary import were all found this way.
 set -euo pipefail
+# Public names are ASCII. Match Python's ordering regardless of the runner's locale.
+export LC_ALL=C
 cd "$(dirname "$0")/.."
 baseline="docs/ui-wiring.txt"
 
