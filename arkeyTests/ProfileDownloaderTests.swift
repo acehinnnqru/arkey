@@ -6,8 +6,8 @@ private final class ProfileDownloadProtocol: URLProtocol {
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
   override func startLoading() {
-    let status = request.url!.path == "/missing" ? 404 : 200
-    let data = Data(repeating: 65, count: 4096)
+    let status = Int(request.url!.lastPathComponent) ?? 200
+    let data = request.url!.path.contains("/empty/") ? Data() : Data(repeating: 65, count: 4096)
     let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
       headerFields: ["Content-Length": String(data.count)])!
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -32,7 +32,9 @@ final class ProfileDownloaderTests: XCTestCase {
   }
 
   func testHTTPFailureAndSizeLimitLeaveNoPayload() async throws {
-    for (path, limit) in [("/missing", 8192), ("/archive", 1024)] {
+    for (path, limit) in [("/404", 8192), ("/500", 8192), ("/502", 8192),
+                          ("/503", 8192), ("/empty/500", 8192), ("/empty/502", 8192),
+                          ("/archive", 1024)] {
       let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
       defer { try? FileManager.default.removeItem(at: destination) }
       let configuration = URLSessionConfiguration.ephemeral
@@ -42,8 +44,9 @@ final class ProfileDownloaderTests: XCTestCase {
           configuration: configuration).fetch(URL(string: "https://example.invalid" + path)!)
         XCTFail("the transfer should fail")
       } catch {
-        if path == "/missing" {
-          guard case RimeProfileDownloadError.http(404) = error else { return XCTFail("unexpected error: \(error)") }
+        if let status = Int(URL(string: path)!.lastPathComponent) {
+          guard case RimeProfileDownloadError.http(let actual) = error else { return XCTFail("unexpected error: \(error)") }
+          XCTAssertEqual(actual, status)
         } else {
           guard case RimeCatalogError.tooLarge = error else { return XCTFail("unexpected error: \(error)") }
         }
