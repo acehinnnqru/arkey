@@ -28,6 +28,23 @@ final class S3PreferencesTests: XCTestCase {
     XCTAssertFalse(preferences.hapticsEnabled)
   }
 
+  func testDebugModeDefaultsOffForExistingSettingsAndPersistsIndependently() throws {
+    XCTAssertFalse(store.value.debugModeEnabled)
+    defaults.set(Data(#"{"hapticsEnabled":false,"chineseInputOnly":true}"#.utf8),
+                 forKey: RimeKeyboardPreferencesStore.storageKey)
+    XCTAssertFalse(store.value.debugModeEnabled)
+    var preferences = store.value
+    preferences.debugModeEnabled = true
+    store.value = preferences
+    XCTAssertTrue(store.value.debugModeEnabled)
+    XCTAssertFalse(store.value.hapticsEnabled)
+    XCTAssertTrue(store.value.chineseInputOnly)
+    preferences.debugModeEnabled = false
+    store.value = preferences
+    XCTAssertFalse(store.value.debugModeEnabled)
+    XCTAssertTrue(store.value.chineseInputOnly)
+  }
+
   func testEnglishSideKeysPersistIndependentlyAndReset() throws {
     var preferences = RimeKeyboardPreferences(leftSpaceKey: .init(mode: .auxiliary))
     preferences.englishLeftSpaceKey = .init(mode: .character, character: ",")

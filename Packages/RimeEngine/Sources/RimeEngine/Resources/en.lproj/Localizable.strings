@@ -517,3 +517,5 @@
 "Failed to save compilation status: {0}" = "Failed to save compilation status: {0}";
 "Compilation completed, but its status could not be saved: {0}" = "Compilation completed, but its status could not be saved: {0}";
 "Dismiss" = "Dismiss";
+"Debug mode" = "Debug mode";
+"Show startup status in the candidate bar. Off by default; applies next time the keyboard opens." = "Show startup status in the candidate bar. Off by default; applies next time the keyboard opens.";

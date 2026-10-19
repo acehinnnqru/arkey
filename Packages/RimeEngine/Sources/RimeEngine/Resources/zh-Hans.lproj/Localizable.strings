@@ -517,3 +517,5 @@
 "Failed to save compilation status: {0}" = "保存编译状态失败：{0}";
 "Compilation completed, but its status could not be saved: {0}" = "编译已完成，但无法保存完成状态：{0}";
 "Dismiss" = "关闭提示";
+"Debug mode" = "调试模式";
+"Show startup status in the candidate bar. Off by default; applies next time the keyboard opens." = "在候选区显示启动状态信息。默认关闭，下次打开键盘时生效。";

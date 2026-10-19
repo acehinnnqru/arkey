@@ -533,7 +533,9 @@ final class KeyboardViewController: UIInputViewController {
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot",
                                             milliseconds: start.milliseconds,
                                             message: detail))
-        candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
+        candidateBar.setMessage(preferences.debugModeEnabled
+          ? KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess)
+          : RimeProfileRecovery.of(setup.resolved)?.message ?? "")
         recoveringInputState = nil
         isWaitingForDictionaries = false
         dictionaryRetryDelay = 0.1
