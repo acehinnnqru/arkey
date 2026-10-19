@@ -93,6 +93,7 @@ struct ContentView: View {
       }
       .sheet(isPresented: $isShowingSharedImport) {
         NavigationStack { ProfileLibraryView(model: model) }
+          .safeAreaInset(edge: .top, spacing: 0) { DeploymentStatusBanner(model: model) }
       }
       .onOpenURL { url in
         guard url.isFileURL else { return }
@@ -106,9 +107,18 @@ struct ContentView: View {
         LaunchProbe.mark("viewAppear")
       }
       .onChange(of: scenePhase) { _, phase in
-        if phase == .active, model.personalDictionary != nil {
-          Task { await model.refreshPersonalDictionary() }
+        if phase == .active {
+          Task {
+            await model.resumeDictionaryAccess()
+            if model.personalDictionary != nil { await model.refreshPersonalDictionary() }
+          }
         }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+        model.prepareForBackground()
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+        model.suspendDictionaryAccess()
       }
       .task {
         // Bootstrap is a diagnostic plus the workspace seeding, not startup work: entering the app
@@ -120,6 +130,7 @@ struct ContentView: View {
         LaunchProbe.flush()
       }
     }
+    .safeAreaInset(edge: .top, spacing: 0) { DeploymentStatusBanner(model: model) }
   }
 
 }

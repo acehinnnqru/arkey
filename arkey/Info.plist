@@ -2,10 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- S6 section 4: a config archive downloaded from the project page can be handed to the app
-	     from Safari or Files instead of being moved through a share sheet. The rank is Alternate
-	     so the system keeps its own zip handler; the importer already accepts these archives
-	     (S1 section 5.1, hardened), and Release bundles no third-party data either way. -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -21,25 +17,11 @@
 			</array>
 		</dict>
 	</array>
-	<!-- Round 190: the importer's own picker could not see a single file this app had written. The exported
-	     settings archive and the default sync folder both live in Documents, and Files lists an app's folder
-	     only when the app says so — the picker answered "On My iPhone is Empty" (photographed from the
-	     simulator). This is the switch that opens the round trip through Files, and the same folder the sync
-	     comment already claims the Files app can reach. -->
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-	<!-- Every App Store upload asks whether the app uses encryption the export rules do not exempt. It uses the
-	     system's TLS and nothing of its own, so the answer is no, and saying so here is one fewer question on
-	     the day of the submission. Anyone who adds cryptography has to change this line. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<!-- The app's interface is Chinese and its keyboard declares zh-Hans; the project said English, which is what
-	     the store listing and the app's language in Settings would have shown. -->
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>zh-Hans</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 </dict>
 </plist>

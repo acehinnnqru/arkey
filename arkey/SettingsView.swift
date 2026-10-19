@@ -90,5 +90,6 @@ struct SettingsView: View {
         }
       }
     }
+    .safeAreaInset(edge: .top, spacing: 0) { DeploymentStatusBanner(model: model) }
   }
 }

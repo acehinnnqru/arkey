@@ -67,6 +67,21 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertEqual(model.schemaRows, ["cached-row"])
   }
 
+  func testBackgroundingReleasesDictionaryOwnershipAndForegroundingAllowsRetry() async throws {
+    let model = RimeAppModel()
+    await model.bootstrap()
+    try model.engine.openSession()
+    model.prepareForBackground()
+    model.suspendDictionaryAccess()
+    await model.engine.closeSessionWhenIdle()
+    XCTAssertFalse(model.engine.isSessionOpen)
+    XCTAssertNil(RimeLeaseStore(workspace: model.workspace).liveHolder())
+    XCTAssertThrowsError(try model.engine.openSession()) { XCTAssertTrue($0 is CancellationError) }
+    await model.resumeDictionaryAccess()
+    try model.engine.openSession()
+    model.engine.closeSession()
+  }
+
   override func tearDownWithError() throws {
     let model = RimeAppModel()
     if let imported {
@@ -180,6 +195,35 @@ final class RimeAppModelTests: XCTestCase {
     XCTAssertNotNil(imported)
     XCTAssertEqual(try Data(contentsOf: target), contents)
     XCTAssertFalse(model.isImporting)
+  }
+
+  func testAnInterruptedCompilationIsRecoveredOnLaunchAndCanBeRetried() async throws {
+    let source = try makeSourceFolder()
+    let journal = RimeDeploymentJournal(url: source.appendingPathComponent("journal/state.json"))
+    let model = RimeAppModel(deploymentJournal: journal)
+    await model.bootstrap()
+    await model.importPayload(at: source, displayName: "Interrupted compilation test", adoptUserData: false)
+    let profile = try XCTUnwrap(model.profiles.first { $0.displayName == "Interrupted compilation test" })
+    imported = profile.id
+    let attemptID = UUID()
+    try journal.begin(id: attemptID, profileID: profile.id, profileName: profile.displayName, startedAt: Date())
+    model.engine.shutdown()
+
+    let relaunched = RimeAppModel(deploymentJournal: journal)
+    await relaunched.bootstrap()
+    XCTAssertEqual(relaunched.interruptedDeployment?.id, attemptID)
+    XCTAssertEqual(relaunched.latestDeployment?.wasInterrupted, true)
+    XCTAssertTrue(relaunched.latestDeployment?.failed == true)
+    XCTAssertNil(relaunched.latestDeployment?.finishedAt, "the termination time is unknown")
+    XCTAssertFalse(relaunched.isDeploying, "launch must not silently retry an interrupted compilation")
+    XCTAssertEqual(try journal.load()?.state, .interrupted)
+
+    await relaunched.deploy(profileID: profile.id)
+    XCTAssertNil(relaunched.interruptedDeployment)
+    XCTAssertNil(relaunched.errorMessage)
+    XCTAssertEqual(try journal.load()?.state, .succeeded)
+    XCTAssertEqual(relaunched.activeProfileID, profile.id)
+    relaunched.engine.shutdown()
   }
 
   func testCancellingUserSettingsConfirmationAbandonsTheImport() async throws {

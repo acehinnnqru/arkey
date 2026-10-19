@@ -510,3 +510,10 @@
 "English keyboard" = "English keyboard";
 
 "Input mode" = "Input mode";
+
+"Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps." = "Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps.";
+"The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile." = "The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile.";
+"Failed to read compilation status: {0}" = "Failed to read compilation status: {0}";
+"Failed to save compilation status: {0}" = "Failed to save compilation status: {0}";
+"Compilation completed, but its status could not be saved: {0}" = "Compilation completed, but its status could not be saved: {0}";
+"Dismiss" = "Dismiss";

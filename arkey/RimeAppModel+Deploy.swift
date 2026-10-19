@@ -5,14 +5,22 @@ import SwiftUI
 
 /// A session-local attempt, kept separate from activation and settings-import messages.
 struct DeploymentAttempt: Sendable {
-  let id = UUID()
+  let id: UUID
   let profileID: String
   let profileName: String
-  let startedAt = Date()
+  let startedAt: Date
   var finishedAt: Date?
   var message = RimeLocalization.message("Deploying…")
   var failed = false
+  var wasInterrupted = false
   var logs: [RimeLogRecord] = []
+
+  init(id: UUID = UUID(), profileID: String, profileName: String, startedAt: Date = Date()) {
+    self.id = id
+    self.profileID = profileID
+    self.profileName = profileName
+    self.startedAt = startedAt
+  }
 }
 
 /// Deployment recovery actions shared by the profile library and settings writes.

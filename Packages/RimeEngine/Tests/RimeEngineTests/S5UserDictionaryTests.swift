@@ -331,6 +331,51 @@ final class S5UserDictionaryTests: XCTestCase {
     XCTAssertNoThrow(try store.acquireLock())
   }
 
+  func testSuspensionClosesTheSessionAndRejectsNewDictionaryWorkUntilResumed() async throws {
+    let store = try bindEngineToDictionaryLock()
+    try engine.openSession()
+    engine.setDictionaryAccessSuspended(true)
+    await engine.closeSessionWhenIdle()
+    XCTAssertFalse(engine.isSessionOpen)
+    XCTAssertNil(store.current())
+    XCTAssertNoThrow(try store.acquireLock())
+    XCTAssertThrowsError(try engine.openSession()) { XCTAssertTrue($0 is CancellationError) }
+    XCTAssertThrowsError(try engine.start()) { XCTAssertTrue($0 is CancellationError) }
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    XCTAssertThrowsError(try access.perform { XCTFail("background work acquired ownership") })
+    engine.setDictionaryAccessSuspended(false)
+    try engine.openSession()
+    XCTAssertTrue(engine.isSessionOpen)
+    XCTAssertThrowsError(try store.acquireLock())
+    engine.closeSession()
+  }
+
+  func testSuspensionDrainsAnOperationBeforeReleasingOwnership() async throws {
+    let store = try bindEngineToDictionaryLock()
+    let entered = expectation(description: "dictionary operation entered")
+    let release = DispatchSemaphore(value: 0)
+    let engine = self.engine!
+    let access = RimeDictionaryAccess(workspace: workspace, engine: engine)
+    let operation = Task.detached {
+      try access.perform {
+        entered.fulfill()
+        _ = release.wait(timeout: .now() + 5)
+        // Suspension must not break nested work in the transaction already draining.
+        try engine.openSession()
+      }
+    }
+    await fulfillment(of: [entered], timeout: 5)
+    engine.setDictionaryAccessSuspended(true)
+    XCTAssertThrowsError(try store.acquireLock(), "a draining transaction still owns its files")
+    let cleanup = Task { await engine.closeSessionWhenIdle() }
+    release.signal()
+    try await operation.value
+    await cleanup.value
+    XCTAssertFalse(engine.isSessionOpen)
+    XCTAssertNoThrow(try store.acquireLock())
+    XCTAssertThrowsError(try engine.openSession())
+  }
+
   func testDictionaryOperationKeepsOwnershipAcrossCloseAndRestoreAndErrors() throws {
     let store = try bindEngineToDictionaryLock()
     try engine.openSession()

@@ -510,3 +510,10 @@
 "English keyboard" = "英文键盘";
 
 "Input mode" = "输入模式";
+
+"Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps." = "正在编译，请勿中断。完成前请保持 App 在前台，不要锁屏或切换应用。";
+"The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile." = "上次对「{0}」的编译未确认完成，请重试编译以完成配置应用。";
+"Failed to read compilation status: {0}" = "读取编译状态失败：{0}";
+"Failed to save compilation status: {0}" = "保存编译状态失败：{0}";
+"Compilation completed, but its status could not be saved: {0}" = "编译已完成，但无法保存完成状态：{0}";
+"Dismiss" = "关闭提示";

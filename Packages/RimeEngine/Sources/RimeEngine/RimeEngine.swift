@@ -56,6 +56,26 @@ public final class RimeEngine: @unchecked Sendable {
   var heldLeaseStore: RimeLeaseStore?
   var dictionaryOwnershipDepth = 0
   var leaseHeartbeatTimer: DispatchSourceTimer?
+  private let suspensionLock = NSLock()
+  private var dictionaryAccessSuspended = false
+
+  /// Close the admission gate immediately, even while maintenance occupies the engine queue.
+  /// Existing operations retain ownership until their normal cleanup has finished.
+  public func setDictionaryAccessSuspended(_ suspended: Bool) {
+    suspensionLock.lock()
+    dictionaryAccessSuspended = suspended
+    suspensionLock.unlock()
+  }
+
+  /// Drain on the engine queue without blocking UIKit's lifecycle callbacks on maintenance.
+  public func closeSessionWhenIdle() async {
+    await withCheckedContinuation { continuation in
+      queue.async {
+        self.closeSessionLocked()
+        continuation.resume()
+      }
+    }
+  }
 
   /// librime's own log text, captured through the logsink module (§S1). Shared with the keyboard
   /// extension's diagnostics screen and the app's deploy-failure screen.
@@ -293,6 +313,14 @@ public final class RimeEngine: @unchecked Sendable {
   }
 
   private func acquireDictionaryOwnership(store: RimeLeaseStore?, host: String) throws {
+    suspensionLock.lock()
+    let suspended = dictionaryAccessSuspended
+    suspensionLock.unlock()
+    // Nested scopes belong to the operation already draining. New work must fail before
+    // acquiring a file lock, including a late download completion after entering background.
+    guard !suspended || dictionaryOwnershipDepth > 0 else {
+      throw CancellationError()
+    }
     guard let store else { return }
     if let dictionaryLock {
       guard dictionaryLock.url == store.lockURL else {
