@@ -73,7 +73,7 @@ final class LocalizationUITests: XCTestCase {
     tapSettingsRow("用户词库", in: app)
     XCTAssertTrue(app.navigationBars["用户词库"].waitForExistence(timeout: 10))
     XCTAssertEqual(app.buttons["export-personal-dictionary"].label, "导出个人源数据…")
-    XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "源数据独立于已安装配置保存")).firstMatch.exists)
+    XCTAssertTrue(app.staticTexts["切换或删除配置时，个人词条仍会保留。"].exists)
   }
 
   func testLanguageChangesInPlaceAndPersistsAfterRelaunch() {

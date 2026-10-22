@@ -87,11 +87,19 @@ struct CustomPhraseView: View {
       } header: {
         Text(RimeLocalization.text("Import and export"))
       } footer: {
-        Text(RimeLocalization.text("Files use Rime’s plain text format and can be exchanged between phone and desktop. Import uses the selected mode and never overwrites silently.\n\(UserFacing.text(model.customPhraseURL.path))"))
+        if mergeStrategy == .replaceAll {
+          Text(RimeLocalization.text("Import replaces the entire phrase list."))
+        }
       }
     }
     .disabled(isLoading || isSaving || model.isDeploying)
     .navigationTitle(RimeLocalization.text("Custom phrases"))
+    .settingsHelp {
+      Section(RimeLocalization.text("Import and export")) {
+        Text(RimeLocalization.text("Files use Rime’s plain text format and can be exchanged between phone and desktop."))
+        Text(RimeLocalization.text("Replace all replaces the existing phrase list with the imported phrases."))
+      }
+    }
     .fileImporter(isPresented: $isImporting, allowedContentTypes: [.plainText, .text],
                   allowsMultipleSelection: false) { result in
       switch result {

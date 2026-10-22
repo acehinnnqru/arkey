@@ -38,12 +38,18 @@ struct PunctuationView: View {
       } header: {
         Text(RimeLocalization.text("symbol table"))
       } footer: {
-        Text(RimeLocalization.text("Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches."))
+        Text(RimeLocalization.text("Changes deploy automatically and take effect the next time the keyboard opens."))
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .modifier(SettingsLoadingPresentation(isLoading: isLoading))
     .navigationTitle(RimeLocalization.text("Punctuation"))
+    .settingsHelp {
+      Section(RimeLocalization.text("Punctuation")) {
+        Text(RimeLocalization.text("The symbol table determines which symbols the scheme offers."))
+        Text(RimeLocalization.text("Full/half-width and Chinese/English punctuation are set in Scheme and input."))
+      }
+    }
     .task {
       isLoading = true
       await model.refreshSettings()

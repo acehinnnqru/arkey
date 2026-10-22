@@ -55,7 +55,7 @@ struct SettingsView: View {
         } header: {
           Text(RimeLocalization.text("Language"))
         } footer: {
-          Text(RimeLocalization.text("Chinese is the default. The keyboard uses this language the next time it opens."))
+          Text(RimeLocalization.text("The keyboard uses this language the next time it opens."))
         }
 
         Section(RimeLocalization.text("About")) {
