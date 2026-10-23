@@ -205,7 +205,6 @@
 "Key sounds" = "按键声音";
 "Keyboard" = "键盘";
 "Keyboard log ({0} records)" = "键盘日志（{0} 条）";
-"Keyboard preview" = "键盘预览";
 "Language" = "语言";
 "Left of Space" = "空格左侧";
 "Letters" = "字母";
@@ -356,7 +355,6 @@
 "There are {0} iCloud conflict copies; all will be read" = "有 {0} 个 iCloud 冲突副本，会一并读取";
 "This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone." = "清空整个日志目录：探针日志与 librime 自己的日志文件。键盘、词库和用户数据都不受影响，清空后无法恢复。";
 "This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop).librime imports add entries; removing a line and importing again does not delete that word." = "整表删除，无法恢复；若要只忘掉某一个词，请在键盘的候选上长按删除（桌面端的 Shift+Delete）。librime 的导入是增量写入，删掉一行再导回去并不会移除词条。";
-"This preview uses the same views as the keyboard extension and shows appearance only." = "与扩展共用同一套视图代码，这里只用于查看外观。";
 "This profile does not include {0}" = "该配置里没有 {0}";
 "This profile has no default.yaml; generated one containing {0} schemes" = "该配置没有 default.yaml，已生成一个列出 {0} 个方案";
 "This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy." = "当前配置没有可用的编译数据，键盘正在使用内置数据；打开 Arkey 重新部署";
@@ -472,11 +470,8 @@
 "English keyboard — keys beside Space" = "英文键盘 — 空格两侧按键";
 
 
-"Chinese keyboard" = "中文键盘";
 
-"English keyboard" = "英文键盘";
 
-"Input mode" = "输入模式";
 
 "Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps." = "正在编译，请勿中断。完成前请保持 App 在前台，不要锁屏或切换应用。";
 "The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile." = "上次对「{0}」的编译未确认完成，请重试编译以完成配置应用。";

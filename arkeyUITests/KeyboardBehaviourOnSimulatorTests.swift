@@ -109,30 +109,29 @@ final class KeyboardBehaviourOnSimulatorTests: XCTestCase {
     XCUIDevice.shared.press(.home)
     app.activate()
     XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
-    let status = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Arkey 就绪'")).firstMatch
-    XCTAssertTrue(status.waitForExistence(timeout: 10))
+    XCTAssertTrue(arkeyKeyboardIsUp(app))
     XCTAssertTrue(enter.waitForExistence(timeout: 10))
     XCTAssertEqual(enter.frame.minY, before.minY, accuracy: 1)
 
-    // Navigation resigns the editor; returning and focusing it presents the same extension again.
-    app.navigationBars.buttons["键盘"].tap()
-    XCTAssertTrue(app.navigationBars["键盘预览"].waitForExistence(timeout: 10))
+    // Opening settings resigns the editor; closing it and focusing presents the same extension again.
+    app.buttons["settings-open"].tap()
+    XCTAssertTrue(app.buttons["settings-close"].waitForExistence(timeout: 10))
     let dismissed = XCTNSPredicateExpectation(
-      predicate: NSPredicate(format: "isHittable == false"), object: status)
+      predicate: NSPredicate(format: "isHittable == false"), object: surface)
     XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
-    app.navigationBars.buttons.firstMatch.tap()
+    app.buttons["settings-close"].tap()
     XCTAssertTrue(field.waitForExistence(timeout: 10))
     field.tap()
     switchToArkey(app)
     XCTAssertTrue(arkeyKeyboardIsUp(app))
     XCTAssertEqual(enter.frame.minY, before.minY, accuracy: 1)
     XCTAssertEqual(surface.frame.minY, firstSurface.minY, accuracy: 1,
-                   "the keyboard top must stay in place after navigation")
+                   "the keyboard top must stay in place after closing settings")
     XCTAssertEqual(surface.frame.height, firstSurface.height, accuracy: 1,
-                   "the host must reserve the same keyboard height after navigation")
+                   "the host must reserve the same keyboard height after closing settings")
     XCTAssertEqual(app.keys["q"].frame.minY, firstRowTop, accuracy: 1)
     XCTAssertLessThanOrEqual(field.frame.maxY, surface.frame.minY,
-                            "the editor must stay above the entire keyboard after navigation")
+                            "the editor must stay above the entire keyboard after closing settings")
   }
 
   func testKeyboardRecoversDictionarySessionAfterHostBackgrounding() throws {

@@ -205,7 +205,6 @@
 "Key sounds" = "Key sounds";
 "Keyboard" = "Keyboard";
 "Keyboard log ({0} records)" = "Keyboard log ({0})";
-"Keyboard preview" = "Keyboard preview";
 "Language" = "Language";
 "Left of Space" = "Left of Space";
 "Letters" = "Letters";
@@ -356,7 +355,6 @@
 "There are {0} iCloud conflict copies; all will be read" = "iCloud conflict copies: {0}. All copies will be read.";
 "This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone." = "This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone.";
 "This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop).librime imports add entries; removing a line and importing again does not delete that word." = "This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop). librime imports add entries; removing a line and importing again does not delete that word.";
-"This preview uses the same views as the keyboard extension and shows appearance only." = "This preview uses the same views as the keyboard extension and shows appearance only.";
 "This profile does not include {0}" = "This profile does not include {0}";
 "This profile has no default.yaml; generated one containing {0} schemes" = "This profile has no default.yaml; generated one listing the available schemes ({0}).";
 "This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy." = "This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy.";
@@ -472,11 +470,8 @@
 "English keyboard — keys beside Space" = "English keyboard — keys beside Space";
 
 
-"Chinese keyboard" = "Chinese keyboard";
 
-"English keyboard" = "English keyboard";
 
-"Input mode" = "Input mode";
 
 "Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps." = "Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps.";
 "The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile." = "The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile.";

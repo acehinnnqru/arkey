@@ -51,7 +51,7 @@ enum KeyboardGlobePolicy {
   }
 }
 
-/// Shared geometry for the extension and in-app preview.
+/// Shared geometry for the extension and keyboard rendering tests.
 enum KeyboardMetrics {
   static var style: RimeKeyboardStyle { .systemAligned }
 

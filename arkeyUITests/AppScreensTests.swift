@@ -122,31 +122,6 @@ final class AppScreensTests: XCTestCase {
     XCTAssertTrue(app.buttons["settings-open"].waitForExistence(timeout: 10))
   }
 
-  /// The toolbar's 键盘 opens the preview — the keyboard drawn from the shared view code, with the fixture page
-  /// on its bar. That page is what makes this more than "a screen opened": the preview has to have drawn the
-  /// keyboard's own views.
-  func testTheKeyboardPreviewOpens() {
-    let app = launched()
-    XCTAssertTrue(app.navigationBars["Arkey"].waitForExistence(timeout: 30), "the home screen never appeared")
-    app.buttons["键盘"].firstMatch.tap()
-    XCTAssertTrue(app.navigationBars["键盘预览"].waitForExistence(timeout: 10),
-                  "the keyboard preview did not open: " + app.navigationBars.firstMatch.identifier)
-
-    let candidate = contains(app, "你好")
-    XCTAssertTrue(candidate.waitForExistence(timeout: 5),
-                  "the preview drew no candidate bar: "
-                    + app.staticTexts.allElementsBoundByIndex.prefix(8).map { $0.label }
-                      .joined(separator: " | "))
-    XCTAssertTrue(candidate.label.contains("ni hao"),
-                  "the preview's first cell is not the fixture candidate: [" + candidate.label + "]")
-
-    Thread.sleep(forTimeInterval: 0.6)
-    let shot = XCTAttachment(screenshot: app.screenshot())
-    shot.name = "keyboard-preview"
-    shot.lifetime = .keepAlways
-    add(shot)
-  }
-
   /// S1 §9 in the running app: the degraded state names the repair and the button goes where it says. On a
   /// container with nothing deployed the home screen offers 导入或选择配置, and that button opens the profile
   /// library — the screen whose job is choosing one.

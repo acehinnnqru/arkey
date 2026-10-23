@@ -73,9 +73,6 @@ struct ContentView: View {
       .ignoresSafeArea(.keyboard, edges: .bottom)
       .navigationTitle("Arkey")
       .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
-          NavigationLink(RimeLocalization.text("Keyboard")) { KeyboardPreviewScreen(model: model) }
-        }
         ToolbarItem(placement: .topBarTrailing) {
           Button {
             isEditing = false
