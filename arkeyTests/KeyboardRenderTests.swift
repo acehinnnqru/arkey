@@ -188,6 +188,34 @@ final class KeyboardRenderTests: XCTestCase {
     XCTAssertNotEqual(switchedToLight.keyFill, dark.keyFill)
   }
 
+  func testHostTraitsResolveAppearanceWhileTheTextClientIsUnavailable() {
+    var previous = KeyboardTheme.current(for: .light)
+    for style in [UIUserInterfaceStyle.dark, .light, .dark] {
+      let resolved = KeyboardTheme.current(for: nil, interfaceStyle: style, previous: previous)
+      let expected = KeyboardTheme.current(for: style == .dark ? .dark : .light)
+      XCTAssertEqual(resolved.keyFill, expected.keyFill)
+      XCTAssertEqual(resolved.candidateText, expected.candidateText)
+      previous = resolved
+    }
+  }
+
+  func testControllerTraitsTakePrecedenceOverStaleInputViewTraits() {
+    for appearance: UIKeyboardAppearance? in [nil, .default] {
+      for style in [UIUserInterfaceStyle.dark, .light] {
+        let expected = KeyboardTheme.current(for: style == .dark ? .dark : .light)
+        let resolved = KeyboardTheme.current(for: appearance, interfaceStyle: style,
+          fallbackInterfaceStyle: style == .dark ? .light : .dark)
+        XCTAssertEqual(resolved.keyFill, expected.keyFill)
+        let fallback = KeyboardTheme.current(for: appearance, fallbackInterfaceStyle: style)
+        XCTAssertEqual(fallback.keyFill, expected.keyFill)
+      }
+    }
+    XCTAssertEqual(KeyboardTheme.current(for: .light, interfaceStyle: .dark,
+      fallbackInterfaceStyle: .dark).appearance, .light)
+    XCTAssertEqual(KeyboardTheme.current(for: .dark, interfaceStyle: .light,
+      fallbackInterfaceStyle: .light).appearance, .dark)
+  }
+
   private let width: CGFloat = 430
 
   /// A device capture arrives at 2x or 3x; so does this one. Rendering at 1x put the cap shadows and the

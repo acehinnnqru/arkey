@@ -82,6 +82,43 @@ final class KeyboardTypingTests: XCTestCase {
     return found
   }
 
+  func testRepeatedAppearanceKeepsDarkKeysWhenInputViewTraitsLagBehind() throws {
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
+    controller.traitOverrides.userInterfaceStyle = .dark
+    controller.view.traitOverrides.userInterfaceStyle = .light
+    let expected = KeyboardTheme.current(for: .dark)
+    for _ in 0..<5 {
+      controller.viewWillDisappear(false)
+      controller.viewDidDisappear(false)
+      controller.viewWillAppear(false)
+      controller.viewIsAppearing(false)
+      controller.viewDidAppear(false)
+      controller.view.setNeedsLayout()
+      controller.view.layoutIfNeeded()
+      let letter = try XCTUnwrap(descendants(KeyButton.self, in: controller.view).first {
+        $0.key == .character("q")
+      })
+      XCTAssertEqual(letter.backgroundColor, expected.keyFill)
+      let backing = try XCTUnwrap(controller.view.subviews.first {
+        $0.accessibilityIdentifier == "Arkey.contentBacking"
+      })
+      XCTAssertEqual(backing.backgroundColor?.withAlphaComponent(1), expected.background)
+    }
+
+    // A real host switch to light must still take effect on the retained controller.
+    controller.traitOverrides.userInterfaceStyle = .light
+    controller.textDidChange(nil)
+    let letter = try XCTUnwrap(descendants(KeyButton.self, in: controller.view).first {
+      $0.key == .character("q")
+    })
+    XCTAssertEqual(letter.backgroundColor, KeyboardTheme.current(for: .light).keyFill)
+
+    document.keyboardAppearance = .dark
+    controller.textDidChange(nil)
+    XCTAssertEqual(letter.backgroundColor, expected.keyFill)
+  }
+
   private func texts(in view: UIView) -> [String] {
     var found: [String] = []
     if let label = view as? UILabel, let text = label.text, !text.isEmpty { found.append(text) }
