@@ -8,6 +8,7 @@ private final class KeyboardTestDocument: NSObject, UITextDocumentProxy {
   private(set) var documentIdentifier = UUID()
   private(set) var previousFieldText = ""
   var text: String { field.text }
+  var hasMarkedText: Bool { field.markedTextRange != nil }
   var hasText: Bool { field.hasText }
   var documentContextBeforeInput: String? { field.text }
   var documentContextAfterInput: String? { nil }
@@ -430,11 +431,24 @@ final class KeyboardTypingTests: XCTestCase {
     XCTAssertFalse(try setup.engine.refresh().isComposing)
   }
 
-  func testSwitchingBackFromEnglishProducesChineseCandidates() throws {
-    try deployBundledProfile()
-    let controller = booted()
+  func testLanguageSwitchCommitsRawInputAndRestoresChineseCandidates() throws {
+    let setup = try KeyboardEngine.setup.get()
+    // Use the bundled build so the test does not depend on compiling a dictionary at runtime.
+    let activeRecord = setup.workspace.activeRecord
+    if FileManager.default.fileExists(atPath: activeRecord.path) {
+      let previous = try Data(contentsOf: activeRecord)
+      addTeardownBlock { try previous.write(to: activeRecord, options: .atomic) }
+      try FileManager.default.removeItem(at: activeRecord)
+    }
+    let store = try XCTUnwrap(RimeKeyboardPreferencesStore.appGroup())
+    let original = store.value
+    defer { store.value = original }
+    var preferences = original
+    preferences.chineseInputOnly = false
+    store.value = preferences
+    let document = KeyboardTestDocument()
+    let controller = booted(documentProxy: document)
     let grid = try XCTUnwrap(descendants(KeyboardKeyGrid.self, in: controller.view).first)
-    guard case .success(let setup) = KeyboardEngine.setup else { return XCTFail("engine setup failed") }
     func toggleLanguage() throws {
       let button = try XCTUnwrap(grid.subviews.compactMap { $0 as? KeyButton }.first {
         if case .language = $0.key { return true }
@@ -443,12 +457,21 @@ final class KeyboardTypingTests: XCTestCase {
       button.sendActions(for: .primaryActionTriggered)
       grid.layoutIfNeeded()
     }
+    try type(["n", "i", "h", "a", "o"], in: controller)
+    XCTAssertTrue(document.hasMarkedText)
+    XCTAssertEqual(try setup.engine.rawInput(), "nihao")
+
     try toggleLanguage()
     XCTAssertTrue(try setup.engine.getOption("ascii_mode"))
-    try type(["n"], in: controller)
+    XCTAssertEqual(document.text, "nihao")
+    XCTAssertFalse(document.hasMarkedText)
     XCTAssertFalse(try setup.engine.refresh().isComposing)
+    try type(["x"], in: controller)
+    XCTAssertEqual(document.text, "nihaox")
+
     try toggleLanguage()
     XCTAssertFalse(try setup.engine.getOption("ascii_mode"))
+    XCTAssertEqual(document.text, "nihaox")
     try type(["n", "i", "h", "a", "o"], in: controller)
     XCTAssertTrue(texts(in: try bar(controller)).contains { $0.contains("你好") })
   }

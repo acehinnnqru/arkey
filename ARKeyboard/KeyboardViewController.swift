@@ -697,6 +697,10 @@ final class KeyboardViewController: UIInputViewController {
     guard !preferences.chineseInputOnly else { return }
     guard ensureInputSession(), let engine else { return }
     do {
+      if let input = try engine.rawInput(), !input.isEmpty {
+        try engine.clearComposition()
+        apply(RimeOutput(handled: true, commit: input, composition: nil, page: nil, status: nil))
+      }
       try KeyboardEngine.ensureInputSchema(engine)
       try engine.setOption("ascii_mode", !asciiMode)
       apply(try engine.refresh())
