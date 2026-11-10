@@ -13,14 +13,15 @@ jobs:
   verify:
     runs-on: macos-26
     timeout-minutes: 45
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
 
       - name: Toolchain
         run: |
+          applications_dir="$(swift -e 'import Foundation; print(FileManager.default.urls(for: .applicationDirectory, in: .localDomainMask)[0].path)')"
+          export DEVELOPER_DIR="$applications_dir/Xcode_26.5.app/Contents/Developer"
           test -d "$DEVELOPER_DIR"
+          printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
           swift --version
           xcodebuild -version
           xcrun --sdk iphonesimulator --show-sdk-path

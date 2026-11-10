@@ -6,19 +6,21 @@ import XCTest
 final class S1AdoptionTests: XCTestCase {
   private func resolved(shared: String, build: String, profileID: String?,
                         generation: Int = 1) -> RimeResolvedProfile {
-    RimeResolvedProfile(origin: .appGroup, profileID: profileID, generation: generation,
-                        buildDirectory: URL(fileURLWithPath: build),
-                        directories: RimeDirectories(sharedDataDir: shared,
-                                                     prebuiltDataDir: build,
-                                                     userDataDir: "/tmp/user",
-                                                     stagingDir: "/tmp/staging",
-                                                     logDir: "/tmp/log"),
-                        fallbackReason: nil)
+    let root = FileManager.default.temporaryDirectory
+    let buildDirectory = root.appendingPathComponent(build, isDirectory: true)
+    return RimeResolvedProfile(origin: .appGroup, profileID: profileID, generation: generation,
+                               buildDirectory: buildDirectory,
+                               directories: RimeDirectories(sharedDataDir: root.appendingPathComponent(shared).path,
+                                                            prebuiltDataDir: buildDirectory.path,
+                                                            userDataDir: root.appendingPathComponent("user").path,
+                                                            stagingDir: root.appendingPathComponent("staging").path,
+                                                            logDir: root.appendingPathComponent("log").path),
+                               fallbackReason: nil)
   }
 
   func testTheSameBindingNeedsNoAdoption() {
-    let current = resolved(shared: "/p/a/source", build: "/p/a/build", profileID: "a")
-    let same = resolved(shared: "/p/a/source", build: "/p/a/build", profileID: "a")
+    let current = resolved(shared: "p/a/source", build: "p/a/build", profileID: "a")
+    let same = resolved(shared: "p/a/source", build: "p/a/build", profileID: "a")
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: same, current: current, isComposing: false),
                    .unchanged)
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: same, current: current, isComposing: true),
@@ -26,8 +28,8 @@ final class S1AdoptionTests: XCTestCase {
   }
 
   func testAChangeMidCompositionIsDeferredAndTakenAtTheNextAppearance() {
-    let current = resolved(shared: "/p/a/source", build: "/p/a/build", profileID: "a")
-    let next = resolved(shared: "/p/b/source", build: "/p/b/build", profileID: "b")
+    let current = resolved(shared: "p/a/source", build: "p/a/build", profileID: "a")
+    let next = resolved(shared: "p/b/source", build: "p/b/build", profileID: "b")
 
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: next, current: current, isComposing: true),
                    .deferred, "never mid-composition")
@@ -36,8 +38,8 @@ final class S1AdoptionTests: XCTestCase {
   }
 
   func testANewGenerationOfTheSameProfileIsAChange() {
-    let current = resolved(shared: "/p/a/source", build: "/p/a/build", profileID: "a")
-    let next = resolved(shared: "/p/a/source", build: "/p/a/build", profileID: "a", generation: 2)
+    let current = resolved(shared: "p/a/source", build: "p/a/build", profileID: "a")
+    let next = resolved(shared: "p/a/source", build: "p/a/build", profileID: "a", generation: 2)
     XCTAssertEqual(next.directories, current.directories)
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: next, current: current, isComposing: true),
                    .deferred)
@@ -48,15 +50,15 @@ final class S1AdoptionTests: XCTestCase {
   }
 
   func testADifferentProfileAtTheSamePathsIsAChange() {
-    let current = resolved(shared: "/p/source", build: "/p/build", profileID: "a")
-    let next = resolved(shared: "/p/source", build: "/p/build", profileID: "b")
+    let current = resolved(shared: "p/source", build: "p/build", profileID: "a")
+    let next = resolved(shared: "p/source", build: "p/build", profileID: "b")
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: next, current: current, isComposing: false),
                    .rebind(next))
   }
 
   func testADifferentBuildPathOfTheSameGenerationIsAChange() {
-    let current = resolved(shared: "/p/a/source", build: "/p/a/build", profileID: "a")
-    let next = resolved(shared: "/p/a/source", build: "/p/a/build.previous", profileID: "a")
+    let current = resolved(shared: "p/a/source", build: "p/a/build", profileID: "a")
+    let next = resolved(shared: "p/a/source", build: "p/a/build.previous", profileID: "a")
     XCTAssertEqual(RimeProfileAdoption.decide(resolved: next, current: current, isComposing: false),
                    .rebind(next), "recovery can move the build directory within the same generation")
   }

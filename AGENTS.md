@@ -3,6 +3,11 @@
 Follow the user's standing agent rules. Do not overwrite unrelated work, create scratch files in this
 repository, or create commits without the required approval and GPG signature.
 
+## Commit messages
+
+Use Conventional Commits for all future commits: `<type>[optional scope][!]: <description>`.
+Write commit messages in English, for example `fix(keyboard): preserve input mode on appearance`.
+
 ## Interface localization
 
 - Support Simplified Chinese (`zh-Hans`) and English (`en`). A missing or invalid preference means

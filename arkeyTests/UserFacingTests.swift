@@ -3,14 +3,15 @@ import XCTest
 /// The folding every screen's message goes through.
 ///
 /// S1 §9's rule is that a failure names the repair; a container path names nothing a user can act on, and one
-/// reached the UI next to a real failure ("the profile has no sources at /Users/…/profiles//source").
+/// reached the UI alongside a missing profile source error.
 final class UserFacingTests: XCTestCase {
   func testAbsolutePathsAreFoldedAway() {
+    let container = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Containers/Data/Application/fixture/Library", isDirectory: true)
     let raw = "部署失败：the profile has no sources at "
-      + "/Users/rqc/Library/Developer/CoreSimulator/Devices/1/data/Containers/Data/Application/2/Library/"
-      + "Application Support/rime/profiles//source"
+      + container.path + "/Application Support/rime/profiles//source"
     let shown = UserFacing.text(raw)
-    XCTAssertFalse(shown.contains("/Users/"), "the path survived: " + shown)
+    XCTAssertFalse(shown.contains(container.path), "the path survived: " + shown)
     XCTAssertFalse(shown.contains("Containers"), "part of the path survived: " + shown)
     XCTAssertTrue(shown.hasPrefix("部署失败：the profile has no sources at"),
                   "the sentence was lost: " + shown)

@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import RimeEngine
 import SwiftUI
+import UIKit
 
 /// Where librime's sync directory points when the user has not chosen one (S5 owns the transport).
 enum RimeSyncLocation {
@@ -57,6 +58,7 @@ final class RimeAppModel: ObservableObject {
   @Published private(set) var isDeploying = false
   @Published var deployMessage: RimeLocalizedMessage?
   @Published private(set) var latestDeployment: DeploymentAttempt?
+  @Published private(set) var interruptedDeployment: RimeDeploymentJournal.Record?
   /// S2 §6's footer state. Only the code that writes knows when a change is pending and when it is
   /// live — an activation is "live" without being a deploy — so the transitions happen here rather
   /// than being inferred from whether a message happens to exist.
@@ -78,6 +80,48 @@ final class RimeAppModel: ObservableObject {
   private var importResultProfileID: String?
   private(set) var downloadResultProfileID: String?
   private var downloadTask: Task<Void, Never>?
+  private var suspensionTask: Task<Void, Never>?
+  private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+  private var wantsDictionaryAccess = true
+
+  func prepareForBackground() {
+    guard backgroundTask == .invalid else { return }
+    backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Finish dictionary operations") { [weak self] in
+      guard let self else { return }
+      self.suspendDictionaryAccess()
+      self.endBackgroundTask()
+    }
+  }
+
+  func suspendDictionaryAccess() {
+    wantsDictionaryAccess = false
+    engine.setDictionaryAccessSuspended(true)
+    cancelDownload()
+    guard suspensionTask == nil else { return }
+    let engine = self.engine
+    suspensionTask = Task {
+      await engine.closeSessionWhenIdle()
+      suspensionTask = nil
+      endBackgroundTask()
+    }
+  }
+
+  func resumeDictionaryAccess() async {
+    // An active-scene task can be scheduled after a newer background notification.
+    guard UIApplication.shared.applicationState != .background else { return }
+    wantsDictionaryAccess = true
+    if let suspensionTask { await suspensionTask.value }
+    guard wantsDictionaryAccess else { return }
+    engine.setDictionaryAccessSuspended(false)
+    endBackgroundTask()
+  }
+
+  private func endBackgroundTask() {
+    guard backgroundTask != .invalid else { return }
+    let identifier = backgroundTask
+    backgroundTask = .invalid
+    UIApplication.shared.endBackgroundTask(identifier)
+  }
 
   @Published var errorMessage: RimeLocalizedMessage?
   @Published var schemas: [String] = []
@@ -136,16 +180,18 @@ final class RimeAppModel: ObservableObject {
   var settingsRefreshDeferred = false
 
   let workspace: RimeWorkspace
+  let deploymentJournal: RimeDeploymentJournal
   let bundledSharedData: URL
   private(set) var engine: RimeEngine
   private(set) var resolved: RimeResolvedProfile?
   private var didBootstrap = false
 
-  init() {
+  init(deploymentJournal: RimeDeploymentJournal? = nil) {
     let shared = RimeDirectories.bundledSharedDataURL()
       ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("RimeData", isDirectory: true)
     bundledSharedData = shared
     workspace = RimeWorkspace.locate(appGroupID: Self.appGroupID)
+    self.deploymentJournal = deploymentJournal ?? RimeDeploymentJournal(workspace: workspace)
     let resolved = RimeWorkspaceResolver.resolve(workspace: workspace, bundledSharedData: shared)
     self.resolved = resolved
     engine = RimeEngine(configuration: RimeConfiguration(directories: resolved.directories, minLogLevel: 0),
@@ -191,6 +237,12 @@ final class RimeAppModel: ObservableObject {
     } catch {
       errorMessage = RimeLocalization.message("Failed to initialize workspace: \(String(describing: error))")
     }
+    // Recover abandoned staging before any asynchronous startup task or engine access.
+    let cleanup = RimeWorkspaceJanitor().run(workspace: workspace)
+    let removed = cleanup.removedStagingEntries.count + cleanup.removedBuildStaging.count
+    if removed > 0 || !cleanup.restoredBuilds.isEmpty {
+      importWarnings.append(RimeLocalization.message("Startup cleanup: removed \(String(removed)) temporary folders and restored \(String(cleanup.restoredBuilds.count)) previous builds"))
+    }
     #if DEBUG
     // S1-AC6: a Debug build may carry a local config, and the app starts with it installed. The Release
     // check refuses the directory in a bundle (S6-AC3), so this branch is the convenience half of the
@@ -208,9 +260,28 @@ final class RimeAppModel: ObservableObject {
     }
     #endif
     refresh()
+    if let resolved, resolved.directories != engine.directories {
+      _ = try? engine.rebind(to: resolved.directories)
+    }
+    do {
+      interruptedDeployment = try deploymentJournal.recoverInterrupted()
+      if let record = interruptedDeployment {
+        var attempt = DeploymentAttempt(id: record.id, profileID: record.profileID,
+          profileName: record.profileName, startedAt: record.startedAt)
+        let message = RimeLocalization.message("The last compilation of \(record.profileName) was not confirmed complete. Retry compilation to finish applying this profile.")
+        attempt.message = message
+        attempt.failed = true
+        attempt.wasInterrupted = true
+        latestDeployment = attempt
+        deployMessage = message
+        settingsFooter = .failed(message)
+      }
+    } catch {
+      errorMessage = RimeLocalization.message("Failed to read compilation status: \(String(describing: error))")
+    }
     // Repair a published generation that contains tables/default.yaml but has lost an enabled
     // schema. Maintenance runs in the host app, with the coordinator's rollback protection.
-    if let id = activeProfileID, resolved?.profileID == id {
+    if interruptedDeployment == nil, let id = activeProfileID, resolved?.profileID == id {
       do {
         _ = try engine.start()
         let schemaIDs = try workspace.loadMetadata(for: id)?.stats.schemaIDs ?? []
@@ -240,12 +311,6 @@ final class RimeAppModel: ObservableObject {
     }
     engineStatus = Self.typingCheck(engine: engine)
     await refreshPersonalDictionary()
-    if let outcome = RimeWorkspaceJanitor().run(workspace: workspace) as RimeWorkspaceJanitor.Outcome? {
-      let removed = outcome.removedStagingEntries.count + outcome.removedBuildStaging.count
-      if removed > 0 || !outcome.restoredBuilds.isEmpty {
-        importWarnings.append(RimeLocalization.message("Startup cleanup: removed \(String(removed)) temporary folders and restored \(String(outcome.restoredBuilds.count)) previous builds"))
-      }
-    }
   }
 
   /// The tracer's vertical slice, against whatever profile is actually bound: if this fails on a
@@ -597,7 +662,11 @@ final class RimeAppModel: ObservableObject {
     settingsFooter = .pending
     deployMessage = RimeLocalization.message("Deploying…")
     let coordinator = RimeDeploymentCoordinator(workspace: workspace, engine: engine)
+    let journal = deploymentJournal
     do {
+      try journal.begin(id: attempt.id, profileID: profileID, profileName: attempt.profileName,
+                        startedAt: attempt.startedAt)
+      interruptedDeployment = nil
       let outcome = try await coordinator.deploy(profileID: profileID) { progress in
         Task { @MainActor in
           guard self.latestDeployment?.id == attempt.id,
@@ -605,6 +674,11 @@ final class RimeAppModel: ObservableObject {
           self.deployMessage = Self.describe(progress)
           self.latestDeployment?.message = Self.describe(progress)
         }
+      }
+      do {
+        try journal.finish(id: attempt.id, succeeded: true)
+      } catch {
+        errorMessage = RimeLocalization.message("Compilation completed, but its status could not be saved: \(String(describing: error))")
       }
       // S1 §6: a deploy can succeed while having written nothing (librime's staleness check runs once
       // per process), so the message says which of the two happened instead of implying work.
@@ -620,6 +694,12 @@ final class RimeAppModel: ObservableObject {
       latestDeployment?.logs = outcome.report.logs
       settingsFooter = .applied(detail)
     } catch {
+      do {
+        try journal.finish(id: attempt.id, succeeded: false)
+      } catch {
+        RimeProbeLog(url: workspace.log.appendingPathComponent("probe.jsonl"))
+          .append(RimeProbeRecord(phase: "app.deploy.state.failed", message: String(describing: error)))
+      }
       let reason = String(describing: error)
       let detail: RimeLocalizedMessage
       if case RimeDictionaryAccessError.dictionaryBusy = error {
@@ -662,6 +742,16 @@ final class RimeAppModel: ObservableObject {
       Task { await refreshPersonalDictionary() }
     } catch {
       errorMessage = RimeLocalization.message("Failed to switch: \(String(describing: error))")
+    }
+  }
+
+  func dismissInterruptedDeployment() {
+    guard let record = interruptedDeployment else { return }
+    do {
+      try deploymentJournal.dismissInterrupted(id: record.id)
+      interruptedDeployment = nil
+    } catch {
+      errorMessage = RimeLocalization.message("Failed to save compilation status: \(String(describing: error))")
     }
   }
 

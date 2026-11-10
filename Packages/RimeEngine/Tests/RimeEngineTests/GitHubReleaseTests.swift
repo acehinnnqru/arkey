@@ -36,7 +36,8 @@ final class GitHubReleaseTests: XCTestCase {
   }
 
   func testURLsRejectCredentialsAndNonHTTPSAndConstrainPresetAssets() throws {
-    for url in ["http://example.com/a.zip", "file:///a.zip", "https://user:password@example.com/a.zip", "garbage"] {
+    let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("a.zip")
+    for url in ["http://example.com/a.zip", fileURL.absoluteString, "https://user:password@example.com/a.zip", "garbage"] {
       XCTAssertThrowsError(try RimeDownloadURL.validate(url))
     }
     XCTAssertEqual(try RimeDownloadURL.validate(" https://example.com/archive?id=1 ").host, "example.com")

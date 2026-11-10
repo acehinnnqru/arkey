@@ -58,13 +58,8 @@
 "Candidate selection failed: " = "选词出错：";
 "Candidate {0}" = "候选词{0}";
 "Caps Lock" = "大写锁定";
-"Changes are saved to {0}.custom.yaml and deployed automatically. The keyboard adopts them next time it opens." = "改动写入 {0}.custom.yaml，随后自动部署；键盘在下次出现时采用。";
 "Changes take effect when the keyboard next opens; current input is not interrupted." = "键盘在下次出现时采用这里的变化；正在输入的句子不会被切换打断。";
-"Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens." = "辅码前导键修改后会部署 Rime 方案；其他键盘设置下次出现时读取。";
-"Chinese is the default. The keyboard uses this language the next time it opens." = "默认中文。键盘会在下次打开时使用此语言。";
 "Choose a scheme" = "选择方案";
-"Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches." = "选择符号表后会重新部署。全角/半角和中英标点仍由方案开关控制。";
-"Choose one input scheme. Changes are deployed automatically and take effect the next time the keyboard opens." = "选择一个输入方案。修改后会自动部署，并在下次打开键盘时生效。";
 "Choose sync folder…" = "选择同步文件夹…";
 "Clear" = "清理";
 "Clear and delete" = "清空并删除";
@@ -132,7 +127,6 @@
 "Export snapshot (readable by Squirrel)" = "导出快照（Squirrel 可读）";
 "Exported {0} dictionary snapshots ({1})" = "已导出 {0} 个词库快照（{1}）";
 "Exported {0} settings files: {1}" = "已导出 {0} 个设置文件：{1}";
-"Exports contain *.custom.yaml and custom phrases, excluding third-party profile data. Import backs up current settings and redeploys automatically." = "导出的是 *.custom.yaml 与自定义短语，不含任何第三方配置数据；导入会先备份现有设置并自动重新部署。";
 "Extended symbol table" = "增强符号表";
 "Extension container" = "扩展容器";
 "Failed to choose sync folder: {0}" = "选择同步文件夹失败：{0}";
@@ -161,7 +155,6 @@
 "Failed to select a folder: {0}" = "选择文件夹失败：{0}";
 "Failed to switch: {0}" = "切换失败：{0}";
 "Feedback" = "反馈";
-"Files use Rime’s plain text format and can be exchanged between phone and desktop. Import uses the selected mode and never overwrites silently.\n{0}" = "文件是 Rime 自己的纯文本格式，所以手机和电脑可以直接交换；导入按上面的方式合并，绝不静默覆盖。\n{0}";
 "Finished" = "完成时间";
 "Fixed palette" = "固定调色板";
 "Flypy double pinyin" = "小鹤双拼";
@@ -209,14 +202,10 @@
 "Keep existing; ignore import" = "保留现有，忽略导入";
 "Key input failed: " = "按键出错：";
 "Key popups" = "按键气泡";
-"Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device." = "气泡只在手机类设备上出现，且被限制在键盘自身范围内；连删的默认值是出厂共识，真机校准后改这里一处即可。";
 "Key sounds" = "按键声音";
-"Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds." = "还需在系统「设置 → 声音与触感 → 键盘反馈」中开启「声音」。静音模式下不播放按键声音。";
 "Keyboard" = "键盘";
 "Keyboard log ({0} records)" = "键盘日志（{0} 条）";
-"Keyboard preview" = "键盘预览";
 "Language" = "语言";
-"Learning belongs to dictionary names, so switching profiles and back preserves learned words." = "词库属于词库名而不是配置：换配置再换回来，学过的词还在。";
 "Left of Space" = "空格左侧";
 "Letters" = "字母";
 "Licenses" = "许可证";
@@ -233,7 +222,6 @@
 "Merge failed: {0}" = "合并失败：{0}";
 "Merge other devices" = "合并其他设备";
 "Microsoft double pinyin" = "微软双拼";
-"Modified (switches are saved together, so the entire section is marked)" = "已修改（开关是整表写入，所以这里标记的是整节）";
 "Modified; awaiting deployment" = "已修改，待部署";
 "Natural Code double pinyin" = "自然码双拼";
 "Next" = "下一项";
@@ -284,7 +272,6 @@
 "Project page hidden because its address does not use HTTPS" = "项目页地址不是 HTTPS，已隐藏";
 "Punctuation" = "标点";
 "Read only: " = "只读：";
-"Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging." = "读取共享目录里其他设备的快照，增量并入本机词库；合并前会先备份。";
 "Recent records are shown below. Repeated legacy layout events are grouped." = "下方显示最近的记录，重复的旧布局事件已合并。";
 "Redeploy" = "重新部署";
 "Phrase list" = "词条列表";
@@ -296,7 +283,6 @@
 "Restore default (iCloud / Documents)" = "恢复默认（iCloud / 文稿）";
 "Restore defaults" = "恢复默认";
 "Restore failed: {0}" = "恢复失败：{0}";
-"Restore keyboard appearance and key settings. Keep the auxiliary prefix and spelling configured in the Rime scheme." = "恢复键盘外观与按键设置；Rime 方案中的辅码前导符和辅码拼写保持当前配置。";
 "Restore latest settings backup and redeploy" = "恢复上次设置备份并重新部署";
 "Restore the active schema's punctuation settings." = "恢复当前方案的标点设置。";
 "Restored from {0} dictionary {1}" = "已从 {0} 恢复 {1}";
@@ -313,7 +299,6 @@
 "Rolled back to the previous build" = "已回滚到上一代构建";
 "Rolled back to the previous build." = "已回滚到上一代构建。";
 "Route" = "路线";
-"Saved together in speller/algebra. Repeated toggles do not duplicate rules; disabling removes only that preset’s rules." = "按组合写入 speller/algebra：重复开关不会累积规则，关掉只移除自己的规则。";
 "Schema default" = "方案默认";
 "Schema output" = "方案转换结果";
 "Scheme" = "方案";
@@ -350,7 +335,6 @@
 "Switch to Chinese input" = "切换到中文";
 "Switch to English input" = "切换到英文";
 "Switch to the Arkey keyboard in the text field below to try it." = "在下面的输入框里切换到 Arkey 键盘试试。";
-"Switches" = "开关";
 "Symbols" = "符号";
 "Sync" = "同步";
 "Sync complete: {0} snapshots, {1}" = "同步完成：{0} 个快照，{1}";
@@ -361,7 +345,6 @@
 "Sync folder updated" = "同步文件夹已更新";
 "Sync now" = "立即同步";
 "Syncing…" = "正在同步…";
-"System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears." = "系统模式使用宿主的键盘背景；固定调色板使用纯色，可能与系统键盘条不同。修改会在下次打开 Arkey 键盘时生效。";
 "Table" = "码表";
 "The dictionary lease file could not be read ({0}, last modified {1}). Treating dictionaries as potentially in use. If the keyboard is not using them, wait a moment." = "词库租约文件无法读取（{0}，最后修改 {1}）。暂时按“键盘可能正在使用”处理；若键盘并未使用词库，稍候片刻即可。";
 "The engine linked by this app. Tables, prisms, and grammar models are mapped read only; the extension does not write them." = "本项目链接的引擎。表、棱镜与语法模型以只读方式映射，扩展不写它。";
@@ -372,7 +355,6 @@
 "There are {0} iCloud conflict copies; all will be read" = "有 {0} 个 iCloud 冲突副本，会一并读取";
 "This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone." = "清空整个日志目录：探针日志与 librime 自己的日志文件。键盘、词库和用户数据都不受影响，清空后无法恢复。";
 "This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop).librime imports add entries; removing a line and importing again does not delete that word." = "整表删除，无法恢复；若要只忘掉某一个词，请在键盘的候选上长按删除（桌面端的 Shift+Delete）。librime 的导入是增量写入，删掉一行再导回去并不会移除词条。";
-"This preview uses the same views as the keyboard extension and shows appearance only." = "与扩展共用同一套视图代码，这里只用于查看外观。";
 "This profile does not include {0}" = "该配置里没有 {0}";
 "This profile has no default.yaml; generated one containing {0} schemes" = "该配置没有 default.yaml，已生成一个列出 {0} 个方案";
 "This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy." = "当前配置没有可用的编译数据，键盘正在使用内置数据；打开 Arkey 重新部署";
@@ -419,7 +401,6 @@
 /* User-initiated profile acquisition. */
 "Cancel download" = "取消下载";
 "Checking download…" = "正在检查下载…";
-"Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it." = "选择 ZIP 文件、从其他应用分享 ZIP 到 Arkey，或填写 HTTPS ZIP 链接。导入只安装配置，不会部署。";
 "Download" = "下载";
 "Download ZIP from URL" = "从链接下载 ZIP";
 "Download cancelled." = "已取消下载。";
@@ -431,20 +412,13 @@
 "HTTPS ZIP download URL" = "HTTPS ZIP 下载链接";
 "Import ZIP from Files" = "从文件导入 ZIP";
 "Installed in Profile library. Deploy it separately when ready. The active profile has not changed." = "已安装到配置库，可在准备好后单独部署。当前启用的配置未改变。";
-"Latest development build with the full dictionary. Frequent updates may require changes to existing settings." = "跟随 nightly 开发构建，保留完整词库。更新频繁，可能需要调整已有设置。";
-"Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks." = "跟随 nightly 开发构建，移除 大型扩展词库。部署更快，候选覆盖减少，并有开发版兼容风险。";
-"Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage." = "使用最新正式发布，保留完整词库。候选覆盖更全面，部署较慢、占用较多。";
 "Manual import" = "主动导入";
 "Preset downloads" = "预设下载";
-"Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage." = "推荐。使用最新正式发布，移除 大型扩展词库。部署更快、占用更少，部分候选覆盖减少。";
-"Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag." = "正式版使用最新稳定发布。开发版跟随 nightly 构建，独立于 GitHub 的 prerelease 标记识别。";
 "Release: {0}" = "版本：{0}";
 "Rime Ice · Nightly · Full" = "雾凇拼音 · 开发版 · 完整";
 "Rime Ice · Nightly · Slim" = "雾凇拼音 · 开发版 · 精简";
 "Rime Ice · Release · Full" = "雾凇拼音 · 正式版 · 完整";
 "Rime Ice · Release · Slim" = "雾凇拼音 · 正式版 · 精简";
-"Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action." = "精简版下载官方 full.zip 后在本地裁剪大词库，下载量与完整版相同。下载后安装到配置库，部署需单独操作。";
-"Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible." = "新版本单独安装，并保留此版本。部署成功不代表所有已有自定义补丁都兼容。";
 "Validating and installing…" = "正在校验并安装…";
 "Wait for the current download, import, or deployment to finish." = "请等待当前下载、导入或部署完成。";
 "Release notes" = "版本更新说明";
@@ -464,15 +438,11 @@
 "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?" = "此配置包含用户配置文件：{0}。导入后会替换用户目录中的同名文件。是否一并导入？";
 
 "Personal dictionary" = "个人词库";
-"Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails." = "源数据独立于已安装配置保存。切换或删除配置都会保留源数据；即使转换失败，原始编码和删词标记也会保留。";
 "{0} recognized personal words from {1} dictionaries; {2} source entries are kept without conversion." = "从 {1} 个词库识别出 {0} 个个人词条；另有 {2} 条源记录原样保留，尚未转换。";
 "Automatic restoration is paused for cleared dictionaries: {0}. Their source records remain in the export." = "已暂停向清空过的词库自动恢复词条：{0}。导出包仍保留它们的源记录。";
-"Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed." = "自动兼容目前支持雾凇、白霜、朙月和四叶草中的普通话无声调拼音，只补入缺失词条，不合并学习分数。其他编码原样保留，供手动处理；不会根据文字猜测读音。";
-"Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary." = "删词标记会阻止旧词被再次补入，但不会删除另一方案词库中已经存在的词条。";
 "Refresh personal sources" = "刷新个人源数据";
 "Export personal sources…" = "导出个人源数据…";
 "Share personal sources" = "分享个人源数据";
-"The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning." = "ZIP 包含原始 Rime 快照、可读的个人词条索引和格式说明。导出的是最近成功保存的记录，整个 ZIP 不能直接导入鼠须管；收起键盘后刷新，可保存最近的学习记录。";
 "Some source records or compatible words could not be updated. Retained sources are unchanged and remain exportable. Details: {0}" = "部分源记录或兼容词条未能更新。已保存的源数据仍然保留，可以导出。详情：{0}";
 "Automatic compatibility is not available for {0}. Its original records are retained without conversion." = "暂不支持对 {0} 自动兼容，其原始记录会保留，不做转换。";
 "Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept." = "个人源数据已更新。兼容方案会补入缺失词条，已有学习分数保留。";
@@ -491,22 +461,78 @@
 
 "Enter one letter, number, or half-width symbol. The last valid character remains active." = "请输入一个字母、数字或半角符号。当前仍使用上次有效的字符。";
 
-"Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "两个按键默认关闭，左右可独立配置。关闭右侧按键后，回车键会加宽，同时为空格键保留足够空间。自定义字符支持单个字母、数字或半角符号，输入结果遵循当前输入方案。";
 
-"Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules." = "输入一个半角特殊字符，全角字符会自动转换。在空格任一侧选择「辅助码键」即可显示。前导符和拼写方案会保存到当前方案与 radical_pinyin，并自动部署。请选择你使用的拼写方案；各方案共用辅助码规则。";
 "Chinese input only" = "仅使用中文输入";
-"Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available." = "隐藏中英切换键并加宽空格。可通过地球键切换到其他键盘。数字、符号和输入方案的中英混输仍可使用。";
 
-"These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style." = "这里设置的是方案启动时的默认状态，部署完成后，下次打开键盘时生效。半角模式也可以使用中文标点；标点风格由方案的中英文标点开关控制。";
 
 "Chinese keyboard — keys beside Space" = "中文键盘 — 空格两侧按键";
 
 "English keyboard — keys beside Space" = "英文键盘 — 空格两侧按键";
 
-"Both keys are off by default. English input supports custom characters only; these settings apply when you switch to English." = "两侧按键默认关闭。英文输入仅支持自定义字符；切换到英文时应用这些设置。";
 
-"Chinese keyboard" = "中文键盘";
 
-"English keyboard" = "英文键盘";
 
-"Input mode" = "输入模式";
+
+"Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps." = "正在编译，请勿中断。完成前请保持 App 在前台，不要锁屏或切换应用。";
+"The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile." = "上次对「{0}」的编译未确认完成，请重试编译以完成配置应用。";
+"Failed to read compilation status: {0}" = "读取编译状态失败：{0}";
+"Failed to save compilation status: {0}" = "保存编译状态失败：{0}";
+"Compilation completed, but its status could not be saved: {0}" = "编译已完成，但无法保存完成状态：{0}";
+"Dismiss" = "关闭提示";
+"Debug mode" = "调试模式";
+"Show startup status in the candidate bar. Off by default; applies next time the keyboard opens." = "在候选区显示启动状态信息。默认关闭，下次打开键盘时生效。";
+"After updating, check that your custom settings work with the new version." = "更新后，请检查自定义设置是否适用于新版本。";
+"Automatic transfer supports Mandarin words in Rime Ice, Rime Frost, Luna Pinyin, and Clover Pinyin; other encodings are kept for manual use." = "自动迁移支持雾凇拼音、白霜拼音、朙月拼音和四叶草拼音的普通话词条；其他编码会保留，供手动使用。";
+"Available input options depend on the selected scheme." = "可用的输入选项取决于当前方案。";
+"Changes deploy automatically and take effect the next time the keyboard opens." = "修改后自动部署，下次打开键盘时生效。";
+"Changes take effect the next time the keyboard opens." = "修改在下次打开键盘时生效。";
+"Changes to the auxiliary prefix or spelling deploy automatically." = "修改辅码前导符或拼写方案后会自动部署。";
+"Choose Auxiliary key beside Space to show it on the Chinese keyboard." = "在空格任一侧选择「辅助码键」即可在中文键盘上显示。";
+"Choose the auxiliary spelling you use; schemes share the same auxiliary rules." = "请选择你使用的辅码拼写方案；各输入方案共用辅码规则。";
+"Close the keyboard and refresh personal sources before exporting to include recent learning." = "导出前请先关闭键盘并刷新个人源数据，以包含最近学到的词。";
+"Configure each side independently for Chinese and English input; hiding the right key widens Return." = "中英文键盘的左右按键可分别配置；隐藏右侧按键后，回车键会加宽。";
+"Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "自定义字符支持单个字母、数字或半角符号，输入结果遵循当前方案。";
+"Downloaded profiles must be deployed from Profile library before use." = "下载后需在配置库中部署，才能使用。";
+"Enable the pronunciation pairs you want to treat as equivalent." = "开启需要混用的发音组合。";
+"English input supports custom characters only." = "英文键盘仅支持自定义字符。";
+"Enter one half-width special character; full-width equivalents are converted automatically." = "输入一个半角特殊字符；对应的全角字符会自动转换。";
+"Files use Rime’s plain text format and can be exchanged between phone and desktop." = "文件使用 Rime 纯文本格式，可在手机和电脑之间交换。";
+"Forgetting a word prevents it from being restored, but does not remove it from other scheme dictionaries." = "遗忘词条后不会再自动恢复，但不会删除其他方案词库中已有的同一词条。";
+"Full/half-width and Chinese/English punctuation are set in Scheme and input." = "全角、半角和中英文标点在「方案与输入」中设置。";
+"Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style." = "半角模式也可以使用中文标点；标点风格由方案的中英文标点开关控制。";
+"Hides the Chinese/English key and widens Space." = "隐藏中英切换键并加宽空格。";
+"Import a ZIP or folder from Files, share a ZIP to Arkey, or enter an HTTPS ZIP link." = "可从「文件」导入 ZIP 或文件夹，将 ZIP 分享到 Arkey，或输入 HTTPS ZIP 链接。";
+"Import backs up current settings and redeploys automatically." = "导入时会备份当前设置，并自动重新部署。";
+"Imported profiles must be deployed before use." = "导入后需部署配置，才能使用。";
+"Key popups appear only on phones." = "按键气泡仅在手机上显示。";
+"Key sounds require system keyboard sounds and are muted in silent mode." = "按键声音需同时开启系统键盘声音，静音模式下不播放。";
+"Learning is stored by dictionary name, so switching profiles and back keeps learned words." = "学习记录按词库名称保存，切换配置后再切回仍会保留。";
+"Merging adds other devices’ words and creates a backup first." = "合并前会先备份，再添加其他设备的词条。";
+"Merging reads other devices’ snapshots from the shared sync folder." = "合并会读取共享同步文件夹中其他设备的词库快照。";
+"Modified" = "已修改";
+"Only changes how uncommitted text is displayed." = "仅改变未上屏文字的显示方式。";
+"Personal words are kept when switching or deleting profiles." = "切换或删除配置时，个人词条仍会保留。";
+"Release follows stable versions; Nightly follows development builds." = "Release 跟随稳定版本，Nightly 跟随开发版本。";
+"Replace all replaces the existing phrase list with the imported phrases." = "「全部替换」会用导入的短语替换现有短语列表。";
+"Restores keyboard settings while keeping the auxiliary prefix and spelling." = "恢复键盘设置，保留辅码前导符和拼写方案。";
+"Settings exports include custom settings and phrases, excluding downloaded or imported profiles." = "导出设置包含自定义设置和短语，不包含下载或导入的配置。";
+"Slim omits the large dictionary but downloads the same amount of data as Full." = "Slim 不保留大型词库，但下载流量与 Full 相同。";
+"Startup defaults" = "启动默认状态";
+"Sync folder" = "同步文件夹";
+"System mode uses the host keyboard background; the fixed palette uses solid colors." = "跟随系统时使用当前应用的键盘背景；固定调色板使用纯色。";
+"The ZIP contains original dictionary snapshots, a readable word index, and instructions; it cannot be imported directly into Squirrel." = "ZIP 包含原始词库快照、可读词条索引和说明，不能直接导入鼠须管。";
+"The keyboard uses this language the next time it opens." = "键盘在下次打开时使用此语言。";
+"The symbol table determines which symbols the scheme offers." = "符号表决定方案提供哪些符号。";
+"These switches set the scheme’s initial state when the keyboard opens." = "这些开关决定方案在键盘打开时的初始状态。";
+"Transfer adds missing words without combining learning scores." = "迁移仅补充缺少的词条，不合并学习权重。";
+"Turning off learning keeps existing learned words." = "关闭学习后，已有的学习词条仍会保留。";
+"Updates" = "更新";
+"Updates install separately and keep the current version." = "更新会单独安装，并保留当前版本。";
+"Usage guide" = "使用说明";
+"Use the globe key for other keyboards; numbers, symbols, and mixed-language input from your scheme remain available." = "可通过地球键切换其他键盘；数字、符号和方案的中英混输仍可使用。";
+"Import replaces the entire phrase list." = "导入会替换整个短语列表。";
+"To hear key sounds, enable Sound in Settings > Sounds & Haptics > Keyboard Feedback." = "如需按键声音，请在「设置 > 声音与触感 > 键盘反馈」中开启「声音」。";
+"Full dictionary with broader coverage, slower deployment, and more storage." = "完整词库覆盖更广，部署较慢，占用空间更多。";
+"Recommended for faster deployment and less storage, with reduced candidate coverage." = "推荐使用，部署更快、占用更少，候选词覆盖略少。";
+"Full dictionary with broader coverage and development-build compatibility risks." = "完整词库覆盖更广，开发版本可能需要调整现有设置。";
+"Faster deployment with reduced coverage and development-build compatibility risks." = "部署更快、候选词覆盖略少，开发版本可能需要调整现有设置。";

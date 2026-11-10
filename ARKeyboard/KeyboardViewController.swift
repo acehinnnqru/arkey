@@ -406,8 +406,15 @@ final class KeyboardViewController: UIInputViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    updateThemeIfNeeded()
     backingState.didAppear()
     recordGeometry("didAppear", force: true)
+  }
+
+  override func viewIsAppearing(_ animated: Bool) {
+    super.viewIsAppearing(animated)
+    // The host traits may arrive after viewWillAppear, once the view is attached.
+    updateThemeIfNeeded()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -474,11 +481,15 @@ final class KeyboardViewController: UIInputViewController {
 
   private var currentTheme: KeyboardTheme {
     KeyboardTheme.current(for: textDocumentProxy.keyboardAppearance,
-                          interfaceStyle: view.traitCollection.userInterfaceStyle,
+                          interfaceStyle: traitCollection.userInterfaceStyle,
+                          fallbackInterfaceStyle: view.traitCollection.userInterfaceStyle,
                           previous: hasAppliedTheme ? theme : nil)
   }
 
   private func updateThemeIfNeeded() {
+    // Detached views can receive temporary light traits while the host tears down.
+    // Resolve the new host again on appearance instead of caching that transition.
+    guard isPresented else { return }
     guard currentTheme.appearance != theme.appearance else { return }
     // Do not inherit the host's navigation animation when changing key colours.
     UIView.performWithoutAnimation {
@@ -533,7 +544,9 @@ final class KeyboardViewController: UIInputViewController {
         setup.probe?.append(RimeProbeRecord(phase: "keyboard.boot",
                                             milliseconds: start.milliseconds,
                                             message: detail))
-        candidateBar.setMessage(KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess))
+        candidateBar.setMessage(preferences.debugModeEnabled
+          ? KeyboardEngine.statusLine(setup, hasFullAccess: hasFullAccess)
+          : RimeProfileRecovery.of(setup.resolved)?.message ?? "")
         recoveringInputState = nil
         isWaitingForDictionaries = false
         dictionaryRetryDelay = 0.1
@@ -684,6 +697,10 @@ final class KeyboardViewController: UIInputViewController {
     guard !preferences.chineseInputOnly else { return }
     guard ensureInputSession(), let engine else { return }
     do {
+      if let input = try engine.rawInput(), !input.isEmpty {
+        try engine.clearComposition()
+        apply(RimeOutput(handled: true, commit: input, composition: nil, page: nil, status: nil))
+      }
       try KeyboardEngine.ensureInputSchema(engine)
       try engine.setOption("ascii_mode", !asciiMode)
       apply(try engine.refresh())

@@ -371,8 +371,8 @@ too, so the test travels; but the sentence matters either way: a settings screen
 Round 165 finished the app's write paths with the 自定义短语 list, and that test found a defect. Adding a phrase
 writes `<user>/custom_phrase.txt` and then deploys it; on a container with no profile the deploy was called with the
 empty id its callers pass, the coordinator built the path `profiles//source` and failed, and the user's screen
-said `部署失败：the profile has no sources at /Users/…/profiles//source` — English, internal, and carrying a
-filesystem path. `deploy(profileID:)` guards the empty id now and says 没有可部署的配置。, the sentence
+showed `部署失败` followed by an English diagnostic containing the full path to `profiles//source`.
+`deploy(profileID:)` guards the empty id now and says 没有可部署的配置。, the sentence
 `redeployActiveProfile()` already used for the same situation; the test fails on the old behaviour and passes on
 the new one, which is the mutation evidence.
 
@@ -552,11 +552,12 @@ touched. The failure it produces is the right one, which is why the mutation pro
 
 ## The app runs, and its first screen (S6-AC1)
 
-Nothing had ever launched the app. On a simulator it takes two commands and a screenshot:
+Nothing had ever launched the app. These commands install and launch it on a simulator and save a screenshot:
 
     xcrun simctl install booted .build/DerivedData-test/Build/Products/Debug-iphonesimulator/arkey.app
     xcrun simctl launch booted com.acehinnnqru.arkey
-    sleep 4 && xcrun simctl io booted screenshot /tmp/arkey-home.png
+    capture_dir="$(mktemp -d -t arkey-screenshot)"
+    sleep 4 && xcrun simctl io booted screenshot "$capture_dir/arkey-home.png"
 
 It came up — the pid was alive five seconds later — and its home screen was seen: the Arkey title, the 键盘
 tab, an input box with its hint, the status line for a container with nothing deployed, the engine's own
@@ -679,9 +680,9 @@ Verified from both sides in a throwaway clone: a fake `rime_ice.dict.yaml` at th
 
 ## The type-check script reports the build it hides
 
-`scripts/typecheck-app.sh` builds the engine for the simulator before it type-checks the app, and
-that build's output was sent to `/dev/null`: an engine compile error therefore surfaced as a bare
-`exit 1` with no message, and the first sign of trouble was the next step not printing. It happened
+`scripts/typecheck-app.sh` builds the engine for the simulator before it type-checks the app. It used
+to discard the build output, so an engine compile error surfaced as a bare `exit 1` with no message.
+The first sign of trouble was the next step not printing. It happened
 during the S5 work in round 109 and cost a build cycle to interpret. The output now goes to
 `.build/typecheck-build.log`, and a failure prints its last thirty lines before exiting — the script
 still fails, but it says why.
@@ -1153,9 +1154,10 @@ app's folder only when the app declares `UIFileSharingEnabled` — the picker an
 (photographed from the simulator, before the key existed). That key is set now, and
 `S6ProjectSettingsTests.testTheAppsOwnDocumentsFolderIsBrowsable` refuses the bundle without it.
 
-**The user's archive could not have imported either**, and the refusal was wrong about why. `zip -r backup.zip
-/Users/me/Library/Rime` stores the path, so the config arrives at `Users/me/Library/Rime/…` — four folders down,
-while S1 §5.1 stage 3 caps the config-root search at two so a nested archive cannot be mistaken for the config.
+**The user's archive could not have imported either**, and the refusal was wrong about why.
+`zip -r backup.zip ~/Library/Rime` expands the home directory and stores the path in the archive. The config
+arrives four folders down, while S1 §5.1 stage 3 caps the config-root search at two so a nested archive
+cannot be mistaken for the config.
 The cap stays; the sentence no longer lies about it. `RimeImportError.configRootTooDeep` names the folder it
 found and the depth, and says what to do (pack the Rime folder itself), and
 `S1ImportTests.testAnArchiveThatStoresThePathToTheConfigSaysWhereItIs` builds exactly that archive and pins the

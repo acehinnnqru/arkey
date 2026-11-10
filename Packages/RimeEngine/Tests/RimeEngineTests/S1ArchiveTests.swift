@@ -146,7 +146,8 @@ final class S1ArchiveTests: XCTestCase {
   func testZipSlipIsRejected() {
     expect(.unsafePath("../evil.yaml"), makeArchive([RawEntry(path: "../evil.yaml")]))
     expect(.unsafePath("a/../../evil.yaml"), makeArchive([RawEntry(path: "a/../../evil.yaml")]))
-    expect(.unsafePath("/etc/passwd"), makeArchive([RawEntry(path: "/etc/passwd")]))
+    let absolutePath = scratch.appendingPathComponent("outside.yaml").path
+    expect(.unsafePath(absolutePath), makeArchive([RawEntry(path: absolutePath)]))
     expect(.unsafePath("C:/windows/evil.yaml"), makeArchive([RawEntry(path: "C:/windows/evil.yaml")]))
     expect(.unsafePath("a\\b.yaml"), makeArchive([RawEntry(path: "a\\b.yaml")]))
     expect(.unsafePath(""), makeArchive([RawEntry(path: "")]))

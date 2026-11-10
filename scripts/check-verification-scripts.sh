@@ -45,7 +45,7 @@ if [ -n "$bundle" ] && [ ! -d "$bundle" ]; then
   exit 2
 fi
 
-work="$(mktemp -d /tmp/arkey-checks.XXXXXX)"
+work="$(mktemp -d -t arkey-checks)"
 trap 'rm -rf "$work"' EXIT
 git clone -q "$root" "$work/repo" || { echo "could not clone $root" >&2; exit 2; }
 rm -rf "$work/repo/scripts"

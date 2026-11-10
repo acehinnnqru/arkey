@@ -50,6 +50,7 @@ struct ProfileLibraryView: View {
       storageSection
     }
     .navigationTitle(RimeLocalization.text("Profile library"))
+    .settingsHelp { usageGuide }
     .accessibilityIdentifier("profile-library")
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
@@ -180,7 +181,7 @@ struct ProfileLibraryView: View {
     } header: {
       Text(RimeLocalization.text("Add profiles"))
     } footer: {
-      Text(RimeLocalization.text("Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it."))
+      Text(RimeLocalization.text("Imported profiles must be deployed before use."))
     }
   }
 
@@ -224,7 +225,6 @@ struct ProfileLibraryView: View {
         }
         if busyProfileID == entry.metadata.id { ProgressView().controlSize(.mini) }
       }
-      Text(entry.metadata.id).font(.caption2).foregroundStyle(.secondary)
       Text(detail(entry)).font(.caption).foregroundStyle(.secondary)
       if let tag = entry.metadata.source.releaseTag {
         Text(RimeLocalization.text("Release: \(tag)")).font(.caption).foregroundStyle(.secondary)
@@ -234,8 +234,6 @@ struct ProfileLibraryView: View {
           Spacer()
           ProfileDownloadButton(model: model, entry: preset)
         }
-        Text(RimeLocalization.text("Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible."))
-          .font(.caption2).foregroundStyle(.secondary)
       }
       HStack(spacing: 12) {
         Button(entry.isActive ? RimeLocalization.text("Redeploy") : RimeLocalization.text("Deploy")) { deploy(entry) }
@@ -278,7 +276,7 @@ struct ProfileLibraryView: View {
     } header: {
       Text(RimeLocalization.text("Settings"))
     } footer: {
-      Text(RimeLocalization.text("Exports contain *.custom.yaml and custom phrases, excluding third-party profile data. Import backs up current settings and redeploys automatically."))
+      Text(RimeLocalization.text("Import backs up current settings and redeploys automatically."))
     }
   }
 
@@ -309,7 +307,21 @@ struct ProfileLibraryView: View {
       } else {
         Text(RimeLocalization.text("(not measured yet)")).font(.caption).foregroundStyle(.secondary)
       }
-      Text(model.workspace.root.path).font(.caption2).foregroundStyle(.secondary)
+    }
+  }
+
+  private var usageGuide: some View {
+    Group {
+      Section(RimeLocalization.text("Add profiles")) {
+        Text(RimeLocalization.text("Import a ZIP or folder from Files, share a ZIP to Arkey, or enter an HTTPS ZIP link."))
+      }
+      Section(RimeLocalization.text("Updates")) {
+        Text(RimeLocalization.text("Updates install separately and keep the current version."))
+        Text(RimeLocalization.text("After updating, check that your custom settings work with the new version."))
+      }
+      Section(RimeLocalization.text("Settings")) {
+        Text(RimeLocalization.text("Settings exports include custom settings and phrases, excluding downloaded or imported profiles."))
+      }
     }
   }
 

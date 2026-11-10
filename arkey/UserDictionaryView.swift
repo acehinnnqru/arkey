@@ -69,6 +69,7 @@ struct UserDictionaryView: View {
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .navigationTitle(RimeLocalization.text("User dictionaries"))
+    .settingsHelp { usageGuide }
     .searchable(text: $query, prompt: RimeLocalization.text("Search dictionary names"))
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
@@ -107,9 +108,7 @@ struct UserDictionaryView: View {
   }
 
   private var personalSection: some View {
-    Section(RimeLocalization.text("Personal dictionary")) {
-      Text(RimeLocalization.text("Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails."))
-        .font(.footnote).foregroundStyle(.secondary)
+    Section {
       if let library = model.personalDictionary {
         let words = model.personalDictionaryWordCount.formatted(.number.locale(interfaceLocale))
         let sources = library.latestSources.count.formatted(.number.locale(interfaceLocale))
@@ -127,10 +126,6 @@ struct UserDictionaryView: View {
           }
         }
       }
-      Text(RimeLocalization.text("Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed."))
-        .font(.footnote).foregroundStyle(.secondary)
-      Text(RimeLocalization.text("Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary."))
-        .font(.footnote).foregroundStyle(.secondary)
       if let message = model.personalDictionaryMessage {
         Text(message.text).font(.caption).accessibilityIdentifier("personal-dictionary-status")
       }
@@ -155,8 +150,10 @@ struct UserDictionaryView: View {
         ShareLink(item: url) { Text(RimeLocalization.text("Share personal sources")) }
           .accessibilityIdentifier("share-personal-dictionary")
       }
-      Text(RimeLocalization.text("The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning."))
-        .font(.footnote).foregroundStyle(.secondary)
+    } header: {
+      Text(RimeLocalization.text("Personal dictionary"))
+    } footer: {
+      Text(RimeLocalization.text("Personal words are kept when switching or deleting profiles."))
     }
   }
 
@@ -260,7 +257,7 @@ struct UserDictionaryView: View {
   }()
 
   private func syncSection(_ report: RimeUserDictionaryReport) -> some View {
-    Section(RimeLocalization.text("Sync")) {
+    Section {
       Button {
         Task { await model.syncDictionaries() }
       } label: {
@@ -279,8 +276,6 @@ struct UserDictionaryView: View {
         }
       }
       .disabled(model.isSyncing || !report.isLeaseCold || model.syncDisabledReason != nil)
-      Text(RimeLocalization.text("Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging."))
-        .font(.caption2).foregroundStyle(.secondary)
       if let leaseReason = report.leaseBlocker {
         // The engine's own sentence: a live keyboard and an unreadable lease file are different
         // situations, and the screen should not describe one as the other.
@@ -294,9 +289,7 @@ struct UserDictionaryView: View {
           .font(.caption)
           .disabled(model.isSyncing)
       }
-      if let directory = report.syncDirectory {
-        Text(UserFacing.text(directory)).font(.caption2).foregroundStyle(.secondary)
-      } else {
+      if report.syncDirectory == nil {
         Text(RimeLocalization.text("Sync folder has not been initialized")).font(.caption2).foregroundStyle(.secondary)
       }
       // S5 §6's alternative: a folder the user picked, held as a bookmark, validated when it changes.
@@ -317,11 +310,33 @@ struct UserDictionaryView: View {
       if let problem = model.syncChoiceProblem {
         Text(problem.text).font(.caption2).foregroundStyle(.orange)
       }
-      if let id = report.installationID {
-        Text("installation_id " + id).font(.caption2).foregroundStyle(.secondary)
+    } header: {
+      Text(RimeLocalization.text("Sync"))
+    } footer: {
+      Text(RimeLocalization.text("Merging adds other devices’ words and creates a backup first."))
+    }
+  }
+
+  private var usageGuide: some View {
+    Group {
+      Section(RimeLocalization.text("Personal dictionary")) {
+        Text(RimeLocalization.text("Automatic transfer supports Mandarin words in Rime Ice, Rime Frost, Luna Pinyin, and Clover Pinyin; other encodings are kept for manual use."))
+        Text(RimeLocalization.text("Transfer adds missing words without combining learning scores."))
+        Text(RimeLocalization.text("Forgetting a word prevents it from being restored, but does not remove it from other scheme dictionaries."))
       }
-      Text(RimeLocalization.text("Learning belongs to dictionary names, so switching profiles and back preserves learned words."))
-        .font(.caption2).foregroundStyle(.secondary)
+      Section(RimeLocalization.text("Export personal sources…")) {
+        Text(RimeLocalization.text("Close the keyboard and refresh personal sources before exporting to include recent learning."))
+        Text(RimeLocalization.text("The ZIP contains original dictionary snapshots, a readable word index, and instructions; it cannot be imported directly into Squirrel."))
+      }
+      Section(RimeLocalization.text("Sync")) {
+        Text(RimeLocalization.text("Merging reads other devices’ snapshots from the shared sync folder."))
+        Text(RimeLocalization.text("Learning is stored by dictionary name, so switching profiles and back keeps learned words."))
+        if let directory = model.dictionaryReport?.syncDirectory {
+          LabeledContent(RimeLocalization.text("Sync folder")) {
+            Text(UserFacing.text(directory)).textSelection(.enabled)
+          }
+        }
+      }
     }
   }
 

@@ -62,7 +62,13 @@ public enum RimeProfileSlimming {
       guard let text = RimeFileScan.text(url) else { continue }
       guard text.contains("import_tables") else { continue }
 
-      let (updated, hit) = strip(text: text, tables: wanted)
+      let updated: String
+      let hit: Set<String>
+      do {
+        (updated, hit) = try strip(text: text, tables: wanted, engine: engine)
+      } catch {
+        throw RimeSlimmingError.verificationFailed(path, String(describing: error))
+      }
       let referenced = hit.intersection(wanted)
       guard !referenced.isEmpty else { continue }
       found.formUnion(referenced)
@@ -72,7 +78,9 @@ public enum RimeProfileSlimming {
       // must leave the file exactly as it was.
       let parsed: [String]
       do {
-        parsed = try engine.configFromYAML(updated).value("import_tables")?.listValue?
+        let config = try engine.configFromYAML(updated)
+        defer { config.close() }
+        parsed = config.value("import_tables")?.listValue?
           .compactMap { entry in
             switch entry {
             case .string(let value): return value
@@ -109,21 +117,39 @@ public enum RimeProfileSlimming {
   /// including the comments a config author wrote about them.
   ///
   /// Returns the rewritten text and the table names it saw referenced.
-  static func strip(text: String, tables: Set<String>) -> (String, Set<String>) {
+  static func strip(text: String, tables: Set<String>, engine: RimeEngine) throws -> (String, Set<String>) {
     var output: [String] = []
     var referenced = Set<String>()
     var inImportTables = false
 
     for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
       let trimmed = line.trimmingCharacters(in: .whitespaces)
-      if trimmed == "import_tables:" {
+      let afterImportKey = trimmed.hasPrefix("import_tables:")
+        ? String(trimmed.dropFirst("import_tables:".count)).trimmingCharacters(in: .whitespaces)
+        : nil
+      if let afterImportKey, afterImportKey.isEmpty || afterImportKey.hasPrefix("#") {
         inImportTables = true
         output.append(String(line))
         continue
       }
       if inImportTables {
         if trimmed.hasPrefix("- ") {
-          let value = normalise(String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces))
+          // Let YAML interpret quotes and trailing comments. Comparing the raw line would leave
+          // an import such as `- cn_dicts/tencent # large table` behind after deleting its file.
+          let config = try engine.configFromYAML("import_tables:\n  " + trimmed)
+          defer { config.close() }
+          let entry = config.value("import_tables")?.listValue?.first
+          let name: String?
+          switch entry {
+          case .string(let value): name = value
+          case .map(let map): name = map["table"]?.stringValue
+          default: name = nil
+          }
+          guard let name else {
+            output.append(String(line))
+            continue
+          }
+          let value = normalise(name)
           referenced.insert(value)
           if tables.contains(value) {
             // A removed entry takes its own line and nothing else: the list stays a list.

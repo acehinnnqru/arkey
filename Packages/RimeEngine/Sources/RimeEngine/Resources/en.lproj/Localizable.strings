@@ -58,13 +58,8 @@
 "Candidate selection failed: " = "Candidate selection failed: ";
 "Candidate {0}" = "Candidate {0}";
 "Caps Lock" = "Caps Lock";
-"Changes are saved to {0}.custom.yaml and deployed automatically. The keyboard adopts them next time it opens." = "Changes are saved to {0}.custom.yaml and deployed automatically. The keyboard adopts them next time it opens.";
 "Changes take effect when the keyboard next opens; current input is not interrupted." = "Changes take effect when the keyboard next opens; current input is not interrupted.";
-"Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens." = "Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens.";
-"Chinese is the default. The keyboard uses this language the next time it opens." = "Chinese is the default. The keyboard uses this language the next time it opens.";
 "Choose a scheme" = "Choose a scheme";
-"Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches." = "Choose a symbol table and redeploy. Full/half-width and Chinese/English punctuation remain controlled by the schema switches.";
-"Choose one input scheme. Changes are deployed automatically and take effect the next time the keyboard opens." = "Choose one input scheme. Changes are deployed automatically and take effect the next time the keyboard opens.";
 "Choose sync folder…" = "Choose sync folder…";
 "Clear" = "Clear";
 "Clear and delete" = "Clear and delete";
@@ -132,7 +127,6 @@
 "Export snapshot (readable by Squirrel)" = "Export snapshot (readable by Squirrel)";
 "Exported {0} dictionary snapshots ({1})" = "Exported dictionary snapshots: {0} ({1})";
 "Exported {0} settings files: {1}" = "Exported settings files ({0}): {1}";
-"Exports contain *.custom.yaml and custom phrases, excluding third-party profile data. Import backs up current settings and redeploys automatically." = "Exports contain *.custom.yaml and custom phrases, excluding third-party profile data. Import backs up current settings and redeploys automatically.";
 "Extended symbol table" = "Extended symbol table";
 "Extension container" = "Extension container";
 "Failed to choose sync folder: {0}" = "Failed to choose sync folder: {0}";
@@ -161,7 +155,6 @@
 "Failed to select a folder: {0}" = "Failed to select a folder: {0}";
 "Failed to switch: {0}" = "Failed to switch: {0}";
 "Feedback" = "Feedback";
-"Files use Rime’s plain text format and can be exchanged between phone and desktop. Import uses the selected mode and never overwrites silently.\n{0}" = "Files use Rime’s plain text format and can be exchanged between phone and desktop. Import uses the selected mode and never overwrites silently.\n{0}";
 "Finished" = "Finished";
 "Fixed palette" = "Fixed palette";
 "Flypy double pinyin" = "Flypy double pinyin";
@@ -209,14 +202,10 @@
 "Keep existing; ignore import" = "Keep existing; ignore import";
 "Key input failed: " = "Key input failed: ";
 "Key popups" = "Key popups";
-"Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device." = "Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device.";
 "Key sounds" = "Key sounds";
-"Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds." = "Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds.";
 "Keyboard" = "Keyboard";
 "Keyboard log ({0} records)" = "Keyboard log ({0})";
-"Keyboard preview" = "Keyboard preview";
 "Language" = "Language";
-"Learning belongs to dictionary names, so switching profiles and back preserves learned words." = "Learning belongs to dictionary names, so switching profiles and back preserves learned words.";
 "Left of Space" = "Left of Space";
 "Letters" = "Letters";
 "Licenses" = "Licenses";
@@ -233,7 +222,6 @@
 "Merge failed: {0}" = "Merge failed: {0}";
 "Merge other devices" = "Merge other devices";
 "Microsoft double pinyin" = "Microsoft double pinyin";
-"Modified (switches are saved together, so the entire section is marked)" = "Modified (switches are saved together, so the entire section is marked)";
 "Modified; awaiting deployment" = "Modified; awaiting deployment";
 "Natural Code double pinyin" = "Natural Code double pinyin";
 "Next" = "Next";
@@ -284,7 +272,6 @@
 "Project page hidden because its address does not use HTTPS" = "Project page hidden because its address does not use HTTPS";
 "Punctuation" = "Punctuation";
 "Read only: " = "Read only: ";
-"Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging." = "Read other devices’ snapshots in the shared folder and add them to this dictionary. A backup is made before merging.";
 "Recent records are shown below. Repeated legacy layout events are grouped." = "Recent records are shown below. Repeated legacy layout events are grouped.";
 "Redeploy" = "Redeploy";
 "Phrase list" = "Phrase list";
@@ -296,7 +283,6 @@
 "Restore default (iCloud / Documents)" = "Restore default (iCloud / Documents)";
 "Restore defaults" = "Restore defaults";
 "Restore failed: {0}" = "Restore failed: {0}";
-"Restore keyboard appearance and key settings. Keep the auxiliary prefix and spelling configured in the Rime scheme." = "Restore keyboard appearance and key settings. Keep the auxiliary prefix and spelling configured in the Rime scheme.";
 "Restore latest settings backup and redeploy" = "Restore latest settings backup and redeploy";
 "Restore the active schema's punctuation settings." = "Restore the active schema's punctuation settings.";
 "Restored from {0} dictionary {1}" = "Restored {1} from {0}";
@@ -313,7 +299,6 @@
 "Rolled back to the previous build" = "Rolled back to the previous build";
 "Rolled back to the previous build." = "Rolled back to the previous build.";
 "Route" = "Route";
-"Saved together in speller/algebra. Repeated toggles do not duplicate rules; disabling removes only that preset’s rules." = "Saved together in speller/algebra. Repeated toggles do not duplicate rules; disabling removes only that preset’s rules.";
 "Schema default" = "Schema default";
 "Schema output" = "Schema output";
 "Scheme" = "Scheme";
@@ -350,7 +335,6 @@
 "Switch to Chinese input" = "Switch to Chinese input";
 "Switch to English input" = "Switch to English input";
 "Switch to the Arkey keyboard in the text field below to try it." = "Switch to the Arkey keyboard in the text field below to try it.";
-"Switches" = "Switches";
 "Symbols" = "Symbols";
 "Sync" = "Sync";
 "Sync complete: {0} snapshots, {1}" = "Sync complete: snapshots {0}, duration {1}";
@@ -361,7 +345,6 @@
 "Sync folder updated" = "Sync folder updated";
 "Sync now" = "Sync now";
 "Syncing…" = "Syncing…";
-"System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears." = "System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears.";
 "Table" = "Table";
 "The dictionary lease file could not be read ({0}, last modified {1}). Treating dictionaries as potentially in use. If the keyboard is not using them, wait a moment." = "The dictionary lease file could not be read ({0}, last modified {1}). Treating dictionaries as potentially in use. If the keyboard is not using them, wait a moment.";
 "The engine linked by this app. Tables, prisms, and grammar models are mapped read only; the extension does not write them." = "The engine linked by this app. Tables, prisms, and grammar models are mapped read only; the extension does not write them.";
@@ -372,7 +355,6 @@
 "There are {0} iCloud conflict copies; all will be read" = "iCloud conflict copies: {0}. All copies will be read.";
 "This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone." = "This clears the entire log folder, including probe and librime logs. Keyboard settings, dictionaries, and user data are unaffected. Clearing cannot be undone.";
 "This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop).librime imports add entries; removing a line and importing again does not delete that word." = "This deletes the entire dictionary and cannot be undone. To forget one word, hold its candidate in the keyboard (Shift+Delete on desktop). librime imports add entries; removing a line and importing again does not delete that word.";
-"This preview uses the same views as the keyboard extension and shows appearance only." = "This preview uses the same views as the keyboard extension and shows appearance only.";
 "This profile does not include {0}" = "This profile does not include {0}";
 "This profile has no default.yaml; generated one containing {0} schemes" = "This profile has no default.yaml; generated one listing the available schemes ({0}).";
 "This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy." = "This profile has no usable build. The keyboard uses built-in data. Open Arkey and redeploy.";
@@ -419,7 +401,6 @@
 /* User-initiated profile acquisition. */
 "Cancel download" = "Cancel download";
 "Checking download…" = "Checking download…";
-"Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it." = "Choose a ZIP, share a ZIP to Arkey from another app, or enter an HTTPS ZIP link. Import installs a profile without deploying it.";
 "Download" = "Download";
 "Download ZIP from URL" = "Download ZIP from URL";
 "Download cancelled." = "Download cancelled.";
@@ -431,20 +412,13 @@
 "HTTPS ZIP download URL" = "HTTPS ZIP download URL";
 "Import ZIP from Files" = "Import ZIP from Files";
 "Installed in Profile library. Deploy it separately when ready. The active profile has not changed." = "Installed in Profile library. Deploy it separately when ready. The active profile has not changed.";
-"Latest development build with the full dictionary. Frequent updates may require changes to existing settings." = "Latest development build with the full dictionary. Frequent updates may require changes to existing settings.";
-"Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks." = "Latest development build without the large expansion dictionary. Faster deployment, with reduced coverage and development-build compatibility risks.";
-"Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage." = "Latest stable release with the full dictionary. Broader candidate coverage, with slower deployment and more storage.";
 "Manual import" = "Manual import";
 "Preset downloads" = "Preset downloads";
-"Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage." = "Recommended. Latest stable release without the large expansion dictionary. Faster deployment and less storage, with reduced candidate coverage.";
-"Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag." = "Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag.";
 "Release: {0}" = "Release: {0}";
 "Rime Ice · Nightly · Full" = "Rime Ice · Nightly · Full";
 "Rime Ice · Nightly · Slim" = "Rime Ice · Nightly · Slim";
 "Rime Ice · Release · Full" = "Rime Ice · Release · Full";
 "Rime Ice · Release · Slim" = "Rime Ice · Release · Slim";
-"Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action." = "Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action.";
-"Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible." = "Updates install separately and keep this version. Deployment success alone does not guarantee that every existing custom patch is compatible.";
 "Validating and installing…" = "Validating and installing…";
 "Wait for the current download, import, or deployment to finish." = "Wait for the current download, import, or deployment to finish.";
 "Release notes" = "Release notes";
@@ -464,15 +438,11 @@
 "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?" = "This profile contains user settings: {0}. Importing them replaces matching files in your user directory. Include them?";
 
 "Personal dictionary" = "Personal dictionary";
-"Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails." = "Your source records are stored independently of installed profiles. Switching or deleting a profile keeps them. Original codes and deletion markers are retained even when conversion fails.";
 "{0} recognized personal words from {1} dictionaries; {2} source entries are kept without conversion." = "{0} recognized personal words from {1} dictionaries; {2} source entries are kept without conversion.";
 "Automatic restoration is paused for cleared dictionaries: {0}. Their source records remain in the export." = "Automatic restoration is paused for cleared dictionaries: {0}. Their source records remain in the export.";
-"Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed." = "Automatic compatibility currently supports plain Mandarin in Rime Ice, Rime Frost, Luna Pinyin and Clover Pinyin. It adds missing words without combining learning scores. Other encodings are preserved for manual use; pronunciations are never guessed.";
-"Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary." = "Deletion markers prevent old words from being added again; they do not remove words already present in another scheme dictionary.";
 "Refresh personal sources" = "Refresh personal sources";
 "Export personal sources…" = "Export personal sources…";
 "Share personal sources" = "Share personal sources";
-"The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning." = "The ZIP contains original Rime snapshots, a readable personal-word index and format instructions. It exports the last successfully saved records and is not imported directly by Squirrel. Refresh after closing the keyboard to include recent learning.";
 "Some source records or compatible words could not be updated. Retained sources are unchanged and remain exportable. Details: {0}" = "Some source records or compatible words could not be updated. Retained sources are unchanged and remain exportable. Details: {0}";
 "Automatic compatibility is not available for {0}. Its original records are retained without conversion." = "Automatic compatibility is not available for {0}. Its original records are retained without conversion.";
 "Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept." = "Personal sources are up to date. Compatible schemes receive missing words; existing learning scores are kept.";
@@ -491,22 +461,78 @@
 
 "Enter one letter, number, or half-width symbol. The last valid character remains active." = "Enter one letter, number, or half-width symbol. The last valid character remains active.";
 
-"Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme.";
 
-"Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules." = "Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules.";
 "Chinese input only" = "Chinese input only";
-"Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available." = "Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available.";
 
-"These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style." = "These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style.";
 
 "Chinese keyboard — keys beside Space" = "Chinese keyboard — keys beside Space";
 
 "English keyboard — keys beside Space" = "English keyboard — keys beside Space";
 
-"Both keys are off by default. English input supports custom characters only; these settings apply when you switch to English." = "Both keys are off by default. English input supports custom characters only; these settings apply when you switch to English.";
 
-"Chinese keyboard" = "Chinese keyboard";
 
-"English keyboard" = "English keyboard";
 
-"Input mode" = "Input mode";
+
+"Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps." = "Compiling… Keep the app open in the foreground until it finishes. Do not lock the screen or switch apps.";
+"The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile." = "The last compilation of {0} was not confirmed complete. Retry compilation to finish applying this profile.";
+"Failed to read compilation status: {0}" = "Failed to read compilation status: {0}";
+"Failed to save compilation status: {0}" = "Failed to save compilation status: {0}";
+"Compilation completed, but its status could not be saved: {0}" = "Compilation completed, but its status could not be saved: {0}";
+"Dismiss" = "Dismiss";
+"Debug mode" = "Debug mode";
+"Show startup status in the candidate bar. Off by default; applies next time the keyboard opens." = "Show startup status in the candidate bar. Off by default; applies next time the keyboard opens.";
+"After updating, check that your custom settings work with the new version." = "After updating, check that your custom settings work with the new version.";
+"Automatic transfer supports Mandarin words in Rime Ice, Rime Frost, Luna Pinyin, and Clover Pinyin; other encodings are kept for manual use." = "Automatic transfer supports Mandarin words in Rime Ice, Rime Frost, Luna Pinyin, and Clover Pinyin; other encodings are kept for manual use.";
+"Available input options depend on the selected scheme." = "Available input options depend on the selected scheme.";
+"Changes deploy automatically and take effect the next time the keyboard opens." = "Changes deploy automatically and take effect the next time the keyboard opens.";
+"Changes take effect the next time the keyboard opens." = "Changes take effect the next time the keyboard opens.";
+"Changes to the auxiliary prefix or spelling deploy automatically." = "Changes to the auxiliary prefix or spelling deploy automatically.";
+"Choose Auxiliary key beside Space to show it on the Chinese keyboard." = "Choose Auxiliary key beside Space to show it on the Chinese keyboard.";
+"Choose the auxiliary spelling you use; schemes share the same auxiliary rules." = "Choose the auxiliary spelling you use; schemes share the same auxiliary rules.";
+"Close the keyboard and refresh personal sources before exporting to include recent learning." = "Close the keyboard and refresh personal sources before exporting to include recent learning.";
+"Configure each side independently for Chinese and English input; hiding the right key widens Return." = "Configure each side independently for Chinese and English input; hiding the right key widens Return.";
+"Custom characters accept one letter, number, or half-width symbol and follow the current input scheme." = "Custom characters accept one letter, number, or half-width symbol and follow the current input scheme.";
+"Downloaded profiles must be deployed from Profile library before use." = "Downloaded profiles must be deployed from Profile library before use.";
+"Enable the pronunciation pairs you want to treat as equivalent." = "Enable the pronunciation pairs you want to treat as equivalent.";
+"English input supports custom characters only." = "English input supports custom characters only.";
+"Enter one half-width special character; full-width equivalents are converted automatically." = "Enter one half-width special character; full-width equivalents are converted automatically.";
+"Files use Rime’s plain text format and can be exchanged between phone and desktop." = "Files use Rime’s plain text format and can be exchanged between phone and desktop.";
+"Forgetting a word prevents it from being restored, but does not remove it from other scheme dictionaries." = "Forgetting a word prevents it from being restored, but does not remove it from other scheme dictionaries.";
+"Full/half-width and Chinese/English punctuation are set in Scheme and input." = "Full/half-width and Chinese/English punctuation are set in Scheme and input.";
+"Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style." = "Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style.";
+"Hides the Chinese/English key and widens Space." = "Hides the Chinese/English key and widens Space.";
+"Import a ZIP or folder from Files, share a ZIP to Arkey, or enter an HTTPS ZIP link." = "Import a ZIP or folder from Files, share a ZIP to Arkey, or enter an HTTPS ZIP link.";
+"Import backs up current settings and redeploys automatically." = "Import backs up current settings and redeploys automatically.";
+"Imported profiles must be deployed before use." = "Imported profiles must be deployed before use.";
+"Key popups appear only on phones." = "Key popups appear only on phones.";
+"Key sounds require system keyboard sounds and are muted in silent mode." = "Key sounds require system keyboard sounds and are muted in silent mode.";
+"Learning is stored by dictionary name, so switching profiles and back keeps learned words." = "Learning is stored by dictionary name, so switching profiles and back keeps learned words.";
+"Merging adds other devices’ words and creates a backup first." = "Merging adds other devices’ words and creates a backup first.";
+"Merging reads other devices’ snapshots from the shared sync folder." = "Merging reads other devices’ snapshots from the shared sync folder.";
+"Modified" = "Modified";
+"Only changes how uncommitted text is displayed." = "Only changes how uncommitted text is displayed.";
+"Personal words are kept when switching or deleting profiles." = "Personal words are kept when switching or deleting profiles.";
+"Release follows stable versions; Nightly follows development builds." = "Release follows stable versions; Nightly follows development builds.";
+"Replace all replaces the existing phrase list with the imported phrases." = "Replace all replaces the existing phrase list with the imported phrases.";
+"Restores keyboard settings while keeping the auxiliary prefix and spelling." = "Restores keyboard settings while keeping the auxiliary prefix and spelling.";
+"Settings exports include custom settings and phrases, excluding downloaded or imported profiles." = "Settings exports include custom settings and phrases, excluding downloaded or imported profiles.";
+"Slim omits the large dictionary but downloads the same amount of data as Full." = "Slim omits the large dictionary but downloads the same amount of data as Full.";
+"Startup defaults" = "Startup defaults";
+"Sync folder" = "Sync folder";
+"System mode uses the host keyboard background; the fixed palette uses solid colors." = "System mode uses the host keyboard background; the fixed palette uses solid colors.";
+"The ZIP contains original dictionary snapshots, a readable word index, and instructions; it cannot be imported directly into Squirrel." = "The ZIP contains original dictionary snapshots, a readable word index, and instructions; it cannot be imported directly into Squirrel.";
+"The keyboard uses this language the next time it opens." = "The keyboard uses this language the next time it opens.";
+"The symbol table determines which symbols the scheme offers." = "The symbol table determines which symbols the scheme offers.";
+"These switches set the scheme’s initial state when the keyboard opens." = "These switches set the scheme’s initial state when the keyboard opens.";
+"Transfer adds missing words without combining learning scores." = "Transfer adds missing words without combining learning scores.";
+"Turning off learning keeps existing learned words." = "Turning off learning keeps existing learned words.";
+"Updates" = "Updates";
+"Updates install separately and keep the current version." = "Updates install separately and keep the current version.";
+"Usage guide" = "Usage guide";
+"Use the globe key for other keyboards; numbers, symbols, and mixed-language input from your scheme remain available." = "Use the globe key for other keyboards; numbers, symbols, and mixed-language input from your scheme remain available.";
+"Import replaces the entire phrase list." = "Import replaces the entire phrase list.";
+"To hear key sounds, enable Sound in Settings > Sounds & Haptics > Keyboard Feedback." = "To hear key sounds, enable Sound in Settings > Sounds & Haptics > Keyboard Feedback.";
+"Full dictionary with broader coverage, slower deployment, and more storage." = "Full dictionary with broader coverage, slower deployment, and more storage.";
+"Recommended for faster deployment and less storage, with reduced candidate coverage." = "Recommended for faster deployment and less storage, with reduced candidate coverage.";
+"Full dictionary with broader coverage and development-build compatibility risks." = "Full dictionary with broader coverage and development-build compatibility risks.";
+"Faster deployment with reduced coverage and development-build compatibility risks." = "Faster deployment with reduced coverage and development-build compatibility risks.";

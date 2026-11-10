@@ -33,15 +33,19 @@ struct CatalogView: View {
       } header: {
         Text(RimeLocalization.text("Preset downloads"))
       } footer: {
-        Text(RimeLocalization.text("Slim downloads the official full.zip, then removes the large dictionary locally. Download size is the same. Downloads install in Profile library; deployment is a separate action."))
+        Text(RimeLocalization.text("Downloaded profiles must be deployed from Profile library before use."))
       }
       Section {
         Link(RimeLocalization.text("Upstream repository"), destination: URL(string: "https://github.com/iDvel/rime-ice")!)
-      } footer: {
-        Text(RimeLocalization.text("Release uses the latest stable publication. Nightly follows development builds and is identified independently of GitHub’s prerelease flag."))
       }
     }
     .navigationTitle(RimeLocalization.text("Download profiles"))
+    .settingsHelp {
+      Section(RimeLocalization.text("Preset downloads")) {
+        Text(RimeLocalization.text("Slim omits the large dictionary but downloads the same amount of data as Full."))
+        Text(RimeLocalization.text("Release follows stable versions; Nightly follows development builds."))
+      }
+    }
     .accessibilityIdentifier("preset-downloads")
     .onChange(of: model.downloadPhase) { _, phase in
       showingDownloadError = phase == .failed && model.downloadEntryID != nil

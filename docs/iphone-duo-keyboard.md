@@ -1,7 +1,7 @@
 # iPhone Duo split keyboard
 
-On iOS 27.1 and later, the keyboard extension and its in-app preview observe
-`UIHingeInteraction`. A partially open hinge enables a split keyboard when the
+On iOS 27.1 and later, the keyboard extension observes `UIHingeInteraction`.
+A partially open hinge enables a split keyboard when the
 key grid has room for both banks. Closed and fully open states use the standard
 layout. An unknown or unavailable hinge can still use an active vertical
 `UIView.ReservedRegion.Kind.division` crossing the key grid.

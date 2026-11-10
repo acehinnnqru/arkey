@@ -18,6 +18,16 @@ struct DiagnosticsView: View {
   var body: some View {
     let _ = interfaceLocale
     List {
+      Section {
+        Toggle(RimeLocalization.text("Debug mode"), isOn: Binding(
+          get: { model.keyboardPreferences.debugModeEnabled },
+          set: { value in model.updatePreferences { $0.debugModeEnabled = value } }))
+          .accessibilityIdentifier("diagnostics-debug-mode")
+        if let error = model.errorMessage { UserFacing.errorRow(error) }
+      } footer: {
+        Text(RimeLocalization.text("Show startup status in the candidate bar. Off by default; applies next time the keyboard opens."))
+      }
+
       Section(RimeLocalization.text("Profile")) {
         // S1 §9: every degraded mode names the exact path this process resolves.
         Text(model.resolvedSummary.text).font(.footnote)
@@ -104,7 +114,10 @@ struct DiagnosticsView: View {
     } message: {
       Text(copyResult.text)
     }
-    .task { await loadInBackground() }
+    .task {
+      model.keyboardPreferences = model.preferencesStore?.value ?? .standard
+      await loadInBackground()
+    }
   }
 
   // MARK: - Log access

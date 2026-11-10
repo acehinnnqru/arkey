@@ -1,10 +1,3 @@
-//
-//  arkeyApp.swift
-//  arkey
-//
-//  Created by rqc on 2026/9/23.
-//
-
 import SwiftUI
 import RimeEngine
 

@@ -22,15 +22,15 @@ struct KeyboardSettingsView: View {
       appearanceSection
       feedbackSection
       resetSection
-      // The auxiliary prefix deploys; the other keyboard preferences need no deploy.
       Section {
-        Label(RimeLocalization.text("Changing the auxiliary prefix deploys the Rime scheme; other keyboard settings apply next time it opens."), systemImage: "checkmark.circle")
+        Text(RimeLocalization.text("Changes take effect the next time the keyboard opens."))
           .font(.caption).foregroundStyle(.secondary)
       }
       if let error = model.errorMessage { UserFacing.errorRow(error) }
     }
     .modifier(SettingsLoadingPresentation(isLoading: isLoading))
     .navigationTitle(RimeLocalization.text("Keyboard"))
+    .settingsHelp { usageGuide }
     .task {
       isLoading = true
       await model.refreshPreferences()
@@ -46,7 +46,7 @@ struct KeyboardSettingsView: View {
         set: { value in model.updatePreferences { $0.chineseInputOnly = value } }))
         .accessibilityIdentifier("chinese-input-only")
     } footer: {
-      Text(RimeLocalization.text("Hide the Chinese/English key and widen Space. Use the globe key for other keyboards. Numbers, symbols, and mixed-language input from your scheme remain available."))
+      Text(RimeLocalization.text("Hides the Chinese/English key and widens Space."))
     }
   }
 
@@ -60,8 +60,6 @@ struct KeyboardSettingsView: View {
         set: { value in model.updatePreferences { $0.rightSpaceKey = value } }))
     } header: {
       Text(RimeLocalization.text("Chinese keyboard — keys beside Space"))
-    } footer: {
-      Text(RimeLocalization.text("Both keys are off by default. Configure each side independently; hiding the right key widens Return while keeping enough room for Space. Custom characters accept one letter, number, or half-width symbol and follow the current input scheme."))
     }
   }
 
@@ -75,8 +73,6 @@ struct KeyboardSettingsView: View {
         set: { value in model.updatePreferences { $0.englishRightSpaceKey = value } }), allowsAuxiliary: false)
     } header: {
       Text(RimeLocalization.text("English keyboard — keys beside Space"))
-    } footer: {
-      Text(RimeLocalization.text("Both keys are off by default. English input supports custom characters only; these settings apply when you switch to English."))
     }
   }
 
@@ -119,7 +115,7 @@ struct KeyboardSettingsView: View {
     } header: {
       Text(RimeLocalization.text("Auxiliary key"))
     } footer: {
-      Text(RimeLocalization.text("Enter one half-width special character. Full-width equivalents are converted automatically. Assign Auxiliary key to either side of Space to show it. The prefix and spelling are saved to the current scheme and radical_pinyin, then deployed automatically. Choose the spelling you use; schemes share the same auxiliary rules."))
+      Text(RimeLocalization.text("Choose Auxiliary key beside Space to show it on the Chinese keyboard."))
     }
   }
 
@@ -134,7 +130,7 @@ struct KeyboardSettingsView: View {
     } header: {
       Text(RimeLocalization.text("Uncommitted text"))
     } footer: {
-      Text(RimeLocalization.text("For Flypy input nihcaa, Original keys shows ni hc aa and Schema output shows ni hao a. Return commits nihcaa in either mode. Display spacing does not change candidate selection or deletion."))
+      Text(RimeLocalization.text("Only changes how uncommitted text is displayed."))
     }
   }
 
@@ -148,8 +144,6 @@ struct KeyboardSettingsView: View {
       }
     } header: {
       Text(RimeLocalization.text("Appearance"))
-    } footer: {
-      Text(RimeLocalization.text("System mode uses the host keyboard background. The fixed palette uses solid colors and may differ from the system strip. Changes apply the next time Arkey appears."))
     }
   }
 
@@ -158,16 +152,9 @@ struct KeyboardSettingsView: View {
       Toggle(RimeLocalization.text("Key popups"), isOn: Binding(
         get: { model.keyboardPreferences.calloutEnabled },
         set: { value in model.updatePreferences { $0.calloutEnabled = value } }))
-      Toggle(isOn: Binding(
+      Toggle(RimeLocalization.text("Key sounds"), isOn: Binding(
         get: { model.keyboardPreferences.keyClickEnabled },
-        set: { value in model.updatePreferences { $0.keyClickEnabled = value } })) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(RimeLocalization.text("Key sounds"))
-          Text(RimeLocalization.text("Also requires Sound in Settings > Sounds & Haptics > Keyboard Feedback. Silent mode mutes key sounds."))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
+        set: { value in model.updatePreferences { $0.keyClickEnabled = value } }))
       Toggle(RimeLocalization.text("Haptic feedback"), isOn: Binding(
         get: { model.keyboardPreferences.hapticsEnabled },
         set: { value in model.updatePreferences { $0.hapticsEnabled = value } }))
@@ -191,7 +178,9 @@ struct KeyboardSettingsView: View {
     } header: {
       Text(RimeLocalization.text("Feedback"))
     } footer: {
-      Text(RimeLocalization.text("Key popups appear only on phones and stay within the keyboard. Delete repeat uses the default timings; adjust them here after testing on a device."))
+      if model.keyboardPreferences.keyClickEnabled {
+        Text(RimeLocalization.text("Key sounds require system keyboard sounds and are muted in silent mode."))
+      }
     }
   }
 
@@ -204,7 +193,35 @@ struct KeyboardSettingsView: View {
         }
       }
     } footer: {
-      Text(RimeLocalization.text("Restore keyboard appearance and key settings. Keep the auxiliary prefix and spelling configured in the Rime scheme."))
+      Text(RimeLocalization.text("Restores keyboard settings while keeping the auxiliary prefix and spelling."))
+    }
+  }
+
+  private var usageGuide: some View {
+    Group {
+      Section(RimeLocalization.text("Chinese input only")) {
+        Text(RimeLocalization.text("Use the globe key for other keyboards; numbers, symbols, and mixed-language input from your scheme remain available."))
+      }
+      Section(RimeLocalization.text("Keys beside Space")) {
+        Text(RimeLocalization.text("Configure each side independently for Chinese and English input; hiding the right key widens Return."))
+        Text(RimeLocalization.text("Custom characters accept one letter, number, or half-width symbol and follow the current input scheme."))
+        Text(RimeLocalization.text("English input supports custom characters only."))
+      }
+      Section(RimeLocalization.text("Auxiliary key")) {
+        Text(RimeLocalization.text("Enter one half-width special character; full-width equivalents are converted automatically."))
+        Text(RimeLocalization.text("Choose the auxiliary spelling you use; schemes share the same auxiliary rules."))
+        Text(RimeLocalization.text("Changes to the auxiliary prefix or spelling deploy automatically."))
+      }
+      Section(RimeLocalization.text("Uncommitted text")) {
+        Text(RimeLocalization.text("For Flypy input nihcaa, Original keys shows ni hc aa and Schema output shows ni hao a. Return commits nihcaa in either mode. Display spacing does not change candidate selection or deletion."))
+      }
+      Section(RimeLocalization.text("Appearance")) {
+        Text(RimeLocalization.text("System mode uses the host keyboard background; the fixed palette uses solid colors."))
+      }
+      Section(RimeLocalization.text("Feedback")) {
+        Text(RimeLocalization.text("Key popups appear only on phones."))
+        Text(RimeLocalization.text("To hear key sounds, enable Sound in Settings > Sounds & Haptics > Keyboard Feedback."))
+      }
     }
   }
 }

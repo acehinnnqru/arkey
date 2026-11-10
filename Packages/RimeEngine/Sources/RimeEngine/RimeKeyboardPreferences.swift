@@ -132,6 +132,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
   public var calloutEnabled: Bool
   public var chineseInputOnly: Bool
   public var capsLockEnabled: Bool
+  /// Show startup diagnostics in the candidate bar only when explicitly enabled.
+  public var debugModeEnabled: Bool
   /// The calibrated repeat timing, so a device pass changes one stored value rather than a constant.
   public var deleteRepeatDelay: TimeInterval
   public var deleteRepeatInterval: TimeInterval
@@ -149,6 +151,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
               calloutEnabled: Bool = true,
               capsLockEnabled: Bool = true,
               chineseInputOnly: Bool = false,
+              debugModeEnabled: Bool = false,
               deleteRepeatDelay: TimeInterval = RimeKeyFeedback.standard.deleteRepeatDelay,
               deleteRepeatInterval: TimeInterval = RimeKeyFeedback.standard.deleteRepeatInterval) {
     self.auxiliaryPrefix = Self.normalizedAuxiliaryPrefix(auxiliaryPrefix) ?? ","
@@ -164,6 +167,7 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
     self.calloutEnabled = calloutEnabled
     self.capsLockEnabled = capsLockEnabled
     self.chineseInputOnly = chineseInputOnly
+    self.debugModeEnabled = debugModeEnabled
     self.deleteRepeatDelay = deleteRepeatDelay
     self.deleteRepeatInterval = deleteRepeatInterval
   }
@@ -209,6 +213,8 @@ public struct RimeKeyboardPreferences: Codable, Sendable, Equatable {
       ?? standard.chineseInputOnly
     capsLockEnabled = try container.decodeIfPresent(Bool.self, forKey: .capsLockEnabled)
       ?? standard.capsLockEnabled
+    debugModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .debugModeEnabled)
+      ?? standard.debugModeEnabled
     deleteRepeatDelay = try container.decodeIfPresent(TimeInterval.self, forKey: .deleteRepeatDelay)
       ?? standard.deleteRepeatDelay
     deleteRepeatInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .deleteRepeatInterval)

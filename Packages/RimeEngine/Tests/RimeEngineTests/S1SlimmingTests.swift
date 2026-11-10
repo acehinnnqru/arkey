@@ -112,6 +112,32 @@ final class S1SlimmingTests: XCTestCase {
     XCTAssertTrue(result.rewrittenFiles.isEmpty)
   }
 
+  func testCommentedAndQuotedImportsAreRemovedBeforeValidation() throws {
+    let entries = [
+      "cn_dicts/tencent  # Large dictionary; slow deployment",
+      "'cn_dicts/tencent' # Large dictionary",
+      "\"./cn_dicts/tencent.dict.yaml\" # Large dictionary",
+      "{ table: cn_dicts/tencent } # Large dictionary",
+    ]
+    for (index, entry) in entries.enumerated() {
+      let source = try makeSource(name: "commented-\(index)")
+      let url = source.appendingPathComponent("tracer.dict.yaml")
+      let original = try String(contentsOf: url, encoding: .utf8)
+        .replacingOccurrences(of: "import_tables:", with: "import_tables:   # Dictionary imports")
+        .replacingOccurrences(of: "- cn_dicts/tencent", with: "- " + entry)
+      try original.write(to: url, atomically: true, encoding: .utf8)
+
+      let result = try RimeProfileSlimming.removeImportTables(["cn_dicts/tencent"], from: source,
+                                                              engine: engine)
+      XCTAssertEqual(result.removedFiles, ["cn_dicts/tencent.dict.yaml"], entry)
+      XCTAssertEqual(result.rewrittenFiles, ["tracer.dict.yaml"], entry)
+      XCTAssertEqual(try String(contentsOf: url, encoding: .utf8),
+        original.replacingOccurrences(of: "  - " + entry + "\n", with: ""), entry)
+      let validation = RimeConfigValidation.validate(source: source, engine: engine)
+      XCTAssertTrue(validation.isAcceptable, String(describing: validation.errors))
+    }
+  }
+
   /// A rewrite that librime would not read is refused, and the file is left exactly as it was.
   func testAFailedVerificationLeavesTheFileUntouched() throws {
     let source = try makeSource()
@@ -155,19 +181,15 @@ final class S1SlimmingTests: XCTestCase {
     let text = try String(contentsOf: dictionaryURL, encoding: .utf8)
     let withImport = text.replacingOccurrences(
       of: "name: tracer",
-      with: "name: tracer\nimport_tables:\n  - cn_dicts/base")
+      with: "name: tracer\nimport_tables:\n  - cn_dicts/base  # Large dictionary")
     XCTAssertNotEqual(withImport, text, "the fixture dictionary must name the table")
     try withImport.write(to: dictionaryURL, atomically: true, encoding: .utf8)
-
-    let result = try RimeProfileSlimming.removeImportTables(["cn_dicts/base"], from: source,
-                                                            engine: engine)
-    XCTAssertEqual(result.rewrittenFiles, ["tracer.dict.yaml"])
-    XCTAssertEqual(result.removedFiles, ["cn_dicts/base.dict.yaml"])
 
     let importer = RimeImporter(workspace: workspace, engine: engine)
     let outcome = try importer.import(payload: source,
                                       options: RimeImportOptions(displayName: "Slim",
-                                                                 origin: RimeProfileSource(kind: .files)))
+                                        origin: RimeProfileSource(kind: .files),
+                                        removedImportTables: ["cn_dicts/base"]))
     _ = try RimeDeploymentCoordinator(workspace: workspace, engine: engine)
       .deploySync(profileID: outcome.profileID)
     try engine.openSession()

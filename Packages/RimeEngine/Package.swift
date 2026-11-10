@@ -18,7 +18,7 @@ let package = Package(
   dependencies: [
     // Binary packaging of upstream librime. Pinned exactly: the prebuilt tables shipped in
     // RimeData/build are produced by this version and must match it at runtime.
-    .package(url: "https://github.com/ghostflyby/librime-xcframework", exact: "1.17.0-pack.9.0.2"),
+    .package(url: "https://github.com/acehinnnqru/librime-xcframework", exact: "1.17.0-pack.0.0.0"),
   ],
   targets: [
     .target(

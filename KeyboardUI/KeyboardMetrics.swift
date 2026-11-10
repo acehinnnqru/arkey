@@ -51,7 +51,7 @@ enum KeyboardGlobePolicy {
   }
 }
 
-/// Shared geometry for the extension and in-app preview.
+/// Shared geometry for the extension and keyboard rendering tests.
 enum KeyboardMetrics {
   static var style: RimeKeyboardStyle { .systemAligned }
 
@@ -102,21 +102,19 @@ struct KeyboardTheme {
   let appearance: UIKeyboardAppearance
   private let palette: RimeKeyboardPalette
 
-  /// Losing the text client during a navigation transition is not a theme change.
-  /// Resolve a real default appearance from traits, and retain the last palette
-  /// while the proxy temporarily has no appearance to report.
+  /// A missing text client must not mask a newly resolved host appearance.
+  /// Retain the last palette only when neither the client nor traits can resolve it.
   static func current(for appearance: UIKeyboardAppearance?,
                       interfaceStyle: UIUserInterfaceStyle = .unspecified,
+                      fallbackInterfaceStyle: UIUserInterfaceStyle = .unspecified,
                       previous: KeyboardTheme? = nil) -> KeyboardTheme {
-    guard let appearance else {
-      return previous ?? current(for: .default, interfaceStyle: interfaceStyle)
-    }
     let resolved: UIKeyboardAppearance
-    switch appearance {
+    switch appearance ?? .default {
     case .light: resolved = .light
     case .dark, .alert: resolved = .dark
     default:
-      switch interfaceStyle {
+      let style = interfaceStyle == .unspecified ? fallbackInterfaceStyle : interfaceStyle
+      switch style {
       case .dark: resolved = .dark
       case .light: resolved = .light
       default: resolved = previous?.appearance ?? .light

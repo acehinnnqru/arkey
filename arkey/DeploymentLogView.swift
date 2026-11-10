@@ -19,11 +19,11 @@ struct DeploymentLogView: View {
           }
           Text(UserFacing.text(attempt.message))
             .foregroundStyle(attempt.failed ? Color.red : Color.secondary)
-          if attempt.finishedAt == nil { ProgressView(RimeLocalization.text("Deploying…")) }
+          if attempt.finishedAt == nil, !attempt.wasInterrupted { ProgressView(RimeLocalization.text("Deploying…")) }
         }
         Section {
           if attempt.logs.isEmpty {
-            Text(attempt.finishedAt == nil
+            Text(attempt.finishedAt == nil && !attempt.wasInterrupted
                  ? RimeLocalization.text("Logs will appear when this deployment finishes.")
                  : RimeLocalization.text("No engine log was returned for this attempt."))
               .foregroundStyle(.secondary)

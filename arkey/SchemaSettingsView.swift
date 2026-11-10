@@ -16,7 +16,6 @@ struct SchemaSettingsView: View {
         switchSection(descriptor)
         inputSection(descriptor)
         fuzzySection
-        footerSection(descriptor)
       } else if !isLoading {
         Section {
           Text(RimeLocalization.text("No scheme is available. Import and deploy a profile in the profile library first."))
@@ -28,6 +27,7 @@ struct SchemaSettingsView: View {
     }
     .modifier(SettingsLoadingPresentation(isLoading: isLoading))
     .navigationTitle(RimeLocalization.text("Scheme"))
+    .settingsHelp { usageGuide }
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
         Button(RimeLocalization.text("Refresh")) { Task { await model.refreshSettings() } }
@@ -62,7 +62,7 @@ struct SchemaSettingsView: View {
     } header: {
       Text(RimeLocalization.text("Scheme"))
     } footer: {
-      Text(RimeLocalization.text("Choose one input scheme. Changes are deployed automatically and take effect the next time the keyboard opens."))
+      Text(RimeLocalization.text("Changes deploy automatically and take effect the next time the keyboard opens."))
     }
   }
 
@@ -82,13 +82,12 @@ struct SchemaSettingsView: View {
         }
       }
     } header: {
-      Text(RimeLocalization.text("Switches"))
+      Text(RimeLocalization.text("Startup defaults"))
     } footer: {
-      Text(RimeLocalization.text("These are the scheme’s startup defaults and take effect after deployment when the keyboard next opens. Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style."))
       // Measured: setting one switch writes the whole list, so the file cannot say which switch the
       // user changed. The section is marked, not each row.
       Text(descriptor.switches.contains { $0.isUserSet }
-           ? RimeLocalization.text("Modified (switches are saved together, so the entire section is marked)")
+           ? RimeLocalization.text("Modified")
            : RimeLocalization.text("Scheme defaults"))
     }
   }
@@ -152,14 +151,9 @@ struct SchemaSettingsView: View {
         Text(setting.title + "：" + (setting.effective?.displayText ?? RimeLocalization.text("Not set")))
           .font(.body)
       }
-      HStack(spacing: 8) {
-        if let note = setting.note {
-          Text(note).font(.caption2).foregroundStyle(.secondary)
-        }
-        if setting.isUserSet {
-          Button(RimeLocalization.text("Reset")) { model.resetSetting(setting) }
-            .font(.caption2)
-        }
+      if setting.isUserSet {
+        Button(RimeLocalization.text("Reset")) { model.resetSetting(setting) }
+          .font(.caption2)
       }
     }
     .padding(.vertical, 2)
@@ -183,16 +177,23 @@ struct SchemaSettingsView: View {
       }
     } header: {
       Text(RimeLocalization.text("Fuzzy pinyin"))
-    } footer: {
-      Text(RimeLocalization.text("Saved together in speller/algebra. Repeated toggles do not duplicate rules; disabling removes only that preset’s rules."))
     }
   }
 
-  /// Explains where schema changes are saved and when the keyboard adopts them.
-  private func footerSection(_ descriptor: RimeSchemaDescriptor) -> some View {
-    Text(RimeLocalization.text("Changes are saved to \((descriptor.schemaID)).custom.yaml and deployed automatically. The keyboard adopts them next time it opens."))
-      .font(.caption2)
-      .foregroundStyle(.secondary)
+  private var usageGuide: some View {
+    Group {
+      Section(RimeLocalization.text("Startup defaults")) {
+        Text(RimeLocalization.text("These switches set the scheme’s initial state when the keyboard opens."))
+        Text(RimeLocalization.text("Half-width can still use Chinese punctuation; use the scheme’s Chinese/English punctuation switch to choose punctuation style."))
+      }
+      Section(RimeLocalization.text("Input")) {
+        Text(RimeLocalization.text("Available input options depend on the selected scheme."))
+        Text(RimeLocalization.text("Turning off learning keeps existing learned words."))
+      }
+      Section(RimeLocalization.text("Fuzzy pinyin")) {
+        Text(RimeLocalization.text("Enable the pronunciation pairs you want to treat as equivalent."))
+      }
+    }
   }
 
   private func errorSection(_ message: RimeLocalizedMessage) -> some View {
