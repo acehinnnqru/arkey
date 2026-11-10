@@ -4,9 +4,8 @@ import SwiftUI
 /// What the user reads, as opposed to what the model holds.
 ///
 /// The model keeps the whole sentence: tests assert on it, and the probe log is where internals belong. A
-/// filesystem path is neither — one leaked into the UI next to a real failure ("the profile has no sources at
-/// /Users/…/profiles//source"), and a path on a phone is meaningless to the person holding it. Every screen that
-/// shows a message from the model goes through here, so the folding cannot be forgotten on one screen.
+/// full container path leaked into the UI alongside a missing profile source error. Screens use this helper
+/// to show the relevant folder name without exposing the container path.
 enum UserFacing {
   /// The message with absolute locations folded to "…/last", which keeps the folder's name and drops the
   /// container's. A location is two or more slash-separated parts; config keys like

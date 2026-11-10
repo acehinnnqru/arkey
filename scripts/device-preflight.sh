@@ -24,16 +24,22 @@ for argument in "$@"; do
   esac
 done
 
+work="$(mktemp -d -t arkey-preflight)" || exit 2
+trap 'rm -rf "$work"' EXIT
+log="$work/preflight.log"
+staging="$work/staging"
+mkdir "$staging" || exit 2
+
 failed=0
 step() { printf "\n== %s ==\n" "$1"; }
 run() {
   local name="$1"; shift
   step "$name"
-  if "$@" > /tmp/arkey-preflight.log 2>&1; then
-    tail -2 /tmp/arkey-preflight.log
+  if "$@" > "$log" 2>&1; then
+    tail -2 "$log"
   else
     echo "  FAILED — last lines:"
-    tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'
+    tail -6 "$log" | sed 's/^/    /'
     failed=1
   fi
 }
@@ -41,25 +47,23 @@ run() {
 run "the whole chain (engine, status, wiring, coverage, links, type-check)" ./scripts/verify-all.sh
 run "the measuring tool" swift run --disable-sandbox --package-path Packages/RimeEngine rime-capture-check --self-test
 
-staging="$(mktemp -d /tmp/arkey-preflight-staging.XXXXXX)"
 step "the deployer and its probe"
 if swift run --disable-sandbox --package-path Packages/RimeEngine rime-deploy \
-     --shared RimeData --staging "$staging" --probe nihaoshijie > /tmp/arkey-preflight.log 2>&1; then
-  grep -E "preedit|candidates|files" /tmp/arkey-preflight.log | tail -3
+     --shared RimeData --staging "$staging" --probe nihaoshijie > "$log" 2>&1; then
+  grep -E "preedit|candidates|files" "$log" | tail -3
 else
-  echo "  FAILED — last lines:"; tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'; failed=1
+  echo "  FAILED — last lines:"; tail -6 "$log" | sed 's/^/    /'; failed=1
 fi
-rm -rf "$staging"
 
 if [ "$with_ui" = 1 ]; then
   step "the screens and the keyboard, on a simulator"
   if xcodebuild test -project arkey.xcodeproj -scheme arkey \
        -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath .build/DerivedData-ui \
        -only-testing:arkeyUITests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-       > /tmp/arkey-preflight.log 2>&1; then
-    grep -E "Executed [0-9]+ tests, with" /tmp/arkey-preflight.log | tail -1
+       > "$log" 2>&1; then
+    grep -E "Executed [0-9]+ tests, with" "$log" | tail -1
   else
-    echo "  FAILED — last lines:"; tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'; failed=1
+    echo "  FAILED — last lines:"; tail -6 "$log" | sed 's/^/    /'; failed=1
   fi
 fi
 
@@ -67,12 +71,12 @@ if [ "$with_release" = 1 ]; then
   step "the unsigned Release bundle and its check"
   if xcodebuild -project arkey.xcodeproj -scheme arkey -configuration Release -sdk iphoneos \
        -derivedDataPath .build/ci-derived CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build \
-       > /tmp/arkey-preflight.log 2>&1 \
+       > "$log" 2>&1 \
      && ./scripts/check-release-bundle.sh .build/ci-derived/Build/Products/Release-iphoneos/arkey.app \
-       >> /tmp/arkey-preflight.log 2>&1; then
-    tail -3 /tmp/arkey-preflight.log
+       >> "$log" 2>&1; then
+    tail -3 "$log"
   else
-    echo "  FAILED — last lines:"; tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'; failed=1
+    echo "  FAILED — last lines:"; tail -6 "$log" | sed 's/^/    /'; failed=1
   fi
 fi
 
@@ -81,22 +85,22 @@ if [ "$with_archive" = 1 ]; then
   rm -rf .build/arkey.xcarchive
   if xcodebuild -project arkey.xcodeproj -scheme arkey -configuration Release \
        -destination 'generic/platform=iOS' -archivePath .build/arkey.xcarchive archive \
-       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > /tmp/arkey-preflight.log 2>&1 \
+       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > "$log" 2>&1 \
      && ./scripts/check-release-bundle.sh .build/arkey.xcarchive/Products/Applications/arkey.app \
-       >> /tmp/arkey-preflight.log 2>&1; then
-    grep -E "Rime data files|no findings" /tmp/arkey-preflight.log | tail -2
+       >> "$log" 2>&1; then
+    grep -E "Rime data files|no findings" "$log" | tail -2
   else
-    echo "  FAILED — last lines:"; tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'; failed=1
+    echo "  FAILED — last lines:"; tail -6 "$log" | sed 's/^/    /'; failed=1
   fi
 fi
 
 step "the catalogue pages"
-if ./scripts/check-catalog-pages.sh > /tmp/arkey-preflight.log 2>&1; then
-  tail -2 /tmp/arkey-preflight.log
+if ./scripts/check-catalog-pages.sh > "$log" 2>&1; then
+  tail -2 "$log"
 else
   # Unreachable URLs are warnings; a nonzero exit indicates the check itself failed.
   echo "  FAILED:"
-  tail -6 /tmp/arkey-preflight.log | sed 's/^/    /'
+  tail -6 "$log" | sed 's/^/    /'
   failed=1
 fi
 

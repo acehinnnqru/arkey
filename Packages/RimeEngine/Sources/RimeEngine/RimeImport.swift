@@ -61,11 +61,9 @@ public enum RimeConfigRootLocator {
         throw RimeImportError.configRootAmbiguous(found.map(\.lastPathComponent))
       }
     }
-    // Nothing within the cap. Before saying "this is not a Rime config", look below it: an archive made
-    // from a path — `zip -r backup.zip /Users/me/Library/Rime`, which stores `Users/me/Library/Rime/…` —
-    // holds a perfectly good config three folders under the cap, and refusing *that* as "not a config" is
-    // a lie the user cannot act on. The cap stays (S1 §5.1 stage 3, so a nested archive is never mistaken
-    // for the config); the sentence says where the config actually is.
+    // An archive created with `zip -r backup.zip ~/Library/Rime` includes parent folders and can put
+    // a valid config below the depth limit. Report where it was found while keeping the limit in
+    // S1 §5.1 stage 3.
     if let buried = firstMatchBelowCap(in: tree, fileManager: fileManager) {
       throw RimeImportError.configRootTooDeep(buried.path, buried.depth)
     }

@@ -309,7 +309,7 @@ final class S1WorkspaceTests: XCTestCase {
     try Data("installation_id: MAC\n".utf8).write(to: record)
     let unreadable = try Data(contentsOf: record)
 
-    let seeded = try workspace.seedInstallation(syncDirectory: URL(fileURLWithPath: "/tmp/arkey-sync"))
+    let seeded = try workspace.seedInstallation(syncDirectory: workspace.root.appendingPathComponent("sync"))
     XCTAssertEqual(workspace.loadInstallation()?.installationID, seeded.installationID,
                    "the workspace is usable again")
 

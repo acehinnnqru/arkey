@@ -188,7 +188,7 @@ final class S6ReleaseCheckTests: XCTestCase {
   /// written for, the enumerator yielded nothing, the empty result became a warning, and `isClean` was
   /// true — a typo, or a build that produced nothing, would have passed the release check.
   func testABundleThatIsNotThereIsAnErrorRatherThanAWarning() {
-    let missing = URL(fileURLWithPath: "/tmp/arkey-no-such-bundle-(UUID().uuidString).app")
+    let missing = scratch.appendingPathComponent("missing.app", isDirectory: true)
     let result = RimeReleaseCheck.check(bundle: missing, tracerData: tracerData)
     XCTAssertFalse(result.isClean, "a missing bundle must not pass")
     XCTAssertEqual(result.errors.count, 1)

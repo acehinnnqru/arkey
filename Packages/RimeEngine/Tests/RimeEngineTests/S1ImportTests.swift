@@ -177,7 +177,7 @@ final class S1ImportTests: XCTestCase {
     XCTAssertEqual(stagingEntryCount(), 0, "a failed import leaves staging empty")
   }
 
-  /// Round 190's archive: `zip -r backup.zip /Users/me/Library/Rime` stores the path, so a perfectly good
+  /// Round 190's archive: `zip -r backup.zip ~/Library/Rime` stores the path, so a perfectly good
   /// config arrives four folders down. §5.1 stage 3's cap still refuses it — a nested archive must not be
   /// mistaken for the config — but the refusal has to say *where* the config is, because "no folder in the
   /// import holds default.yaml and a schema" is untrue of this archive and leaves the user nothing to do.
@@ -226,7 +226,8 @@ final class S1ImportTests: XCTestCase {
       .write(to: tree.appendingPathComponent("default.custom.yaml"))
     try Data("你好\tni hao\n".utf8).write(to: tree.appendingPathComponent("custom_phrase.txt"))
     try Data("var:\n  last_schema: tracer\n".utf8).write(to: tree.appendingPathComponent("user.yaml"))
-    try Data("installation_id: MAC\nsync_dir: /Users/x/Rime/sync\n".utf8)
+    let syncDirectory = scratch.appendingPathComponent("squirrel-sync", isDirectory: true)
+    try Data("installation_id: MAC\nsync_dir: \(syncDirectory.path)\n".utf8)
       .write(to: tree.appendingPathComponent("installation.yaml"))
     try fileManager.createDirectory(at: tree.appendingPathComponent("tracer.userdb", isDirectory: true),
                                     withIntermediateDirectories: true)

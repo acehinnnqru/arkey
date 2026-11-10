@@ -175,8 +175,8 @@ Tools/rime-deploy (macOS CLI, same package) --> compiles RimeData/*.yaml into
 | `shared_data_dir` | `<bundle>/RimeData` (schemas, `default.yaml`) | no |
 | `prebuilt_data_dir` | `<bundle>/RimeData/build` (compiled `.bin`) | no |
 | `user_data_dir` | app group container `/rime` if reachable, else `<extension container>/rime` | yes |
-| `staging_dir` | same writable root `/rime/build` | yes |
-| `log_dir` | writable root `/rime/log` (librime `min_log_level = 2` by default) | yes |
+| `staging_dir` | `rime/build` under the writable root | yes |
+| `log_dir` | `rime/log` under the writable root (librime `min_log_level = 2` by default) | yes |
 
 Splitting config from compiled artifacts this way means the extension never writes to the
 bundle and never deploys on the hot path — the same shape RimeKit's `RimeDirectoryLayout`
