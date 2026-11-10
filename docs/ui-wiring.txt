@@ -45,7 +45,6 @@ commitComposition
 commits
 compactDescription
 components
-composition
 compressedBytes
 compressionRatioFloorBytes
 compressionRatioLimit
@@ -114,11 +113,13 @@ headlinePhases
 heartbeat
 hex
 highlightCandidate
+highlightedIndex
 home
 host
 htmlURL
 importUserDictionary
 input
+installationID
 installationRecord
 intValue
 isAcceptable
